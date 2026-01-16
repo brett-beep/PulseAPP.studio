@@ -129,7 +129,8 @@ Return comprehensive, actionable financial intelligence that this investor can l
                 },
                 body: JSON.stringify({
                     text: briefingData.script,
-                    model_id: 'eleven_monolingual_v1',
+                    model_id: "eleven_multilingual_v2",
+                    output_format: "mp3_44100_128",
                     voice_settings: {
                         stability: 0.5,
                         similarity_boost: 0.75,
@@ -154,8 +155,13 @@ Return comprehensive, actionable financial intelligence that this investor can l
         const audioBlob = await ttsResponse.blob();
         const audioFile = new File([audioBlob], `briefing-${date}.mp3`, { type: 'audio/mpeg' });
 
-        const uploadResult = await base44.asServiceRole.integrations.Core.UploadFile({
+        const { file_uri } = await base44.asServiceRole.integrations.Core.UploadPrivateFile({
             file: audioFile
+        });
+
+        const { signed_url } = await base44.asServiceRole.integrations.Core.CreateFileSignedUrl({
+            file_uri,
+            expires_in: 60 * 60 * 6
         });
 
         // Create or update the briefing record
@@ -166,7 +172,8 @@ Return comprehensive, actionable financial intelligence that this investor can l
             market_sentiment: briefingData.market_sentiment,
             key_highlights: briefingData.key_highlights,
             news_stories: briefingData.news_stories,
-            audio_url: uploadResult.file_url,
+            audio_url: signed_url,
+            audio_file_uri: file_uri,
             duration_minutes: estimatedMinutes,
             status: 'ready'
         };
@@ -184,7 +191,7 @@ Return comprehensive, actionable financial intelligence that this investor can l
                 briefingRecord
             );
         } else {
-            savedBriefing = await base44.entities.DailyBriefing.create(briefingRecord);
+            savedBriefing = await base44.asServiceRole.entities.DailyBriefing.create(briefingRecord);
         }
 
         return Response.json({ 
