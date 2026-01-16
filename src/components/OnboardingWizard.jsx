@@ -293,7 +293,7 @@ export default function OnboardingWizard({ onComplete }) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="min-h-screen flex items-center justify-center p-6"
-            style={{ background: 'linear-gradient(180deg, rgba(255, 255, 249, 1) 0%, rgba(255, 226, 148, 1) 50%, rgba(255, 95, 31, 0.74) 100%)' }}
+            style={{ background: 'linear-gradient(180deg, rgba(255, 255, 249, 0.7) 0%, rgba(255, 226, 148, 0.51) 76%, rgba(255, 95, 31, 0.52) 100%)' }}
         >
             <div className="w-full max-w-2xl">
                 {/* Header */}
