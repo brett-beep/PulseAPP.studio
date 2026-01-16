@@ -121,7 +121,7 @@ export default function Settings() {
     }
 
     return (
-        <div className="min-h-screen" style={{ background: 'linear-gradient(180deg, rgba(255, 255, 249, 1) 0%, rgba(255, 226, 148, 1) 50%, rgba(255, 95, 31, 0.74) 100%)' }}
+        <div className="min-h-screen" style={{ background: 'linear-gradient(180deg, rgba(255, 255, 249, 1) 0%, rgba(255, 226, 148, 1) 50%, rgba(255, 95, 31, 0.74) 100%)' }}>
             {/* Header */}
             <header className="border-b border-slate-100 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
                 <div className="max-w-2xl mx-auto px-6 py-4 flex items-center justify-between">
