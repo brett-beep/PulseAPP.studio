@@ -212,17 +212,6 @@ IMPORTANT: This will be converted to audio, so write in a natural, spoken style.
             </header>
 
             <main className="max-w-4xl mx-auto px-6 py-12">
-                {/* Date Section */}
-                <motion.section
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mb-8"
-                >
-                    <p className="text-slate-500 text-lg">
-                        {format(new Date(), 'EEEE, MMMM d, yyyy')}
-                    </p>
-                </motion.section>
-
                 {/* Audio Player / Generate Button */}
                 <motion.section
                     initial={{ opacity: 0, y: 20 }}
@@ -234,10 +223,10 @@ IMPORTANT: This will be converted to audio, so write in a natural, spoken style.
                         <div className="space-y-6">
                             <AudioPlayer
                                 audioUrl={todayBriefing.audio_url}
-                                title="Today's Financial Briefing"
                                 duration={todayBriefing.duration_minutes}
                                 greeting={greeting()}
                                 userName={user?.full_name?.split(' ')[0] || 'there'}
+                                currentDate={format(new Date(), 'MM/dd, EEE')}
                             />
                             
                             <div className="flex items-center justify-between">

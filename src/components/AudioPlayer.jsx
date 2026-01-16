@@ -5,24 +5,22 @@ import { Slider } from "@/components/ui/slider";
 
 export default function AudioPlayer({
   audioUrl,
-  title = "Daily Briefing",
-  duration, // minutes (optional fallback)
+  duration,
   onComplete,
   greeting = "Good morning",
   userName = "Alex",
+  currentDate = "01/16, Thu",
 }) {
   const audioRef = useRef(null);
-
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [totalDuration, setTotalDuration] = useState((duration || 0) * 60 || 0);
   const [isMuted, setIsMuted] = useState(false);
 
-  // Cursor-driven specular highlight
-  const mx = useMotionValue(240);
-  const my = useMotionValue(140);
-  const sx = useSpring(mx, { stiffness: 240, damping: 28, mass: 0.6 });
-  const sy = useSpring(my, { stiffness: 240, damping: 28, mass: 0.6 });
+  const mx = useMotionValue(300);
+  const my = useMotionValue(200);
+  const sx = useSpring(mx, { stiffness: 200, damping: 30, mass: 0.5 });
+  const sy = useSpring(my, { stiffness: 200, damping: 30, mass: 0.5 });
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -100,9 +98,9 @@ export default function AudioPlayer({
   };
 
   const bars = useMemo(() => {
-    const count = 52;
+    const count = 48;
     return Array.from({ length: count }, (_, i) => {
-      const baseHeight = 12 + Math.sin(i * 0.42) * 12 + Math.cos(i * 0.68) * 8;
+      const baseHeight = 14 + Math.sin(i * 0.38) * 14 + Math.cos(i * 0.62) * 10;
       return { i, p: i / (count - 1), baseHeight };
     });
   }, []);
@@ -115,122 +113,112 @@ export default function AudioPlayer({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 18, scale: 0.985 }}
+      initial={{ opacity: 0, y: 20, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.45, ease: [0.2, 0.9, 0.2, 1] }}
+      transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
       onPointerMove={onPointerMove}
-      className="relative overflow-hidden rounded-[32px] p-8"
+      className="relative overflow-hidden rounded-[40px] p-10"
       style={{
-        // Option B porcelain glass
-        background: "rgba(255, 255, 252, 0.72)",
-        backdropFilter: "blur(34px) saturate(1.35) contrast(1.05)",
-        WebkitBackdropFilter: "blur(34px) saturate(1.35) contrast(1.05)",
-        border: "1px solid rgba(255, 255, 255, 0.55)",
-        boxShadow: "0 18px 60px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.62), inset 0 -1px 0 rgba(0,0,0,0.06)",
+        background: "linear-gradient(145deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.55) 100%)",
+        backdropFilter: "blur(60px) saturate(1.5)",
+        WebkitBackdropFilter: "blur(60px) saturate(1.5)",
+        border: "0.5px solid rgba(255, 255, 255, 0.8)",
+        boxShadow: `
+          0 24px 70px -12px rgba(0, 0, 0, 0.15),
+          0 8px 24px -8px rgba(0, 0, 0, 0.08),
+          inset 0 2px 2px 0 rgba(255, 255, 255, 0.9),
+          inset 0 -2px 4px 0 rgba(0, 0, 0, 0.04)
+        `,
       }}
     >
-      {/* Inner stroke ring */}
+      {/* Multi-layer depth borders */}
       <div
-        className="pointer-events-none absolute inset-[1px] rounded-[31px]"
+        className="pointer-events-none absolute inset-[0.5px] rounded-[39.5px]"
         style={{
-          border: "1px solid rgba(0,0,0,0.06)",
-          boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.28)",
+          background: "linear-gradient(180deg, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0) 50%)",
         }}
       />
-
-      {/* Cursor-tracking specular highlight */}
-      <motion.div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          // CSS vars driven by MotionValues (valid pattern)
-          "--mx": sx,
-          "--my": sy,
-          background:
-            "radial-gradient(260px 200px at var(--mx) var(--my), rgba(255,255,255,0.70), rgba(255,255,255,0.16) 45%, rgba(255,255,255,0.00) 72%)",
-          mixBlendMode: "screen",
-          opacity: 0.9,
-        }}
-      />
-
-      {/* Caustic blobs (slow, subtle) */}
-      <motion.div
-        className="pointer-events-none absolute -top-24 -right-24 h-72 w-72 rounded-full"
-        animate={{
-          x: [0, 24, -10, 0],
-          y: [0, -18, 10, 0],
-          scale: isPlaying ? [1, 1.12, 1] : [1, 1.04, 1],
-        }}
-        transition={{ duration: 6.5, repeat: Infinity, ease: "easeInOut" }}
-        style={{
-          background:
-            "radial-gradient(circle, rgba(255, 214, 140, 0.40) 0%, rgba(255, 214, 140, 0.10) 40%, rgba(255, 214, 140, 0.00) 72%)",
-          filter: "blur(18px)",
-          opacity: 0.75,
-        }}
-      />
-      <motion.div
-        className="pointer-events-none absolute -bottom-24 -left-28 h-80 w-80 rounded-full"
-        animate={{
-          x: [0, -20, 18, 0],
-          y: [0, 20, -12, 0],
-          scale: isPlaying ? [1, 1.16, 1] : [1, 1.06, 1],
-        }}
-        transition={{ duration: 7.4, repeat: Infinity, ease: "easeInOut", delay: 0.35 }}
-        style={{
-          background:
-            "radial-gradient(circle, rgba(255, 120, 80, 0.30) 0%, rgba(255, 120, 80, 0.10) 44%, rgba(255, 120, 80, 0.00) 74%)",
-          filter: "blur(22px)",
-          opacity: 0.6,
-        }}
-      />
-
-      {/* Micro-grain overlay */}
       <div
-        className="pointer-events-none absolute inset-0 opacity-[0.10]"
+        className="pointer-events-none absolute inset-[1px] rounded-[39px]"
         style={{
-          backgroundImage:
-            "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.35'/%3E%3C/svg%3E\")",
-          backgroundSize: "180px 180px",
+          border: "0.5px solid rgba(0, 0, 0, 0.04)",
+          boxShadow: "inset 0 0 0 0.5px rgba(255, 255, 255, 0.5)",
+        }}
+      />
+
+      {/* Dynamic specular highlight */}
+      <motion.div
+        className="pointer-events-none absolute inset-0 rounded-[40px]"
+        style={{
+          "--highlight-x": sx,
+          "--highlight-y": sy,
+          background: "radial-gradient(320px 240px at var(--highlight-x) var(--highlight-y), rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.25) 40%, transparent 70%)",
           mixBlendMode: "overlay",
+        }}
+      />
+
+      {/* Ambient liquid blobs */}
+      <motion.div
+        className="pointer-events-none absolute -top-32 -right-32 h-80 w-80 rounded-full opacity-40"
+        animate={{
+          x: [0, 30, -15, 0],
+          y: [0, -25, 15, 0],
+          scale: isPlaying ? [1, 1.15, 1] : [1, 1.05, 1],
+        }}
+        transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+        style={{
+          background: "radial-gradient(circle, rgba(255, 200, 120, 0.6) 0%, rgba(255, 200, 120, 0.2) 35%, transparent 65%)",
+          filter: "blur(28px)",
+        }}
+      />
+      <motion.div
+        className="pointer-events-none absolute -bottom-32 -left-32 h-96 w-96 rounded-full opacity-35"
+        animate={{
+          x: [0, -25, 20, 0],
+          y: [0, 25, -15, 0],
+          scale: isPlaying ? [1, 1.2, 1] : [1, 1.08, 1],
+        }}
+        transition={{ duration: 9.5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+        style={{
+          background: "radial-gradient(circle, rgba(255, 140, 90, 0.55) 0%, rgba(255, 140, 90, 0.18) 38%, transparent 68%)",
+          filter: "blur(32px)",
+        }}
+      />
+
+      {/* Subtle noise texture */}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.035] mix-blend-overlay rounded-[40px]"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
         }}
       />
 
       {audioUrl ? <audio ref={audioRef} src={audioUrl} preload="metadata" /> : null}
 
-      {/* CONTENT */}
       <div className="relative z-10">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <motion.p
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-slate-700/70 text-lg mb-1"
-          >
-            {greeting}, <span className="font-medium text-slate-800/85">{userName}</span>
-          </motion.p>
-
-          <div
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-3"
-            style={{
-              background: "rgba(255, 180, 100, 0.18)",
-              border: "1px solid rgba(255, 180, 100, 0.28)",
-              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.35)",
-            }}
-          >
-            <motion.span
-              animate={{ scale: isPlaying ? [1, 1.22, 1] : 1, opacity: isPlaying ? [0.75, 1, 0.75] : 0.85 }}
-              transition={{ duration: 1.05, repeat: Infinity, ease: "easeInOut" }}
-              className="w-2 h-2 rounded-full"
-              style={{ background: "rgba(255, 125, 60, 0.95)" }}
-            />
-            <span className="text-slate-800/70 text-sm font-medium tracking-wide">TODAY&apos;S FINANCIAL BRIEFING</span>
+        {/* Header with date */}
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <p className="text-slate-500/80 text-xs font-medium tracking-wider uppercase mb-1">
+              {currentDate}
+            </p>
+            <p className="text-slate-800/90 text-lg">
+              {greeting}, <span className="font-semibold text-slate-900">{userName}</span>
+            </p>
           </div>
-
-          <div className="text-slate-900/80 text-xl font-semibold tracking-tight">{title}</div>
+          <motion.div
+            animate={{ 
+              scale: isPlaying ? [1, 1.15, 1] : 1,
+              opacity: isPlaying ? [0.7, 1, 0.7] : 0.75
+            }}
+            transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
+            className="w-2.5 h-2.5 rounded-full"
+            style={{ background: "linear-gradient(135deg, rgba(255, 140, 80, 0.95) 0%, rgba(255, 90, 50, 1) 100%)" }}
+          />
         </div>
 
         {/* Waveform */}
-        <div className="flex items-center justify-center gap-[2px] h-24 mb-8 px-4">
+        <div className="flex items-center justify-center gap-[3px] h-28 mb-8 px-2">
           {bars.map((bar) => {
             const isActive = bar.p <= progress;
             return (
@@ -238,29 +226,29 @@ export default function AudioPlayer({
                 key={bar.i}
                 animate={{
                   height: isPlaying
-                    ? [bar.baseHeight, bar.baseHeight * 1.55, bar.baseHeight * 0.72, bar.baseHeight]
-                    : bar.baseHeight * 0.42,
-                  opacity: isActive ? 1 : 0.28,
+                    ? [bar.baseHeight, bar.baseHeight * 1.65, bar.baseHeight * 0.75, bar.baseHeight]
+                    : bar.baseHeight * 0.45,
+                  opacity: isActive ? 1 : 0.25,
                 }}
                 transition={{
-                  duration: isPlaying ? 0.55 + (bar.i % 7) * 0.02 : 0.25,
+                  duration: isPlaying ? 0.6 + (bar.i % 9) * 0.025 : 0.3,
                   repeat: isPlaying ? Infinity : 0,
                   ease: "easeInOut",
-                  delay: isPlaying ? bar.i * 0.012 : 0,
+                  delay: isPlaying ? bar.i * 0.015 : 0,
                 }}
-                className="w-[3px] rounded-full"
+                className="w-[3.5px] rounded-full"
                 style={{
                   background: isActive
-                    ? "linear-gradient(180deg, rgba(255, 160, 80, 0.92) 0%, rgba(255, 100, 60, 0.84) 100%)"
-                    : "rgba(100, 100, 100, 0.28)",
+                    ? "linear-gradient(180deg, rgba(255, 150, 85, 0.95) 0%, rgba(255, 95, 55, 0.9) 100%)"
+                    : "rgba(120, 120, 120, 0.25)",
                 }}
               />
             );
           })}
         </div>
 
-        {/* Progress Bar */}
-        <div className="mb-8 px-2">
+        {/* Progress */}
+        <div className="mb-10 px-1">
           <Slider
             value={[currentTime]}
             max={totalDuration || 100}
@@ -268,52 +256,59 @@ export default function AudioPlayer({
             onValueChange={handleSeek}
             className="cursor-pointer"
           />
-          <div className="flex justify-between mt-3 text-slate-500/70 text-sm font-mono">
+          <div className="flex justify-between mt-3 text-slate-600/70 text-sm font-mono tracking-tight">
             <span>{formatTime(currentTime)}</span>
             <span>-{formatTime(Math.max(0, totalDuration - currentTime))}</span>
           </div>
         </div>
 
         {/* Controls */}
-        <div className="flex items-center justify-center gap-3">
+        <div className="flex items-center justify-center gap-4">
           <motion.button
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.12 }}
+            whileTap={{ scale: 0.94 }}
             onClick={toggleMute}
-            className="w-12 h-12 rounded-full flex items-center justify-center transition-all"
+            className="w-14 h-14 rounded-full flex items-center justify-center"
             style={{
-              background: "rgba(255, 255, 255, 0.5)",
-              border: "1px solid rgba(255, 255, 255, 0.6)",
-              boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06), inset 0 1px 1px rgba(255, 255, 255, 0.8)",
+              background: "rgba(255, 255, 255, 0.6)",
+              backdropFilter: "blur(10px)",
+              border: "0.5px solid rgba(255, 255, 255, 0.8)",
+              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
             }}
           >
-            {isMuted ? <VolumeX className="h-5 w-5 text-slate-500" /> : <Volume2 className="h-5 w-5 text-slate-500" />}
+            {isMuted ? <VolumeX className="h-5 w-5 text-slate-600" /> : <Volume2 className="h-5 w-5 text-slate-600" />}
           </motion.button>
 
           <motion.button
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.12 }}
+            whileTap={{ scale: 0.94 }}
             onClick={() => skip(-15)}
-            className="w-12 h-12 rounded-full flex items-center justify-center transition-all"
+            className="w-14 h-14 rounded-full flex items-center justify-center"
             style={{
-              background: "rgba(255, 255, 255, 0.5)",
-              border: "1px solid rgba(255, 255, 255, 0.6)",
-              boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06), inset 0 1px 1px rgba(255, 255, 255, 0.8)",
+              background: "rgba(255, 255, 255, 0.6)",
+              backdropFilter: "blur(10px)",
+              border: "0.5px solid rgba(255, 255, 255, 0.8)",
+              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
             }}
           >
-            <RotateCcw className="h-5 w-5 text-slate-500" />
+            <RotateCcw className="h-5 w-5 text-slate-600" />
           </motion.button>
 
           <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.06 }}
+            whileTap={{ scale: 0.96 }}
             onClick={togglePlay}
             disabled={!audioUrl}
-            className="w-20 h-20 rounded-full flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-24 h-24 rounded-full flex items-center justify-center disabled:opacity-50"
             style={{
-              background: "linear-gradient(135deg, rgba(255, 130, 70, 0.9) 0%, rgba(255, 90, 50, 0.95) 100%)",
-              border: "2px solid rgba(255, 255, 255, 0.4)",
-              boxShadow: "0 8px 24px rgba(255, 100, 50, 0.35), inset 0 2px 2px rgba(255, 255, 255, 0.3), inset 0 -2px 2px rgba(0, 0, 0, 0.1)",
+              background: "linear-gradient(135deg, rgba(255, 140, 75, 0.95) 0%, rgba(255, 85, 45, 1) 100%)",
+              border: "1px solid rgba(255, 255, 255, 0.5)",
+              boxShadow: `
+                0 12px 32px rgba(255, 100, 50, 0.4),
+                0 4px 12px rgba(255, 100, 50, 0.25),
+                inset 0 2px 2px rgba(255, 255, 255, 0.4),
+                inset 0 -2px 3px rgba(0, 0, 0, 0.15)
+              `,
             }}
           >
             <AnimatePresence mode="wait">
@@ -323,8 +318,9 @@ export default function AudioPlayer({
                   initial={{ scale: 0, rotate: -90 }}
                   animate={{ scale: 1, rotate: 0 }}
                   exit={{ scale: 0, rotate: 90 }}
+                  transition={{ duration: 0.2 }}
                 >
-                  <Pause className="h-8 w-8 text-white" fill="currentColor" />
+                  <Pause className="h-9 w-9 text-white" fill="currentColor" />
                 </motion.div>
               ) : (
                 <motion.div
@@ -332,32 +328,38 @@ export default function AudioPlayer({
                   initial={{ scale: 0, rotate: 90 }}
                   animate={{ scale: 1, rotate: 0 }}
                   exit={{ scale: 0, rotate: -90 }}
+                  transition={{ duration: 0.2 }}
                 >
-                  <Play className="h-8 w-8 text-white ml-1" fill="currentColor" />
+                  <Play className="h-9 w-9 text-white ml-1" fill="currentColor" />
                 </motion.div>
               )}
             </AnimatePresence>
           </motion.button>
 
           <motion.button
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.12 }}
+            whileTap={{ scale: 0.94 }}
             onClick={() => skip(30)}
-            className="w-12 h-12 rounded-full flex items-center justify-center transition-all"
+            className="w-14 h-14 rounded-full flex items-center justify-center"
             style={{
-              background: "rgba(255, 255, 255, 0.5)",
-              border: "1px solid rgba(255, 255, 255, 0.6)",
-              boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06), inset 0 1px 1px rgba(255, 255, 255, 0.8)",
+              background: "rgba(255, 255, 255, 0.6)",
+              backdropFilter: "blur(10px)",
+              border: "0.5px solid rgba(255, 255, 255, 0.8)",
+              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
             }}
           >
-            <FastForward className="h-5 w-5 text-slate-500" />
+            <FastForward className="h-5 w-5 text-slate-600" />
           </motion.button>
 
-          <div className="w-12" />
+          <div className="w-14" />
         </div>
 
         {!audioUrl && (
-          <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center text-slate-400 text-sm mt-6">
+          <motion.p 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            className="text-center text-slate-500 text-sm mt-8"
+          >
             Audio briefing is being generated...
           </motion.p>
         )}
