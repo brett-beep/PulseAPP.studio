@@ -71,93 +71,20 @@ export default function Home() {
         setIsGenerating(true);
         
         try {
-            // Build personalized prompt
-            const userContext = `
-                User Profile:
-                - Investment Goals: ${preferences?.investment_goals?.join(', ') || 'General investing'}
-                - Risk Tolerance: ${preferences?.risk_tolerance || 'moderate'}
-                - Interests: ${preferences?.investment_interests?.join(', ') || 'General markets'}
-                - Portfolio Holdings: ${preferences?.portfolio_holdings?.join(', ') || 'Not specified'}
-                - Preferred Briefing Style: ${preferences?.preferred_voice || 'professional'}
-                - Briefing Length: ${preferences?.briefing_length === 'short' ? '5 minutes' : preferences?.briefing_length === 'long' ? '12 minutes' : '8 minutes'}
-            `;
-
-            // Generate the briefing content using LLM
-            const briefingResponse = await base44.integrations.Core.InvokeLLM({
-                prompt: `You are a professional financial analyst creating a personalized morning briefing.
-                
-${userContext}
-
-Today's date: ${format(new Date(), 'MMMM d, yyyy')}
-
-Create a comprehensive, personalized financial briefing that includes:
-1. A brief market overview (major indices, key movements)
-2. Analysis specifically relevant to the user's portfolio holdings and interests
-3. Key economic events or data releases
-4. 3-5 curated news stories most relevant to this user's profile
-
-The tone should be ${preferences?.preferred_voice || 'professional'} and the content should be tailored to someone with ${preferences?.risk_tolerance || 'moderate'} risk tolerance.
-
-IMPORTANT: This will be converted to audio, so write in a natural, spoken style. Use conversational transitions.`,
-                add_context_from_internet: true,
-                response_json_schema: {
-                    type: "object",
-                    properties: {
-                        script: {
-                            type: "string",
-                            description: "The full briefing script (8-10 minutes when read aloud)"
-                        },
-                        summary: {
-                            type: "string",
-                            description: "A 2-3 sentence summary of today's briefing"
-                        },
-                        market_sentiment: {
-                            type: "string",
-                            enum: ["bullish", "bearish", "neutral", "mixed"]
-                        },
-                        key_highlights: {
-                            type: "array",
-                            items: { type: "string" },
-                            description: "3-5 key bullet points"
-                        },
-                        news_stories: {
-                            type: "array",
-                            items: {
-                                type: "object",
-                                properties: {
-                                    title: { type: "string" },
-                                    summary: { type: "string" },
-                                    relevance_reason: { type: "string" },
-                                    source: { type: "string" },
-                                    category: { type: "string" }
-                                }
-                            }
-                        }
-                    }
-                }
+            const response = await base44.functions.invoke('generateBriefing', {
+                preferences: preferences,
+                date: today
             });
 
-            // Save the briefing
-            const briefingData = {
-                date: today,
-                script: briefingResponse.script,
-                summary: briefingResponse.summary,
-                market_sentiment: briefingResponse.market_sentiment,
-                key_highlights: briefingResponse.key_highlights,
-                news_stories: briefingResponse.news_stories,
-                duration_minutes: preferences?.briefing_length === 'short' ? 5 : preferences?.briefing_length === 'long' ? 12 : 8,
-                status: 'ready'
-            };
-
-            if (todayBriefing?.id) {
-                await base44.entities.DailyBriefing.update(todayBriefing.id, briefingData);
+            if (response.data.error) {
+                console.error('Briefing generation error:', response.data.error);
+                alert('Failed to generate briefing: ' + response.data.error);
             } else {
-                await base44.entities.DailyBriefing.create(briefingData);
+                await refetchBriefing();
             }
-
-            await refetchBriefing();
         } catch (error) {
             console.error('Error generating briefing:', error);
+            alert('Failed to generate briefing. Please try again.');
         } finally {
             setIsGenerating(false);
         }
