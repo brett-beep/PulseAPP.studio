@@ -161,19 +161,19 @@ Return comprehensive, actionable financial intelligence that this investor can l
 
         const { signed_url } = await base44.asServiceRole.integrations.Core.CreateFileSignedUrl({
             file_uri,
-            expires_in: 60 * 60 * 6
+            expires_in: 60 * 60 * 24 * 7
         });
 
         // Create or update the briefing record
         const briefingRecord = {
             date: date,
+            created_by: user.email,
             script: briefingData.script,
             summary: briefingData.summary,
             market_sentiment: briefingData.market_sentiment,
             key_highlights: briefingData.key_highlights,
             news_stories: briefingData.news_stories,
             audio_url: signed_url,
-            audio_file_uri: file_uri,
             duration_minutes: estimatedMinutes,
             status: 'ready'
         };
