@@ -212,15 +212,12 @@ IMPORTANT: This will be converted to audio, so write in a natural, spoken style.
             </header>
 
             <main className="max-w-4xl mx-auto px-6 py-12">
-                {/* Welcome Section */}
+                {/* Date Section */}
                 <motion.section
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="mb-12"
+                    className="mb-8"
                 >
-                    <h1 className="text-4xl font-light text-slate-900 mb-2">
-                        {greeting()}, <span className="font-semibold">{user?.full_name?.split(' ')[0] || 'there'}</span>
-                    </h1>
                     <p className="text-slate-500 text-lg">
                         {format(new Date(), 'EEEE, MMMM d, yyyy')}
                     </p>
@@ -237,8 +234,10 @@ IMPORTANT: This will be converted to audio, so write in a natural, spoken style.
                         <div className="space-y-6">
                             <AudioPlayer
                                 audioUrl={todayBriefing.audio_url}
-                                title="Your Daily Financial Briefing"
+                                title="Today's Financial Briefing"
                                 duration={todayBriefing.duration_minutes}
+                                greeting={greeting()}
+                                userName={user?.full_name?.split(' ')[0] || 'there'}
                             />
                             
                             <div className="flex items-center justify-between">
