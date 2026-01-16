@@ -71,20 +71,25 @@ export default function Home() {
         setIsGenerating(true);
         
         try {
+            console.log('Starting briefing generation...', { preferences, date: today });
+            
             const response = await base44.functions.invoke('generateBriefing', {
                 preferences: preferences,
                 date: today
             });
 
+            console.log('Briefing generation response:', response.data);
+
             if (response.data.error) {
-                console.error('Briefing generation error:', response.data.error);
+                console.error('Briefing generation error:', response.data);
                 alert('Failed to generate briefing: ' + response.data.error);
             } else {
+                console.log('Briefing generated successfully, refetching...');
                 await refetchBriefing();
             }
         } catch (error) {
             console.error('Error generating briefing:', error);
-            alert('Failed to generate briefing. Please try again.');
+            alert('Failed to generate briefing. Please try again. Error: ' + (error.message || 'Unknown error'));
         } finally {
             setIsGenerating(false);
         }

@@ -16,6 +16,8 @@ export default function AudioPlayer({
   const [currentTime, setCurrentTime] = useState(0);
   const [totalDuration, setTotalDuration] = useState((duration || 0) * 60 || 0);
   const [isMuted, setIsMuted] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const mx = useMotionValue(300);
   const my = useMotionValue(200);
@@ -24,27 +26,48 @@ export default function AudioPlayer({
 
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio || !audioUrl) return;
+
+    setIsLoading(true);
+    setError(null);
 
     const handleTimeUpdate = () => setCurrentTime(audio.currentTime || 0);
     const handleLoadedMetadata = () => {
       const d = audio.duration;
       if (Number.isFinite(d) && d > 0) setTotalDuration(d);
       else setTotalDuration((duration || 0) * 60 || 0);
+      setIsLoading(false);
+    };
+    const handleCanPlay = () => {
+      setIsLoading(false);
     };
     const handleEnded = () => {
       setIsPlaying(false);
+      setCurrentTime(0);
       onComplete?.();
+    };
+    const handleError = (e) => {
+      console.error('Audio error:', e);
+      setError('Failed to load audio');
+      setIsLoading(false);
+      setIsPlaying(false);
     };
 
     audio.addEventListener("timeupdate", handleTimeUpdate);
     audio.addEventListener("loadedmetadata", handleLoadedMetadata);
+    audio.addEventListener("canplay", handleCanPlay);
     audio.addEventListener("ended", handleEnded);
+    audio.addEventListener("error", handleError);
+
+    // Load the audio
+    audio.load();
 
     return () => {
       audio.removeEventListener("timeupdate", handleTimeUpdate);
       audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      audio.removeEventListener("canplay", handleCanPlay);
       audio.removeEventListener("ended", handleEnded);
+      audio.removeEventListener("error", handleError);
     };
   }, [audioUrl, duration, onComplete]);
 
@@ -52,7 +75,7 @@ export default function AudioPlayer({
 
   const togglePlay = async () => {
     const a = audioRef.current;
-    if (!a) return;
+    if (!a || !audioUrl || isLoading) return;
 
     if (isPlaying) {
       a.pause();
@@ -63,7 +86,10 @@ export default function AudioPlayer({
     try {
       await a.play();
       setIsPlaying(true);
-    } catch {
+      setError(null);
+    } catch (err) {
+      console.error('Play error:', err);
+      setError('Failed to play audio');
       setIsPlaying(false);
     }
   };
@@ -193,7 +219,12 @@ export default function AudioPlayer({
         }}
       />
 
-      {audioUrl ? <audio ref={audioRef} src={audioUrl} preload="metadata" /> : null}
+      <audio 
+        ref={audioRef} 
+        src={audioUrl || ''} 
+        preload="auto"
+        crossOrigin="anonymous"
+      />
 
       <div className="relative z-10">
         {/* Header with date */}
@@ -295,11 +326,11 @@ export default function AudioPlayer({
           </motion.button>
 
           <motion.button
-            whileHover={{ scale: 1.06 }}
-            whileTap={{ scale: 0.96 }}
+            whileHover={{ scale: !audioUrl || isLoading ? 1 : 1.06 }}
+            whileTap={{ scale: !audioUrl || isLoading ? 1 : 0.96 }}
             onClick={togglePlay}
-            disabled={!audioUrl}
-            className="w-24 h-24 rounded-full flex items-center justify-center disabled:opacity-50"
+            disabled={!audioUrl || isLoading}
+            className="w-24 h-24 rounded-full flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
             style={{
               background: "linear-gradient(135deg, rgba(255, 140, 75, 0.95) 0%, rgba(255, 85, 45, 1) 100%)",
               border: "1px solid rgba(255, 255, 255, 0.5)",
@@ -312,7 +343,17 @@ export default function AudioPlayer({
             }}
           >
             <AnimatePresence mode="wait">
-              {isPlaying ? (
+              {isLoading ? (
+                <motion.div
+                  key="loading"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1, rotate: 360 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ rotate: { duration: 1, repeat: Infinity, ease: "linear" } }}
+                >
+                  <div className="h-9 w-9 border-3 border-white border-t-transparent rounded-full" />
+                </motion.div>
+              ) : isPlaying ? (
                 <motion.div
                   key="pause"
                   initial={{ scale: 0, rotate: -90 }}
@@ -354,7 +395,17 @@ export default function AudioPlayer({
           <div className="w-14" />
         </div>
 
-        {!audioUrl && (
+        {error && (
+          <motion.p 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            className="text-center text-red-500 text-sm mt-8"
+          >
+            {error}
+          </motion.p>
+        )}
+        
+        {!audioUrl && !error && (
           <motion.p 
             initial={{ opacity: 0 }} 
             animate={{ opacity: 1 }} 
