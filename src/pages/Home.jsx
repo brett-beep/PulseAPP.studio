@@ -16,9 +16,24 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 
+// Helper to safely parse JSON arrays from entity fields
+const parseJsonArray = (data) => {
+  if (Array.isArray(data)) return data;
+  if (typeof data === 'string' && data.trim()) {
+    try {
+      const parsed = JSON.parse(data);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+};
+
 export default function Home() {
   const queryClient = useQueryClient();
   const [isGenerating, setIsGenerating] = useState(false);
+  const DEBUG = Boolean(localStorage.getItem("debug_briefing")) || import.meta.env.DEV;
 
   // Fetch current user
   const { data: user, isLoading: userLoading } = useQuery({
@@ -122,9 +137,56 @@ export default function Home() {
   const firstName = user?.full_name?.split(" ")?.[0] || "there";
   const audioUrl = todayBriefing?.audio_url || null;
 
-  // Stories + highlights can exist even when audio isn't ready
-  const stories = Array.isArray(todayBriefing?.news_stories) ? todayBriefing.news_stories : [];
-  const highlights = Array.isArray(todayBriefing?.key_highlights) ? todayBriefing.key_highlights : [];
+  // Stories + highlights can exist even when audio isn't ready - safely parse JSON
+  const stories = parseJsonArray(todayBriefing?.news_stories);
+  const highlights = parseJsonArray(todayBriefing?.key_highlights);
+
+  // Dev seed function for testing
+  const seedTestBriefing = async () => {
+    const testBriefing = {
+      date: today,
+      script: "Test script",
+      summary: "Test briefing summary",
+      market_sentiment: "neutral",
+      key_highlights: ["Test highlight 1", "Test highlight 2"],
+      news_stories: [
+        {
+          title: "Test Story 1: Major Market Movement",
+          what_happened: "Markets moved significantly today in response to economic data.",
+          why_it_matters: "This affects portfolio allocation strategies.",
+          outlet: "Test Source",
+          category: "markets"
+        },
+        {
+          title: "Test Story 2: Tech Innovation",
+          what_happened: "A new technology breakthrough was announced.",
+          why_it_matters: "This could disrupt existing market leaders.",
+          outlet: "Tech News",
+          category: "technology"
+        }
+      ],
+      duration_minutes: 5,
+      status: "ready"
+    };
+
+    try {
+      const existing = await base44.entities.DailyBriefing.filter({
+        date: today,
+        created_by: user?.email
+      });
+      
+      if (existing.length > 0) {
+        await base44.entities.DailyBriefing.update(existing[0].id, testBriefing);
+      } else {
+        await base44.entities.DailyBriefing.create(testBriefing);
+      }
+      await refetchBriefing();
+      alert("Test briefing seeded!");
+    } catch (err) {
+      console.error("Seed error:", err);
+      alert("Failed to seed: " + err.message);
+    }
+  };
 
   return (
     <div
@@ -152,6 +214,31 @@ export default function Home() {
       </header>
 
       <main className="max-w-4xl mx-auto px-6 py-12">
+        {/* Debug Panel */}
+        {DEBUG && (
+          <div className="mb-6 p-4 bg-yellow-50 border-2 border-yellow-400 rounded-lg text-xs font-mono space-y-1">
+            <div className="font-bold text-yellow-900 mb-2">🔍 DEBUG PANEL</div>
+            <div>userLoading: {String(userLoading)}</div>
+            <div>prefsLoading: {String(prefsLoading)}</div>
+            <div>briefingLoading: {String(briefingLoading)}</div>
+            <div>user?.email: {user?.email || "null"}</div>
+            <div>preferences?.onboarding_completed: {String(preferences?.onboarding_completed)}</div>
+            <div>today: {today}</div>
+            <div>briefings?.length: {briefings?.length ?? "null"}</div>
+            <div>todayBriefing?.id: {todayBriefing?.id || "null"}</div>
+            <div>todayBriefing?.status: {todayBriefing?.status || "null"}</div>
+            <div>news_stories type: {typeof todayBriefing?.news_stories}</div>
+            <div>news_stories raw: {JSON.stringify(todayBriefing?.news_stories)?.slice(0, 100)}...</div>
+            <div>parsed stories.length: {stories.length}</div>
+            <div>parsed highlights.length: {highlights.length}</div>
+            <button 
+              onClick={seedTestBriefing}
+              className="mt-2 px-3 py-1 bg-yellow-600 text-white rounded hover:bg-yellow-700"
+            >
+              Seed Test Briefing
+            </button>
+          </div>
+        )}
         {/* AUDIO PLAYER: always render */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}

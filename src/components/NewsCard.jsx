@@ -21,6 +21,12 @@ export default function NewsCard({ story, index }) {
         return categoryColors[cat] || categoryColors.default;
     };
 
+    // Defensive rendering - always show something
+    const title = story?.title || "Untitled story";
+    const description = story?.what_happened || story?.summary || "Summary is generating. Click to open the story.";
+    const why = story?.why_it_matters || story?.relevance_reason || null;
+    const source = story?.outlet || story?.source || "Unknown";
+
     return (
         <>
             <motion.article
@@ -34,27 +40,27 @@ export default function NewsCard({ story, index }) {
                 <div className="flex items-start justify-between gap-4 mb-4">
                     <Badge 
                         variant="outline" 
-                        className={`${getCategoryColor(story.category)} text-xs font-medium tracking-wide uppercase`}
+                        className={`${getCategoryColor(story?.category)} text-xs font-medium tracking-wide uppercase`}
                     >
-                        {story.category || 'News'}
+                        {story?.category || 'News'}
                     </Badge>
-                    <span className="text-xs text-slate-400 font-medium">{story.outlet || story.source}</span>
+                    <span className="text-xs text-slate-400 font-medium">{source}</span>
                 </div>
 
                 <h3 className="text-lg font-semibold text-slate-900 mb-2 leading-tight group-hover:text-amber-600 transition-colors">
-                    {story.title}
+                    {title}
                 </h3>
 
                 <p className="text-slate-600 text-sm leading-relaxed mb-4">
-                    {story.what_happened || story.summary}
+                    {description}
                 </p>
 
-                {(story.relevance_reason || story.why_it_matters) && (
+                {why && (
                     <div className="pt-4 border-t border-slate-100">
                         <div className="flex items-center gap-2">
                             <div className="w-1 h-1 bg-amber-400 rounded-full" />
                             <p className="text-xs text-slate-500 italic">
-                                {story.why_it_matters || story.relevance_reason}
+                                {why}
                             </p>
                         </div>
                     </div>

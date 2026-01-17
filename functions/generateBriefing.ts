@@ -112,6 +112,14 @@ Return JSON only.
 
     const storiesData = await invokeLLM(base44, storiesPrompt, true, storiesSchema);
 
+    // Sanity check: ensure we got valid stories
+    if (!storiesData?.news_stories || !Array.isArray(storiesData.news_stories) || storiesData.news_stories.length < 5) {
+      return Response.json({ 
+        error: "Invalid stories data from LLM", 
+        details: `Expected 5 stories, got ${storiesData?.news_stories?.length || 0}` 
+      }, { status: 500 });
+    }
+
     // 2) Write script using your 6A structure + those stories
     const scriptPrompt = `
 Write the full spoken script for "Pulse" using the provided data.
@@ -183,13 +191,14 @@ Return JSON only: { "script": "..." }
       created_by: user.email,
     });
 
+    // Ensure stories are stored as array (not stringified) - Base44 entities support JSON
     const baseRecord = {
       date,
       script,
       summary: null,
       market_sentiment: null,
       key_highlights: [],
-      news_stories: storiesData.news_stories,
+      news_stories: storiesData.news_stories, // Store as array directly
       duration_minutes: estimatedMinutes,
       status: previewOnly ? "script_ready" : "ready",
       audio_url: null,
