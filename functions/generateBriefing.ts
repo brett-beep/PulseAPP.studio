@@ -57,7 +57,7 @@ You are curating "Selected stories" for a premium morning investor audio briefin
 DATE: ${date}
 
 Rules:
-- Return 4 to 6 stories.
+- Return exactly 5 stories.
 - Outlet: outlet name only (e.g., "WSJ", "Bloomberg", "Reuters"). No URLs.
 - No "according to / as reported by / in today's news / dot com".
 - Include market context (index % moves) ONLY as % (no index levels).
@@ -82,8 +82,8 @@ Return JSON only.
         },
         news_stories: {
           type: "array",
-          minItems: 4,
-          maxItems: 6,
+          minItems: 5,
+          maxItems: 5,
           items: {
             type: "object",
             additionalProperties: false,

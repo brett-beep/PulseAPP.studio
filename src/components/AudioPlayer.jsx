@@ -10,6 +10,9 @@ export default function AudioPlayer({
   greeting = "Good morning",
   userName = "Alex",
   currentDate = "01/16, Thu",
+  onGenerate,
+  isGenerating = false,
+  status = null,
 }) {
   const audioRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -156,6 +159,33 @@ export default function AudioPlayer({
           mixBlendMode: "overlay",
         }}
       />
+
+      {/* Animated dots for generating state */}
+      {isGenerating && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="absolute inset-0 flex items-center justify-center bg-white/5 backdrop-blur-sm rounded-[40px] z-30"
+        >
+          <div className="flex items-center gap-1">
+            {[0, 1, 2].map((i) => (
+              <motion.div
+                key={i}
+                className="w-2 h-2 rounded-full bg-amber-500"
+                animate={{
+                  scale: [1, 1.3, 1],
+                  opacity: [0.5, 1, 0.5],
+                }}
+                transition={{
+                  duration: 1.2,
+                  repeat: Infinity,
+                  delay: i * 0.2,
+                }}
+              />
+            ))}
+          </div>
+        </motion.div>
+      )}
 
       {/* Ambient liquid blobs */}
       <motion.div
@@ -352,18 +382,62 @@ export default function AudioPlayer({
           </motion.button>
 
           <div className="w-14" />
-        </div>
+          </div>
 
-        {!audioUrl && (
-          <motion.p 
-            initial={{ opacity: 0 }} 
-            animate={{ opacity: 1 }} 
-            className="text-center text-slate-500 text-sm mt-8"
-          >
-            Audio briefing is being generated...
-          </motion.p>
-        )}
-      </div>
+          {/* Generate Button / Generating Message */}
+          <AnimatePresence mode="wait">
+          {isGenerating ? (
+            <motion.div
+              key="generating"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="text-center mt-8"
+            >
+              <p className="text-slate-600 text-sm flex items-center justify-center gap-2">
+                Audio briefing is being generated
+                <span className="inline-flex gap-0.5">
+                  {[0, 1, 2].map((i) => (
+                    <motion.span
+                      key={i}
+                      animate={{ opacity: [0.3, 1, 0.3] }}
+                      transition={{
+                        duration: 1.5,
+                        repeat: Infinity,
+                        delay: i * 0.2,
+                      }}
+                    >
+                      .
+                    </motion.span>
+                  ))}
+                </span>
+              </p>
+            </motion.div>
+          ) : !audioUrl && onGenerate ? (
+            <motion.button
+              key="generate"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              whileHover={{ scale: 1.05, y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={onGenerate}
+              className="mx-auto mt-8 px-6 py-3 rounded-full text-sm font-semibold text-white transition-all"
+              style={{
+                background: "linear-gradient(135deg, rgba(255, 140, 75, 0.95) 0%, rgba(255, 85, 45, 1) 100%)",
+                border: "1px solid rgba(255, 255, 255, 0.5)",
+                boxShadow: `
+                  0 8px 24px rgba(255, 100, 50, 0.3),
+                  0 4px 12px rgba(255, 100, 50, 0.2),
+                  inset 0 1px 1px rgba(255, 255, 255, 0.3)
+                `,
+              }}
+            >
+              Generate Briefing
+            </motion.button>
+          ) : null}
+          </AnimatePresence>
+          </div>
     </motion.div>
   );
 }

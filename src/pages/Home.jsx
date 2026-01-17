@@ -159,39 +159,26 @@ export default function Home() {
           transition={{ delay: 0.1 }}
           className="mb-10"
         >
-          <div className="relative">
-            {/* Generate/Regenerate button ON TOP OF the player */}
-            <div className="absolute top-6 right-6 z-20">
-              <button
-                onClick={generateBriefing}
-                disabled={isGenerating}
-                className="rounded-full px-4 py-2 text-sm font-semibold transition disabled:opacity-50"
-                style={{
-                  background: "rgba(255, 255, 255, 0.65)",
-                  border: "0.5px solid rgba(255, 255, 255, 0.85)",
-                  backdropFilter: "blur(12px)",
-                  WebkitBackdropFilter: "blur(12px)",
-                  boxShadow: "0 6px 18px rgba(0,0,0,0.08)",
-                }}
-              >
-                {isGenerating ? "Generating…" : audioUrl ? "Regenerate" : "Generate"}
-              </button>
-            </div>
+          <AudioPlayer
+            audioUrl={audioUrl}
+            duration={todayBriefing?.duration_minutes || 8}
+            greeting={greeting()}
+            userName={firstName}
+            currentDate={format(new Date(), "MM/dd, EEE")}
+            onGenerate={audioUrl ? null : generateBriefing}
+            isGenerating={isGenerating}
+            status={todayBriefing?.status}
+          />
 
-            <AudioPlayer
-              audioUrl={audioUrl}
-              duration={todayBriefing?.duration_minutes || 8}
-              greeting={greeting()}
-              userName={firstName}
-              currentDate={format(new Date(), "MM/dd, EEE")}
-            />
-          </div>
-
-          {/* Small meta row under player (optional) */}
+          {/* Small meta row under player */}
           <div className="mt-6 flex items-center justify-between">
             <MarketSentiment sentiment={todayBriefing?.market_sentiment || null} />
             <div className="text-sm text-slate-500">
-              {briefingLoading ? "Loading briefing…" : todayBriefing?.status ? `Status: ${todayBriefing.status}` : "No briefing yet"}
+              {briefingLoading 
+                ? "Loading briefing…" 
+                : audioUrl 
+                ? "Status: Ready to Play" 
+                : "Status: Ready to Generate"}
             </div>
           </div>
         </motion.section>
@@ -232,8 +219,8 @@ export default function Home() {
               </p>
             </div>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {stories.slice(0, 5).map((story, index) => (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
+              {stories.map((story, index) => (
                 <NewsCard key={index} story={story} index={index} />
               ))}
             </div>

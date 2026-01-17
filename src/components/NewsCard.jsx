@@ -37,22 +37,24 @@ export default function NewsCard({ story, index }) {
                 <span className="text-xs text-slate-400 font-medium">{story.source}</span>
             </div>
 
-            <h3 className="text-lg font-semibold text-slate-900 mb-3 leading-tight group-hover:text-amber-600 transition-colors">
+            <h3 className="text-lg font-semibold text-slate-900 mb-2 leading-tight group-hover:text-amber-600 transition-colors">
                 {story.title}
             </h3>
 
-            <p className="text-slate-600 text-sm leading-relaxed mb-4 line-clamp-3">
-                {story.summary}
+            <p className="text-slate-600 text-sm leading-relaxed mb-4">
+                {story.what_happened || story.summary}
             </p>
 
-            <div className="pt-4 border-t border-slate-100">
-                <div className="flex items-center gap-2">
-                    <div className="w-1 h-1 bg-amber-400 rounded-full" />
-                    <p className="text-xs text-slate-500 italic">
-                        {story.relevance_reason}
-                    </p>
+            {(story.relevance_reason || story.why_it_matters) && (
+                <div className="pt-4 border-t border-slate-100">
+                    <div className="flex items-center gap-2">
+                        <div className="w-1 h-1 bg-amber-400 rounded-full" />
+                        <p className="text-xs text-slate-500 italic">
+                            {story.why_it_matters || story.relevance_reason}
+                        </p>
+                    </div>
                 </div>
-            </div>
+            )}
         </motion.article>
     );
 }
