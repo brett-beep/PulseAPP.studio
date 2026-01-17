@@ -73,7 +73,7 @@ export default function Home() {
         preferences: preferences,
         date: today,
         // optional: set this true while iterating to save credits
-        // preview_only: true,
+        preview_only: true,
       });
 
       if (response?.data?.error) {
