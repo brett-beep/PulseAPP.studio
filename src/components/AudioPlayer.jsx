@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence, useMotionValue, useSpring } from "framer-motion";
 import { Play, Pause, RotateCcw, FastForward, Volume2, VolumeX } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
+import { GlassFilter } from "@/components/ui/liquid-glass-button";
 
 export default function AudioPlayer({
   audioUrl,
@@ -123,17 +124,27 @@ export default function AudioPlayer({
       className="relative overflow-hidden rounded-[40px] p-10"
       style={{
         background: "linear-gradient(145deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.55) 100%)",
-        backdropFilter: "blur(60px) saturate(1.5)",
+        backdropFilter: "blur(60px) saturate(1.5) url(#container-glass)",
         WebkitBackdropFilter: "blur(60px) saturate(1.5)",
         border: "0.5px solid rgba(255, 255, 255, 0.8)",
         boxShadow: `
-          0 24px 70px -12px rgba(0, 0, 0, 0.15),
-          0 8px 24px -8px rgba(0, 0, 0, 0.08),
-          inset 0 2px 2px 0 rgba(255, 255, 255, 0.9),
-          inset 0 -2px 4px 0 rgba(0, 0, 0, 0.04)
-        `,
+          0_0_6px_rgba(0,0,0,0.03),
+          0_2px_6px_rgba(0,0,0,0.08),
+          inset_3px_3px_0.5px_-3px_rgba(0,0,0,0.9),
+          inset_-3px_-3px_0.5px_-3px_rgba(0,0,0,0.85),
+          inset_1px_1px_1px_-0.5px_rgba(0,0,0,0.6),
+          inset_-1px_-1px_1px_-0.5px_rgba(0,0,0,0.6),
+          inset_0_0_6px_6px_rgba(0,0,0,0.12),
+          inset_0_0_2px_2px_rgba(0,0,0,0.06),
+          0_0_12px_rgba(255,255,255,0.15),
+          0_24px_70px_-12px_rgba(0,0,0,0.15),
+          0_8px_24px_-8px_rgba(0,0,0,0.08)
+        `.replace(/_/g, ' '),
       }}
     >
+      {/* Glass Filter SVG */}
+      <GlassFilter />
+
       {/* Multi-layer depth borders */}
       <div
         className="pointer-events-none absolute inset-[0.5px] rounded-[39.5px]"
