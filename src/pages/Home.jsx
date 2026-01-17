@@ -123,8 +123,21 @@ export default function Home() {
   const audioUrl = todayBriefing?.audio_url || null;
 
   // Stories + highlights can exist even when audio isn't ready
-  const stories = Array.isArray(todayBriefing?.news_stories) ? todayBriefing.news_stories : [];
-  const highlights = Array.isArray(todayBriefing?.key_highlights) ? todayBriefing.key_highlights : [];
+  const parseJsonArray = (value) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+};
+
+const stories = parseJsonArray(todayBriefing?.news_stories);
+const highlights = parseJsonArray(todayBriefing?.key_highlights);
 
   return (
     <div
