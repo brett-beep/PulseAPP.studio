@@ -1,9 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Play, Pause, RotateCcw, Loader2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 
 export default function StoryPlayerPanel({ story, isOpen, onClose }) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
   const [isGenerating, setIsGenerating] = useState(false);
   const [audioUrl, setAudioUrl] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -84,9 +91,9 @@ export default function StoryPlayerPanel({ story, isOpen, onClose }) {
     setIsPlaying(true);
   };
 
-  if (!story) return null;
+  if (!story || !mounted) return null;
 
-  return (
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
         <>
@@ -236,6 +243,7 @@ export default function StoryPlayerPanel({ story, isOpen, onClose }) {
           </motion.div>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }
