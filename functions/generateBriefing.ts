@@ -5,31 +5,41 @@ function safeISODate(input) {
   return new Date().toISOString().slice(0, 10);
 }
 
+function wordCount(text) {
+  return text.split(/\s+/).filter(Boolean).length;
+}
+function isTooShort(text) {
+  return wordCount(text) < 1150; // ~8 min at 150 wpm
+}
+
 function sanitizeForAudio(s) {
   if (!s) return "";
   let t = String(s);
 
-  // Remove markdown links: [text](url) -> text
+  // Strip markdown links: [text](url) -> text
   t = t.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, "$1");
 
-  // Remove any raw URLs
+  // Strip raw URLs + domains
   t = t.replace(/https?:\/\/\S+/gi, "");
-
-  // Remove domain-like tokens (apnews.com, nasdaq.com, etc.)
   t = t.replace(/\b[a-z0-9-]+\.(com|net|org|io|co|ca|ai|app)\b/gi, "");
-
-  // Remove "www" and tracking tokens
-  t = t.replace(/\bwww\b/gi, "");
   t = t.replace(/\butm_[a-z0-9_]+\b/gi, "");
 
-  // Remove spoken URL glue words that tend to leak into scripts
+  // Strip URL glue
   t = t.replace(/\bhttps\b/gi, "");
+  t = t.replace(/\bwww\b/gi, "");
   t = t.replace(/\bdot\b/gi, "");
 
-  // Remove leftover citation parentheses like "( )" or "()"
+  // Remove empty citation parentheses left behind
   t = t.replace(/\(\s*\)/g, "");
 
-  // Remove markdown / formatting artifacts
+  // Remove standalone section headers if model outputs them
+  t = t.replace(/^\s*(The Tape|The Thread|Engage|Call to Action|Close)\s*$/gim, "");
+
+  // HARD: remove index “levels” like 6,940.01 or 23,515.39 (commas + optional decimals)
+  // We only remove the numeric token; the prompt should avoid generating them in the first place.
+  t = t.replace(/\b\d{1,3}(?:,\d{3})+(?:\.\d+)?\b/g, "");
+
+  // Remove markdown-ish formatting chars
   t = t.replace(/[*_`>#]/g, "");
 
   // Normalize whitespace
@@ -39,119 +49,117 @@ function sanitizeForAudio(s) {
   return t.trim();
 }
 
-// Enforce target length (~8 minutes at 150 wpm => ~1150-1300 words)
-function needsExpansion(text, targetMinutes) {
-  const words = text.split(/\s+/).filter(Boolean).length;
-  const minWords = Math.floor(targetMinutes * 150 * 0.9); // 90% of target
-  return words < minWords;
-}
-
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
-
-    if (!user) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
     const preferences = body?.preferences ?? {};
     const date = safeISODate(body?.date);
 
-    // You selected: 8 mins, medium energy, plain+investor, narrative-like, no journalistic phrases
-    const targetMinutes = 8;
+    const name =
+      (typeof preferences?.user_name === "string" && preferences.user_name.trim()) ? preferences.user_name.trim()
+      : (typeof user?.name === "string" && user.name.trim()) ? user.name.trim()
+      : "there";
+
     const targetWordRange = "1150 to 1350 words";
 
-    // -----------------------------
-    // SCRIPT PROMPT (single-call; hard style constraints)
-    // -----------------------------
     const scriptPrompt = `
 You are the host of "Pulse" — a premium morning financial audio briefing.
 
 DATE: ${date}
+LISTENER NAME: ${name}
 
-VOICE + PACING (LOCKED):
+VOICE (LOCKED):
 - Medium energy
-- Plain + investor voice (casual, engaging; avoid academic phrasing)
-- Natural spoken cadence; narrative-like analysis; impartial
-- Softer delivery: no overdramatic metaphors without context
-- Avoid AI-isms. Do NOT overuse "not X...but Y". Only use contrast if it adds meaningful explanatory weight.
+- Plain + investor voice (casual, engaging; no academic tone)
+- Natural pacing; narrative-like; impartial
+- Avoid AI-isms. Do NOT overuse “not X… but Y”.
 
-FORBIDDEN (must never appear, exact):
-"according to", "as reported by", "in today’s news", "reports say", "sources say", "dot com", "https", "www", "utm"
+ABSOLUTE RULE (MARKET NUMBERS):
+- DO NOT read index levels / point values.
+- NO values like "6,940.01" or "23,515.39" or "49,359.33".
+- In the market tape, only give PERCENT changes for the day (e.g., “S&P was down 0.1%”).
+- Percentages are fine. Whole-dollar figures are fine when necessary (e.g., “a $285 billion package”).
+- Avoid decimals in general unless it materially changes meaning. Prefer rounding.
+
+FORBIDDEN PHRASES (never use):
+"according to", "as reported by", "in today’s news", "reports say", "sources say",
+"dot com", "https", "www", "utm"
 
 SOURCES RULE:
-- Do NOT include URLs or domains.
-- Do NOT include parenthetical citations.
-- If you mention a source, use outlet NAME ONLY, max 2 mentions total (e.g., "Reuters", "Bloomberg"). Otherwise omit sources entirely.
+- No URLs or domains.
+- No parenthetical citations.
+- If you mention a source: outlet name only, max 2 mentions total. Otherwise omit.
 
-STRUCTURE (6A One Thread, target ~${targetMinutes} minutes):
-0) Hook: one soft headline + a hook line that gives context, then “Let’s dive in.”
-1) The Tape: quick orientation (no data dump; only what matters).
-2) The Thread: ONE common thread + why it matters to the listener (ripple effects).
+STRUCTURE (6A One Thread, target ~8 minutes):
+0) Hook: greet the listener by name in the first sentence. Then one soft headline + one hook line with context + “Let’s dive in.”
+1) The Tape: quick orientation (only what matters). Percent changes only, no index levels.
+2) The Thread: ONE common thread + why it matters (ripple effects).
 3) Engage: up to 4 stories. For each:
-   - Facts first (neutral; keep it simple)
+   - Facts first (neutral, simple)
    - Curiosity pivot: “The natural question is…”
-   - BOTH sides: 1–2 lines each, impartial, spoken language
+   - Both sides: 1–2 lines each, spoken language, impartial
    - Short-term vs long-term implication
    - Tie back to the thread
-4) Call to Action: orientation only (no buy/sell, no advice language).
+4) Call to Action: orientation only (no advice / no buy-sell).
 5) Close: one thing to watch tomorrow + calm signoff.
 
-IMPORTANT OUTPUT RULES:
-- Output must be a single continuous spoken script.
-- Do NOT use section headings like "The Tape" / "The Thread" / "Engage" as standalone headers.
-  Instead, weave transitions in speech (e.g., “Here’s the tape.” “Here’s the thread.”).
-- No bullet lists.
+OUTPUT RULES (STRICT):
+- Return ONLY the spoken script.
+- No standalone section headers on their own lines.
+- No bullet points.
 - No numbered list formatting like "1." "2." on their own lines.
-- Length must be ${targetWordRange}. If you are short, expand by adding more reasoning, context, and smooth transitions—without adding fluff.
+- Length MUST be ${targetWordRange}. If short, expand with more reasoning and transitions, not fluff.
 
-PERSONALIZATION (light touch only):
-- Risk tolerance: ${preferences?.risk_tolerance || "moderate"}
-- Interests: ${(preferences?.investment_interests || []).join(", ") || "general markets"}
-- Holdings: ${(preferences?.portfolio_holdings || []).join(", ") || "not specified"}
+Light personalization (optional, do not force):
+Risk tolerance: ${preferences?.risk_tolerance || "moderate"}
+Interests: ${(preferences?.investment_interests || []).join(", ") || "general markets"}
+Holdings: ${(preferences?.portfolio_holdings || []).join(", ") || "not specified"}
 
-Now generate today’s full script.
+Generate today’s full script now.
 `;
 
-    const firstPass = await base44.integrations.Core.InvokeLLM({
+    // Pass 1
+    const first = await base44.integrations.Core.InvokeLLM({
       prompt: scriptPrompt,
       add_context_from_internet: true,
       response_json_schema: {
         type: "object",
         additionalProperties: false,
-        properties: {
-          script: { type: "string" },
-        },
+        properties: { script: { type: "string" } },
         required: ["script"],
       },
     });
 
-    let finalScript = sanitizeForAudio(firstPass?.script || "");
+    let script = sanitizeForAudio(first?.script || "");
 
-    // -----------------------------
-    // If too short, do a second pass to expand (keeps style constraints)
-    // -----------------------------
-    if (needsExpansion(finalScript, targetMinutes)) {
+    // Pass 2 expansion if short
+    if (isTooShort(script)) {
       const expandPrompt = `
-You previously wrote a Pulse script, but it is too short.
+Expand the script to ${targetWordRange}.
 
-TASK:
-Expand the script to ${targetWordRange} while preserving:
+KEEP:
 - same voice (plain + investor, medium energy, narrative-like, impartial)
+- greet the listener by name in the first sentence ("${name}")
+- no index levels / point values; percent changes only for market tape
 - same structure (hook -> tape -> thread -> up to 4 stories -> CTA -> close)
-- no URLs, no domains, no citations, no "according to", no "dot com"
-- no standalone headings and no numbered list formatting
 
-Here is the current script (expand it, do not restart completely):
-<<<SCRIPT
-${finalScript}
-SCRIPT>>>
+FORBIDDEN:
+- No URLs, domains, citations, or citation-like parentheses
+- No standalone headers
+- No bullet points
+- No numbered list formatting like "1." "2."
 
-Return ONLY the expanded script text.
+SCRIPT TO EXPAND:
+<<<
+${script}
+>>>
+
+Return ONLY the expanded script.
 `;
-
       const expanded = await base44.integrations.Core.InvokeLLM({
         prompt: expandPrompt,
         add_context_from_internet: false,
@@ -163,20 +171,15 @@ Return ONLY the expanded script text.
         },
       });
 
-      finalScript = sanitizeForAudio(expanded?.script || finalScript);
+      script = sanitizeForAudio(expanded?.script || script);
     }
 
-    if (!finalScript) {
-      return Response.json({ error: "Script generation returned empty output" }, { status: 500 });
-    }
+    if (!script) return Response.json({ error: "Empty script" }, { status: 500 });
 
-    // Estimate duration
-    const wordCount = finalScript.split(/\s+/).filter(Boolean).length;
-    const estimatedMinutes = Math.max(1, Math.round(wordCount / 150));
+    const wc = wordCount(script);
+    const estimatedMinutes = Math.max(1, Math.round(wc / 150));
 
-    // -----------------------------
     // ElevenLabs TTS
-    // -----------------------------
     const elevenLabsApiKey = Deno.env.get("ELEVENLABS_API_KEY");
     if (!elevenLabsApiKey) {
       return Response.json({ error: "ELEVENLABS_API_KEY not configured" }, { status: 500 });
@@ -192,7 +195,7 @@ Return ONLY the expanded script text.
         "xi-api-key": elevenLabsApiKey,
       },
       body: JSON.stringify({
-        text: finalScript,
+        text: script,
         model_id: "eleven_multilingual_v2",
         output_format: "mp3_44100_128",
         voice_settings: {
@@ -209,45 +212,43 @@ Return ONLY the expanded script text.
       return Response.json({ error: "ElevenLabs TTS failed", details: errorText }, { status: 500 });
     }
 
-    // Upload to Base44 private storage + create signed URL
+    // Upload private file + signed URL
     const audioBlob = await ttsResponse.blob();
     const audioFile = new File([audioBlob], `briefing-${date}.mp3`, { type: "audio/mpeg" });
 
-    const { file_uri } = await base44.asServiceRole.integrations.Core.UploadPrivateFile({
-      file: audioFile,
-    });
+    const { file_uri } = await base44.asServiceRole.integrations.Core.UploadPrivateFile({ file: audioFile });
 
     const { signed_url } = await base44.asServiceRole.integrations.Core.CreateFileSignedUrl({
       file_uri,
-      expires_in: 60 * 60 * 24 * 7, // 7 days
+      expires_in: 60 * 60 * 24 * 7,
     });
 
-    // -----------------------------
-    // Save record as the USER (so your UI can find it under your account)
-    // -----------------------------
+    // Save under YOUR user so UI can find it
+    const existingUser = await base44.asServiceRole.entities.DailyBriefing.filter({
+      date,
+      created_by: user.email,
+    });
+
     const briefingRecord = {
       date,
-      script: finalScript,
+      script,
       audio_url: signed_url,
       duration_minutes: estimatedMinutes,
       status: "ready",
     };
 
-    // IMPORTANT: use base44.entities (user context) so created_by = you
-    const existing = await base44.entities.DailyBriefing.filter({ date });
-
-    let savedBriefing;
-    if (existing.length > 0) {
-      savedBriefing = await base44.entities.DailyBriefing.update(existing[0].id, briefingRecord);
+    let saved;
+    if (existingUser.length > 0) {
+      saved = await base44.asServiceRole.entities.DailyBriefing.update(existingUser[0].id, briefingRecord);
     } else {
-      savedBriefing = await base44.entities.DailyBriefing.create(briefingRecord);
+      saved = await base44.entities.DailyBriefing.create(briefingRecord);
     }
 
     return Response.json({
       success: true,
-      briefing: savedBriefing,
+      briefing: saved,
+      wordCount: wc,
       estimatedMinutes,
-      wordCount,
     });
   } catch (error) {
     console.error("Error in generateBriefing:", error);
