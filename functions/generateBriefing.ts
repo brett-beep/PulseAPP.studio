@@ -56,6 +56,9 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
+    //delete this// 
+    const previewOnly = Boolean(body?.preview_only);
+    //delete this//
     const preferences = body?.preferences ?? {};
     const date = safeISODate(body?.date);
 
@@ -178,7 +181,37 @@ Return ONLY the expanded script.
 
     const wc = wordCount(script);
     const estimatedMinutes = Math.max(1, Math.round(wc / 150));
+//**********DELETE AFTER TESTING//
+if (previewOnly) {
+  // Save script only, skip ElevenLabs to preserve credits
+  const existingUser = await base44.asServiceRole.entities.DailyBriefing.filter({
+    date,
+    created_by: user.email,
+  });
 
+  const briefingRecord = {
+    date,
+    script,
+    duration_minutes: estimatedMinutes,
+    status: "script_ready",
+    audio_url: null,
+  };
+
+  let saved;
+  if (existingUser.length > 0) {
+    saved = await base44.asServiceRole.entities.DailyBriefing.update(existingUser[0].id, briefingRecord);
+  } else {
+    saved = await base44.entities.DailyBriefing.create(briefingRecord);
+  }
+
+  return Response.json({
+    success: true,
+    briefing: saved,
+    estimatedMinutes,
+    preview_only: true,
+  });
+}
+//**********DELETE AFTER TESTING//
     // ElevenLabs TTS
     const elevenLabsApiKey = Deno.env.get("ELEVENLABS_API_KEY");
     if (!elevenLabsApiKey) {
