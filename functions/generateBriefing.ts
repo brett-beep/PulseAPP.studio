@@ -8,45 +8,28 @@ function safeISODate(input) {
 function wordCount(text) {
   return text.split(/\s+/).filter(Boolean).length;
 }
-function isTooShort(text) {
-  return wordCount(text) < 1150; // ~8 min at 150 wpm
-}
 
 function sanitizeForAudio(s) {
   if (!s) return "";
   let t = String(s);
-
-  // Strip markdown links: [text](url) -> text
   t = t.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, "$1");
-
-  // Strip raw URLs + domains
   t = t.replace(/https?:\/\/\S+/gi, "");
   t = t.replace(/\b[a-z0-9-]+\.(com|net|org|io|co|ca|ai|app)\b/gi, "");
   t = t.replace(/\butm_[a-z0-9_]+\b/gi, "");
-
-  // Strip URL glue
-  t = t.replace(/\bhttps\b/gi, "");
-  t = t.replace(/\bwww\b/gi, "");
-  t = t.replace(/\bdot\b/gi, "");
-
-  // Remove empty citation parentheses left behind
   t = t.replace(/\(\s*\)/g, "");
-
-  // Remove standalone section headers if model outputs them
-  t = t.replace(/^\s*(The Tape|The Thread|Engage|Call to Action|Close)\s*$/gim, "");
-
-  // HARD: remove index “levels” like 6,940.01 or 23,515.39 (commas + optional decimals)
-  // We only remove the numeric token; the prompt should avoid generating them in the first place.
-  t = t.replace(/\b\d{1,3}(?:,\d{3})+(?:\.\d+)?\b/g, "");
-
-  // Remove markdown-ish formatting chars
+  t = t.replace(/\b\d{1,3}(?:,\d{3})+(?:\.\d+)?\b/g, ""); // index levels
   t = t.replace(/[*_`>#]/g, "");
-
-  // Normalize whitespace
   t = t.replace(/[ \t]{2,}/g, " ");
   t = t.replace(/\n{3,}/g, "\n\n");
-
   return t.trim();
+}
+
+async function invokeLLM(base44, prompt, addInternet, schema) {
+  return await base44.integrations.Core.InvokeLLM({
+    prompt,
+    add_context_from_internet: addInternet,
+    response_json_schema: schema,
+  });
 }
 
 Deno.serve(async (req) => {
@@ -56,167 +39,177 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
-    //delete this// 
-    const previewOnly = Boolean(body?.preview_only);
-    //delete this//
     const preferences = body?.preferences ?? {};
     const date = safeISODate(body?.date);
+    const previewOnly = Boolean(body?.preview_only);
 
     const name =
-      (typeof preferences?.user_name === "string" && preferences.user_name.trim()) ? preferences.user_name.trim()
-      : (typeof user?.name === "string" && user.name.trim()) ? user.name.trim()
-      : "there";
+      (typeof preferences?.user_name === "string" && preferences.user_name.trim())
+        ? preferences.user_name.trim()
+        : (typeof user?.name === "string" && user.name.trim())
+        ? user.name.trim()
+        : "there";
 
-    const targetWordRange = "1150 to 1350 words";
-
-    const scriptPrompt = `
-You are the host of "Pulse" — a premium morning financial audio briefing.
+    // 1) Get structured "selected stories" first (this powers your UI section)
+    const storiesPrompt = `
+You are curating "Selected stories" for a premium morning investor audio briefing.
 
 DATE: ${date}
-LISTENER NAME: ${name}
 
-VOICE (LOCKED):
-- Medium energy
-- Plain + investor voice (casual, engaging; no academic tone)
-- Natural pacing; narrative-like; impartial
-- Avoid AI-isms. Do NOT overuse “not X… but Y”.
+Rules:
+- Return 4 to 6 stories.
+- Outlet: outlet name only (e.g., "WSJ", "Bloomberg", "Reuters"). No URLs.
+- No "according to / as reported by / in today's news / dot com".
+- Include market context (index % moves) ONLY as % (no index levels).
+- Keep it investor-relevant.
 
-ABSOLUTE RULE (MARKET NUMBERS):
-- DO NOT read index levels / point values.
-- NO values like "6,940.01" or "23,515.39" or "49,359.33".
-- In the market tape, only give PERCENT changes for the day (e.g., “S&P was down 0.1%”).
-- Percentages are fine. Whole-dollar figures are fine when necessary (e.g., “a $285 billion package”).
-- Avoid decimals in general unless it materially changes meaning. Prefer rounding.
-
-FORBIDDEN PHRASES (never use):
-"according to", "as reported by", "in today’s news", "reports say", "sources say",
-"dot com", "https", "www", "utm"
-
-SOURCES RULE:
-- No URLs or domains.
-- No parenthetical citations.
-- If you mention a source: outlet name only, max 2 mentions total. Otherwise omit.
-
-STRUCTURE (6A One Thread, target ~8 minutes):
-0) Hook: greet the listener by name in the first sentence. Then one soft headline + one hook line with context + “Let’s dive in.”
-1) The Tape: quick orientation (only what matters). Percent changes only, no index levels.
-2) The Thread: ONE common thread + why it matters (ripple effects).
-3) Engage: up to 4 stories. For each:
-   - Facts first (neutral, simple)
-   - Curiosity pivot: “The natural question is…”
-   - Both sides: 1–2 lines each, spoken language, impartial
-   - Short-term vs long-term implication
-   - Tie back to the thread
-4) Call to Action: orientation only (no advice / no buy-sell).
-5) Close: one thing to watch tomorrow + calm signoff.
-
-OUTPUT RULES (STRICT):
-- Return ONLY the spoken script.
-- No standalone section headers on their own lines.
-- No bullet points.
-- No numbered list formatting like "1." "2." on their own lines.
-- Length MUST be ${targetWordRange}. If short, expand with more reasoning and transitions, not fluff.
-
-Light personalization (optional, do not force):
-Risk tolerance: ${preferences?.risk_tolerance || "moderate"}
-Interests: ${(preferences?.investment_interests || []).join(", ") || "general markets"}
-Holdings: ${(preferences?.portfolio_holdings || []).join(", ") || "not specified"}
-
-Generate today’s full script now.
+Return JSON only.
 `;
 
-    // Pass 1
-    const first = await base44.integrations.Core.InvokeLLM({
-      prompt: scriptPrompt,
-      add_context_from_internet: true,
-      response_json_schema: {
-        type: "object",
-        additionalProperties: false,
-        properties: { script: { type: "string" } },
-        required: ["script"],
-      },
-    });
-
-    let script = sanitizeForAudio(first?.script || "");
-
-    // Pass 2 expansion if short
-    if (isTooShort(script)) {
-      const expandPrompt = `
-Expand the script to ${targetWordRange}.
-
-KEEP:
-- same voice (plain + investor, medium energy, narrative-like, impartial)
-- greet the listener by name in the first sentence ("${name}")
-- no index levels / point values; percent changes only for market tape
-- same structure (hook -> tape -> thread -> up to 4 stories -> CTA -> close)
-
-FORBIDDEN:
-- No URLs, domains, citations, or citation-like parentheses
-- No standalone headers
-- No bullet points
-- No numbered list formatting like "1." "2."
-
-SCRIPT TO EXPAND:
-<<<
-${script}
->>>
-
-Return ONLY the expanded script.
-`;
-      const expanded = await base44.integrations.Core.InvokeLLM({
-        prompt: expandPrompt,
-        add_context_from_internet: false,
-        response_json_schema: {
+    const storiesSchema = {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        market_tape: {
           type: "object",
           additionalProperties: false,
-          properties: { script: { type: "string" } },
-          required: ["script"],
+          properties: {
+            sp500_pct: { type: "string" },
+            nasdaq_pct: { type: "string" },
+            dow_pct: { type: "string" },
+          },
+          required: ["sp500_pct", "nasdaq_pct", "dow_pct"],
         },
-      });
+        news_stories: {
+          type: "array",
+          minItems: 4,
+          maxItems: 6,
+          items: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              title: { type: "string" },
+              what_happened: { type: "string" },
+              why_it_matters: { type: "string" },
+              both_sides: {
+                type: "object",
+                additionalProperties: false,
+                properties: {
+                  side_a: { type: "string" },
+                  side_b: { type: "string" },
+                },
+                required: ["side_a", "side_b"],
+              },
+              outlet: { type: "string" },
+              category: { type: "string" },
+            },
+            required: ["title", "what_happened", "why_it_matters", "both_sides", "outlet", "category"],
+          },
+        },
+      },
+      required: ["market_tape", "news_stories"],
+    };
 
-      script = sanitizeForAudio(expanded?.script || script);
+    const storiesData = await invokeLLM(base44, storiesPrompt, true, storiesSchema);
+
+    // 2) Write script using your 6A structure + those stories
+    const scriptPrompt = `
+Write the full spoken script for "Pulse" using the provided data.
+
+LISTENER NAME: ${name}
+DATE: ${date}
+
+VOICE:
+- Plain + investor (casual, engaging)
+- Natural pacing, narrative-like
+- Impartial
+- Avoid “not X… but Y” unless it truly adds meaning
+- NO journalistic filler like "according to", "as reported by", "in today's news", "dot com"
+
+MARKET NUMBERS RULE:
+- Percent moves only. No index levels.
+
+STRUCTURE (6A One Thread, target ~8 minutes):
+Hook (greet by name first line) -> Tape (use market_tape %s) -> One Thread -> Engage (use up to 4 of the stories, each: facts, curiosity pivot, both sides, short vs long term, tie to thread) -> Call to Action (orientation only) -> Close (one thing to watch tomorrow)
+
+DATA:
+market_tape:
+- S&P: ${storiesData.market_tape.sp500_pct}
+- Nasdaq: ${storiesData.market_tape.nasdaq_pct}
+- Dow: ${storiesData.market_tape.dow_pct}
+
+stories:
+${storiesData.news_stories
+  .map((s, i) => `
+${i + 1}) ${s.title}
+- what: ${s.what_happened}
+- why: ${s.why_it_matters}
+- sideA: ${s.both_sides.side_a}
+- sideB: ${s.both_sides.side_b}
+- outlet: ${s.outlet}
+`).join("\n")}
+
+Return JSON only: { "script": "..." }
+`;
+
+    const scriptSchema = {
+      type: "object",
+      additionalProperties: false,
+      properties: { script: { type: "string" } },
+      required: ["script"],
+    };
+
+    const scriptData = await invokeLLM(base44, scriptPrompt, false, scriptSchema);
+    let script = sanitizeForAudio(scriptData.script || "");
+
+    // Expand if too short
+    for (let round = 0; round < 2; round++) {
+      if (wordCount(script) >= 1150) break;
+      const expand = await invokeLLM(
+        base44,
+        `Expand to 1150-1350 words. No URLs. No index levels. Same voice. Return JSON: {"script":"..."}\n\n<<<\n${script}\n>>>`,
+        false,
+        scriptSchema
+      );
+      script = sanitizeForAudio(expand.script || script);
     }
-
-    if (!script) return Response.json({ error: "Empty script" }, { status: 500 });
 
     const wc = wordCount(script);
     const estimatedMinutes = Math.max(1, Math.round(wc / 150));
-//**********DELETE AFTER TESTING//
-if (previewOnly) {
-  // Save script only, skip ElevenLabs to preserve credits
-  const existingUser = await base44.asServiceRole.entities.DailyBriefing.filter({
-    date,
-    created_by: user.email,
-  });
 
-  const briefingRecord = {
-    date,
-    script,
-    duration_minutes: estimatedMinutes,
-    status: "script_ready",
-    audio_url: null,
-  };
+    // Save record NOW so UI gets selected stories back
+    const existingUser = await base44.asServiceRole.entities.DailyBriefing.filter({
+      date,
+      created_by: user.email,
+    });
 
-  let saved;
-  if (existingUser.length > 0) {
-    saved = await base44.asServiceRole.entities.DailyBriefing.update(existingUser[0].id, briefingRecord);
-  } else {
-    saved = await base44.entities.DailyBriefing.create(briefingRecord);
-  }
+    const baseRecord = {
+      date,
+      script,
+      summary: null,
+      market_sentiment: null,
+      key_highlights: [],
+      news_stories: storiesData.news_stories,
+      duration_minutes: estimatedMinutes,
+      status: previewOnly ? "script_ready" : "ready",
+      audio_url: null,
+    };
 
-  return Response.json({
-    success: true,
-    briefing: saved,
-    estimatedMinutes,
-    preview_only: true,
-  });
-}
-//**********DELETE AFTER TESTING//
-    // ElevenLabs TTS
-    const elevenLabsApiKey = Deno.env.get("ELEVENLABS_API_KEY");
-    if (!elevenLabsApiKey) {
-      return Response.json({ error: "ELEVENLABS_API_KEY not configured" }, { status: 500 });
+    let saved;
+    if (existingUser.length > 0) {
+      saved = await base44.asServiceRole.entities.DailyBriefing.update(existingUser[0].id, baseRecord);
+    } else {
+      saved = await base44.entities.DailyBriefing.create(baseRecord);
     }
+
+    // If previewOnly, stop here (no ElevenLabs credits)
+    if (previewOnly) {
+      return Response.json({ success: true, briefing: saved, wordCount: wc, estimatedMinutes, preview_only: true });
+    }
+
+    // ElevenLabs
+    const elevenLabsApiKey = Deno.env.get("ELEVENLABS_API_KEY");
+    if (!elevenLabsApiKey) return Response.json({ error: "ELEVENLABS_API_KEY not configured" }, { status: 500 });
 
     const voiceId = "Qggl4b0xRMiqOwhPtVWT";
 
@@ -245,44 +238,19 @@ if (previewOnly) {
       return Response.json({ error: "ElevenLabs TTS failed", details: errorText }, { status: 500 });
     }
 
-    // Upload private file + signed URL
     const audioBlob = await ttsResponse.blob();
     const audioFile = new File([audioBlob], `briefing-${date}.mp3`, { type: "audio/mpeg" });
 
     const { file_uri } = await base44.asServiceRole.integrations.Core.UploadPrivateFile({ file: audioFile });
-
     const { signed_url } = await base44.asServiceRole.integrations.Core.CreateFileSignedUrl({
       file_uri,
       expires_in: 60 * 60 * 24 * 7,
     });
 
-    // Save under YOUR user so UI can find it
-    const existingUser = await base44.asServiceRole.entities.DailyBriefing.filter({
-      date,
-      created_by: user.email,
-    });
+    const finalRecord = { ...baseRecord, audio_url: signed_url, status: "ready" };
+    const finalSaved = await base44.asServiceRole.entities.DailyBriefing.update(saved.id, finalRecord);
 
-    const briefingRecord = {
-      date,
-      script,
-      audio_url: signed_url,
-      duration_minutes: estimatedMinutes,
-      status: "ready",
-    };
-
-    let saved;
-    if (existingUser.length > 0) {
-      saved = await base44.asServiceRole.entities.DailyBriefing.update(existingUser[0].id, briefingRecord);
-    } else {
-      saved = await base44.entities.DailyBriefing.create(briefingRecord);
-    }
-
-    return Response.json({
-      success: true,
-      briefing: saved,
-      wordCount: wc,
-      estimatedMinutes,
-    });
+    return Response.json({ success: true, briefing: finalSaved, wordCount: wc, estimatedMinutes });
   } catch (error) {
     console.error("Error in generateBriefing:", error);
     return Response.json({ error: error?.message || String(error), stack: error?.stack }, { status: 500 });
