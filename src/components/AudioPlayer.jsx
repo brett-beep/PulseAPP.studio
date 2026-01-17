@@ -23,52 +23,30 @@ export default function AudioPlayer({
   const sy = useSpring(my, { stiffness: 200, damping: 30, mass: 0.5 });
 
   useEffect(() => {
-  const audio = audioRef.current;
-  if (!audio || !audioUrl) return;
+    const audio = audioRef.current;
+    if (!audio) return;
 
-  // Reset + force reload whenever a new audioUrl arrives
-  audio.pause();
-  audio.currentTime = 0;
-  audio.load();
+    const handleTimeUpdate = () => setCurrentTime(audio.currentTime || 0);
+    const handleLoadedMetadata = () => {
+      const d = audio.duration;
+      if (Number.isFinite(d) && d > 0) setTotalDuration(d);
+      else setTotalDuration((duration || 0) * 60 || 0);
+    };
+    const handleEnded = () => {
+      setIsPlaying(false);
+      onComplete?.();
+    };
 
-  setIsPlaying(false);
-  setCurrentTime(0);
+    audio.addEventListener("timeupdate", handleTimeUpdate);
+    audio.addEventListener("loadedmetadata", handleLoadedMetadata);
+    audio.addEventListener("ended", handleEnded);
 
-  const handleTimeUpdate = () => {
-    setCurrentTime(audio.currentTime || 0);
-  };
-
-  const handleLoadedMetadata = () => {
-    const d = audio.duration;
-    if (Number.isFinite(d) && d > 0) {
-      setTotalDuration(d);
-    } else {
-      setTotalDuration((duration || 0) * 60 || 0);
-    }
-  };
-
-  const handleEnded = () => {
-    setIsPlaying(false);
-    onComplete?.();
-  };
-
-  const handleError = () => {
-    console.log("AUDIO_ERROR", audio.error, audioUrl);
-  };
-
-  audio.addEventListener("timeupdate", handleTimeUpdate);
-  audio.addEventListener("loadedmetadata", handleLoadedMetadata);
-  audio.addEventListener("ended", handleEnded);
-  audio.addEventListener("error", handleError);
-
-  return () => {
-    audio.removeEventListener("timeupdate", handleTimeUpdate);
-    audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
-    audio.removeEventListener("ended", handleEnded);
-    audio.removeEventListener("error", handleError);
-  };
-}, [audioUrl, duration, onComplete]);
-
+    return () => {
+      audio.removeEventListener("timeupdate", handleTimeUpdate);
+      audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      audio.removeEventListener("ended", handleEnded);
+    };
+  }, [audioUrl, duration, onComplete]);
 
   const progress = totalDuration > 0 ? currentTime / totalDuration : 0;
 
@@ -215,7 +193,7 @@ export default function AudioPlayer({
         }}
       />
 
-      {audioUrl ? <audio key={audioUrl} ref={audioRef} src={audioUrl} preload="metadata" /> : null}
+      {audioUrl ? <audio ref={audioRef} src={audioUrl} preload="metadata" /> : null}
 
       <div className="relative z-10">
         {/* Header with date */}
