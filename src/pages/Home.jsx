@@ -63,8 +63,22 @@ export default function Home() {
     },
   });
 
-  // Generate briefing mutation (kept same behavior)
-  const generateBriefing = async () => {
+  // Safe parser for Base44 array fields (can be array OR JSON-string)
+  const parseJsonArray = (value) => {
+    if (Array.isArray(value)) return value;
+    if (typeof value === "string") {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+
+  // Mode A: generate stories/script only (fast)
+  const generateBriefingScript = async () => {
     if (isGenerating) return;
 
     setIsGenerating(true);
@@ -72,19 +86,44 @@ export default function Home() {
       const response = await base44.functions.invoke("generateBriefing", {
         preferences: preferences,
         date: today,
-        // optional: set this true while iterating to save credits
-        preview_only: true,
+        // backend must support this flag and skip ElevenLabs
+        audio_only: false,
       });
 
       if (response?.data?.error) {
-        console.error("Briefing generation error:", response.data.error);
+        console.error("Briefing script generation error:", response.data.error);
         alert("Failed to generate briefing: " + response.data.error);
       } else {
         await refetchBriefing();
       }
     } catch (error) {
-      console.error("Error generating briefing:", error);
+      console.error("Error generating briefing script:", error);
       alert("Failed to generate briefing. Please try again.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // Mode B: generate audio only (slow)
+  const generateBriefingAudio = async () => {
+    if (isGenerating) return;
+
+    setIsGenerating(true);
+    try {
+      const response = await base44.functions.invoke("generateBriefing", {
+        date: today,
+        audio_only: true,
+      });
+
+      if (response?.data?.error) {
+        console.error("Audio generation error:", response.data.error);
+        alert("Failed to generate audio: " + response.data.error);
+      } else {
+        await refetchBriefing();
+      }
+    } catch (error) {
+      console.error("Error generating audio:", error);
+      alert("Failed to generate audio. Please try again.");
     } finally {
       setIsGenerating(false);
     }
@@ -122,22 +161,29 @@ export default function Home() {
   const firstName = user?.full_name?.split(" ")?.[0] || "there";
   const audioUrl = todayBriefing?.audio_url || null;
 
-  // Stories + highlights can exist even when audio isn't ready
-  const parseJsonArray = (value) => {
-  if (Array.isArray(value)) return value;
-  if (typeof value === "string") {
-    try {
-      const parsed = JSON.parse(value);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  }
-  return [];
-};
+  const stories = parseJsonArray(todayBriefing?.news_stories);
+  const highlights = parseJsonArray(todayBriefing?.key_highlights);
 
-const stories = parseJsonArray(todayBriefing?.news_stories);
-const highlights = parseJsonArray(todayBriefing?.key_highlights);
+  // Guard sentiment type (new schema uses object)
+  const sentiment =
+    todayBriefing?.market_sentiment && typeof todayBriefing.market_sentiment === "object"
+      ? todayBriefing.market_sentiment
+      : null;
+
+  const status = todayBriefing?.status || null;
+  const hasScript = Boolean(todayBriefing?.script);
+  const canGenerateAudio = status === "script_ready" && !audioUrl && hasScript;
+
+  const onGenerate =
+    audioUrl ? null : canGenerateAudio ? generateBriefingAudio : generateBriefingScript;
+
+  const statusLabel = briefingLoading
+    ? "Loading briefing…"
+    : audioUrl
+    ? "Status: Ready to Play"
+    : canGenerateAudio
+    ? "Status: Script Ready — Generate Audio"
+    : "Status: Ready to Generate";
 
   return (
     <div
@@ -165,7 +211,7 @@ const highlights = parseJsonArray(todayBriefing?.key_highlights);
       </header>
 
       <main className="max-w-4xl mx-auto px-6 py-12">
-        {/* AUDIO PLAYER: always render */}
+        {/* AUDIO PLAYER */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -178,25 +224,17 @@ const highlights = parseJsonArray(todayBriefing?.key_highlights);
             greeting={greeting()}
             userName={firstName}
             currentDate={format(new Date(), "MM/dd, EEE")}
-            onGenerate={audioUrl ? null : generateBriefing}
+            onGenerate={onGenerate}
             isGenerating={isGenerating}
-            status={todayBriefing?.status}
+            status={status}
           />
 
-          {/* Small meta row under player */}
           <div className="mt-6 flex items-center justify-between">
-            <MarketSentiment sentiment={todayBriefing?.market_sentiment || null} />
-            <div className="text-sm text-slate-500">
-              {briefingLoading 
-                ? "Loading briefing…" 
-                : audioUrl 
-                ? "Status: Ready to Play" 
-                : "Status: Ready to Generate"}
-            </div>
+            <MarketSentiment sentiment={sentiment} />
+            <div className="text-sm text-slate-500">{statusLabel}</div>
           </div>
         </motion.section>
 
-        {/* Summary & Key Highlights: show if exists (not gated by status) */}
         {(todayBriefing?.summary || highlights.length > 0) && (
           <motion.section
             initial={{ opacity: 0, y: 20 }}
@@ -214,7 +252,6 @@ const highlights = parseJsonArray(todayBriefing?.key_highlights);
           </motion.section>
         )}
 
-        {/* Selected Stories: ALWAYS render (empty state if none) */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -234,7 +271,7 @@ const highlights = parseJsonArray(todayBriefing?.key_highlights);
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
               {stories.map((story, index) => (
-                <NewsCard key={index} story={story} index={index} />
+                <NewsCard key={story?.id || index} story={story} index={index} />
               ))}
             </div>
           )}
