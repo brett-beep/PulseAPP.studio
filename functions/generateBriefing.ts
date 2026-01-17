@@ -58,47 +58,162 @@ IMPORTANT REQUIREMENTS:
 Return comprehensive, actionable financial intelligence that this investor can listen to during their morning routine.`;
 
         // Use LLM with internet context to gather all available financial news
-        const briefingData = await base44.integrations.Core.InvokeLLM({
-            prompt: newsPrompt,
-            add_context_from_internet: true,
-            response_json_schema: {
-                type: "object",
-                properties: {
-                    script: {
-                        type: "string",
-                        description: "The full audio briefing script, written for natural speech"
-                    },
-                    summary: {
-                        type: "string",
-                        description: "A 2-3 sentence executive summary"
-                    },
-                    market_sentiment: {
-                        type: "string",
-                        enum: ["bullish", "bearish", "neutral", "mixed"],
-                        description: "Overall market sentiment"
-                    },
-                    key_highlights: {
-                        type: "array",
-                        items: { type: "string" },
-                        description: "4-6 key bullet points from the briefing"
-                    },
-                    news_stories: {
-                        type: "array",
-                        items: {
-                            type: "object",
-                            properties: {
-                                title: { type: "string" },
-                                summary: { type: "string" },
-                                relevance_reason: { type: "string" },
-                                source: { type: "string" },
-                                category: { type: "string" }
-                            }
-                        },
-                        description: "4-6 curated news stories most relevant to the user"
-                    }
-                }
-            }
-        });
+// -----------------------------
+// LLM (schema-safe): research pack -> then script
+// -----------------------------
+
+// Stage A: research pack (JSON-safe, no nested objects)
+const researchPrompt = `
+You are a financial research analyst. Collect FACTS only. No narration.
+
+Date: ${date}
+
+User Profile (for relevance only):
+- Goals: ${(preferences?.investment_goals || []).join(", ") || "General investing"}
+- Risk tolerance: ${preferences?.risk_tolerance || "moderate"}
+- Interests: ${(preferences?.investment_interests || []).join(", ") || "General markets"}
+- Holdings: ${(preferences?.portfolio_holdings || []).join(", ") || "Not specified"}
+
+STRICT RULES:
+- Output MUST be valid JSON (double quotes, no trailing commas).
+- Do NOT include URLs.
+- Do NOT include markdown links.
+- Do NOT include parenthetical domains like (apnews.com).
+- Do NOT use: "according to", "as reported by", "sources say", "reports say", "dot com".
+- If you mention a source, use outlet NAME only (e.g., Reuters, Bloomberg, WSJ).
+
+Return:
+- market_snapshot: 6–10 bullets
+- thread_candidates: exactly 3 bullets
+- story_cards: exactly 5 strings, each ONE story formatted exactly like this:
+
+TITLE: ...
+FACTS: ... ; ... ; ...
+QUESTION: ...
+SIDE_A: ...
+SIDE_B: ...
+SHORT_TERM: ... ; ...
+LONG_TERM: ... ; ...
+THREAD_LINK: ...
+SOURCE: OutletName
+
+- tomorrow_watchlist: 2–4 bullets
+`;
+
+const research = await base44.integrations.Core.InvokeLLM({
+  prompt: researchPrompt,
+  add_context_from_internet: true,
+  response_json_schema: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      market_snapshot: {
+        type: "array",
+        items: { type: "string" },
+        minItems: 6,
+        maxItems: 12
+      },
+      thread_candidates: {
+        type: "array",
+        items: { type: "string" },
+        minItems: 3,
+        maxItems: 3
+      },
+      story_cards: {
+        type: "array",
+        items: { type: "string" },
+        minItems: 5,
+        maxItems: 5
+      },
+      tomorrow_watchlist: {
+        type: "array",
+        items: { type: "string" },
+        minItems: 2,
+        maxItems: 6
+      }
+    },
+    required: ["market_snapshot", "thread_candidates", "story_cards", "tomorrow_watchlist"]
+  }
+});
+
+const chosenThread = research.thread_candidates?.[0] || "how risk is being priced in the background";
+
+// Stage B: write the final script in your Pulse voice (simple JSON: {script})
+const scriptPrompt = `
+You are the host of "Pulse" — a premium morning financial audio briefing.
+
+STYLE (LOCKED):
+- Luxury Morning Host vibe: calm, confident, engaging.
+- Medium energy. Natural spoken cadence. Narrative-like, but impartial.
+- Plain + investor vocabulary. Avoid academic phrasing.
+- State the fact first, then zoom out. No drama without context.
+- Avoid AI-isms. DO NOT overuse "not X...but Y". Only use it if it adds real explanatory weight.
+
+FORBIDDEN (never appear):
+"according to", "as reported by", "in today’s news", "sources say", "reports say", "dot com", any URL, any domain.
+
+SOURCES:
+- Outlet names only, sparingly.
+- Max 2 outlet mentions total, and only as a short tag like: "Source: Reuters." Otherwise omit.
+
+STRUCTURE (6A One Thread, ~8 minutes):
+0) Hook (soft, contextual; no numbers)
+1) The Tape (brief; calm orientation)
+2) The Thread (state the common thread + why listener should care: ripple effects)
+3) Engage (4 stories max; for each: facts -> curiosity question -> side A/side B -> short vs long term -> tie back)
+4) Call to Action (orientation, not buy/sell)
+5) Close (one thing to watch tomorrow + calm signoff)
+
+INPUT:
+Market snapshot:
+${(research.market_snapshot || []).map((x) => `- ${x}`).join("\n")}
+
+Chosen thread:
+${chosenThread}
+
+Story cards (use up to 4, in order):
+${(research.story_cards || []).map((x, i) => `${i + 1}. ${x}`).join("\n\n")}
+
+Tomorrow watchlist:
+${(research.tomorrow_watchlist || []).map((x) => `- ${x}`).join("\n")}
+
+OUTPUT:
+Return ONLY the final script text as a single string.
+No markdown. No headings like "Section 1".
+`;
+
+const scriptResp = await base44.integrations.Core.InvokeLLM({
+  prompt: scriptPrompt,
+  add_context_from_internet: false,
+  response_json_schema: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      script: { type: "string" }
+    },
+    required: ["script"]
+  }
+});
+
+// Minimal cleanup to prevent spoken URLs/domains if anything slips through
+let finalScript = (scriptResp?.script || "").trim();
+finalScript = finalScript
+  .replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, "$1") // markdown links -> text
+  .replace(/https?:\/\/\S+/g, "") // bare urls
+  .replace(/\(([^)]*\b(?:com|net|org|io|co|ca|ai|app)\b[^)]*)\)/gi, "") // (domain)
+  .replace(/[ \t]{2,}/g, " ")
+  .replace(/\n{3,}/g, "\n\n")
+  .trim();
+
+// Keep your original variable name so the rest of your file works unchanged:
+const briefingData = {
+  script: finalScript,
+  summary: "", // optional later
+  market_sentiment: "neutral",
+  key_highlights: (research.market_snapshot || []).slice(0, 6),
+  news_stories: [] // optional later
+};
+
 
         // Count words to estimate duration
         const wordCount = briefingData.script.split(/\s+/).length;
@@ -116,7 +231,7 @@ Return comprehensive, actionable financial intelligence that this investor can l
         }
 
         // Use ElevenLabs professional voice (Rachel - clear, professional female voice)
-        const voiceId = "21m00Tcm4TlvDq8ikWAM"; // Rachel voice
+        const voiceId = "Qggl4b0xRMiqOwhPtVWT"; // Rachel voice
         
         const ttsResponse = await fetch(
             `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
