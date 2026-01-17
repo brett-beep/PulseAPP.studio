@@ -17,7 +17,7 @@ function sanitizeForAudio(s) {
   t = t.replace(/\b[a-z0-9-]+\.(com|net|org|io|co|ca|ai|app)\b/gi, "");
   t = t.replace(/\butm_[a-z0-9_]+\b/gi, "");
   t = t.replace(/\(\s*\)/g, "");
-  t = t.replace(/\b\d{1,3}(?:,\d{3})+(?:\.\d+)?\b/g, ""); // index levels
+  t = t.replace(/\b\d{1,3}(?:,\d{3})+(?:\.\d+)?\b/g, "");
   t = t.replace(/[*_`>#]/g, "");
   t = t.replace(/[ \t]{2,}/g, " ");
   t = t.replace(/\n{3,}/g, "\n\n");
@@ -42,7 +42,6 @@ function normalizePct(input) {
 
 function randomId() {
   try {
-    // Deno / Web Crypto
     return crypto.randomUUID();
   } catch {
     return `id_${Math.random().toString(16).slice(2)}_${Date.now()}`;
@@ -87,7 +86,6 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const preferences = body?.preferences ?? {};
     const date = safeISODate(body?.date);
-    const previewOnly = Boolean(body?.preview_only);
 
     const userEmail = safeText(user?.email);
     if (!userEmail) return Response.json({ error: "User email missing" }, { status: 400 });
@@ -98,7 +96,6 @@ Deno.serve(async (req) => {
       safeText(user?.full_name) ||
       "there";
 
-    // Preference profile (safe, tolerant of missing fields)
     const prefProfile = {
       risk_tolerance: preferences?.risk_tolerance ?? preferences?.riskLevel ?? null,
       time_horizon: preferences?.time_horizon ?? preferences?.horizon ?? null,
@@ -111,8 +108,6 @@ Deno.serve(async (req) => {
       constraints: preferences?.constraints ?? null,
     };
 
-    // 1) Selected stories (real-time + personalized). Keep schema strict on content fields,
-    // but do NOT require href/id so the model doesn't fail schema unnecessarily.
     const storiesPrompt = `
 You are curating "Selected Stories" for a premium, paid investor briefing product.
 
@@ -128,9 +123,9 @@ Selection rules:
 - Outlet: outlet name only. No URLs in outlet.
 
 Content rules:
-- what_happened: 1–2 sentences, plain language, specific. MUST be non-empty.
-- why_it_matters: exactly 1 sentence, personalized to this user profile. MUST be non-empty.
-- both_sides: two short sentences, one risk/upside angle each. MUST be non-empty.
+- what_happened: 1–2 sentences, specific. MUST be non-empty.
+- why_it_matters: exactly 1 sentence, personalized. MUST be non-empty.
+- both_sides: two short sentences. MUST be non-empty.
 - category: one of [markets, crypto, economy, technology, real estate, commodities, default].
 - Include market tape as % moves only (no index levels).
 
@@ -159,6 +154,8 @@ Return JSON only.
             type: "object",
             additionalProperties: true,
             properties: {
+              id: { type: "string" },
+              href: { type: "string" },
               title: { type: "string" },
               what_happened: { type: "string" },
               why_it_matters: { type: "string" },
@@ -173,9 +170,6 @@ Return JSON only.
               },
               outlet: { type: "string" },
               category: { type: "string" },
-              // optional (nice-to-have)
-              href: { type: "string" },
-              id: { type: "string" },
             },
             required: ["title", "what_happened", "why_it_matters", "both_sides", "outlet", "category"],
           },
@@ -190,13 +184,6 @@ Return JSON only.
       return Response.json({ error: "Story generation failed: invalid payload" }, { status: 500 });
     }
 
-    const marketTape = {
-      sp500_pct: normalizePct(storiesData.market_tape?.sp500_pct),
-      nasdaq_pct: normalizePct(storiesData.market_tape?.nasdaq_pct),
-      dow_pct: normalizePct(storiesData.market_tape?.dow_pct),
-    };
-
-    // Enrich stories + enforce non-empty UI fields
     const allowedCats = new Set(["markets", "crypto", "economy", "technology", "real estate", "commodities", "default"]);
 
     const enrichedStories = storiesData.news_stories.map((s) => {
@@ -210,25 +197,27 @@ Return JSON only.
       const sideB = safeText(s?.both_sides?.side_b, "");
       const outlet = safeText(s?.outlet, "Unknown");
 
-      // Hard validation: do not allow empty shells to be saved
-      if (!what || !why || !sideA || !sideB) {
-        throw new Error("LLM returned incomplete story fields (empty shell).");
-      }
+      if (!what || !why || !sideA || !sideB) throw new Error("LLM returned incomplete story fields.");
 
       return {
         id: safeText(s?.id, randomId()),
         href: safeText(s?.href, "#"),
+        imageUrl: categoryImageUrl(category),
         title,
         what_happened: what,
         why_it_matters: why,
         both_sides: { side_a: sideA, side_b: sideB },
         outlet,
         category,
-        imageUrl: categoryImageUrl(category),
       };
     });
 
-    // 2) UI metadata: summary, highlights, sentiment
+    const marketTape = {
+      sp500_pct: normalizePct(storiesData.market_tape?.sp500_pct),
+      nasdaq_pct: normalizePct(storiesData.market_tape?.nasdaq_pct),
+      dow_pct: normalizePct(storiesData.market_tape?.dow_pct),
+    };
+
     const metaPrompt = `
 You are producing metadata for the UI of a premium investor briefing.
 
@@ -252,11 +241,9 @@ ${enrichedStories
   .join("\n")}
 
 Return JSON only with:
-- summary: 2–3 sentences max, plain language.
-- key_highlights: array of 3–5 short bullets (strings).
-- market_sentiment: { label: "Bullish"|"Neutral"|"Bearish", description: one short sentence }.
-
-No URLs. No index levels. No filler.
+- summary: 2–3 sentences max.
+- key_highlights: array of 3–5 bullets.
+- market_sentiment: { label: "bullish"|"bearish"|"neutral"|"mixed", description: one sentence }.
 `;
 
     const metaSchema = {
@@ -264,12 +251,7 @@ No URLs. No index levels. No filler.
       additionalProperties: false,
       properties: {
         summary: { type: "string" },
-        key_highlights: {
-          type: "array",
-          minItems: 3,
-          maxItems: 5,
-          items: { type: "string" },
-        },
+        key_highlights: { type: "array", minItems: 3, maxItems: 5, items: { type: "string" } },
         market_sentiment: {
           type: "object",
           additionalProperties: false,
@@ -289,15 +271,8 @@ No URLs. No index levels. No filler.
     const uiHighlights = Array.isArray(meta?.key_highlights)
       ? meta.key_highlights.map((x) => safeText(x, "")).filter(Boolean)
       : [];
-    const uiSentiment =
-      meta?.market_sentiment && typeof meta.market_sentiment === "object"
-        ? {
-            label: safeText(meta.market_sentiment.label, "Neutral"),
-            description: safeText(meta.market_sentiment.description, ""),
-          }
-        : { label: "Neutral", description: "" };
+    const uiSentiment = meta?.market_sentiment || { label: "neutral", description: "" };
 
-    // 3) Spoken script (6A)
     const scriptPrompt = `
 Write the full spoken script for "Pulse" using the provided data.
 
@@ -305,14 +280,14 @@ LISTENER NAME: ${name}
 DATE: ${date}
 
 VOICE:
-- Plain + investor (casual, engaging)
-- Natural pacing, narrative-like
+- Plain + investor
+- Natural pacing
 - Impartial
-- NO filler like "according to", "as reported by", "in today's news", "dot com"
+- No filler like "according to"
 - Percent moves only. No index levels.
 
-STRUCTURE (6A One Thread, target ~8 minutes):
-Hook (greet by name first line) -> Tape -> One Thread -> Engage (use up to 4 stories; facts, curiosity pivot, both sides, short vs long term, tie to thread) -> Call to Action (orientation only) -> Close (one thing to watch tomorrow)
+STRUCTURE (6A):
+Hook -> Tape -> One Thread -> Engage (up to 4 stories) -> Call to Action -> Close
 
 DATA:
 market_tape:
@@ -347,22 +322,9 @@ Return JSON only: { "script": "..." }
     const scriptData = await invokeLLM(base44, scriptPrompt, false, scriptSchema);
     let script = sanitizeForAudio(scriptData?.script || "");
 
-    // Expand if too short
-    for (let round = 0; round < 2; round++) {
-      if (wordCount(script) >= 1150) break;
-      const expand = await invokeLLM(
-        base44,
-        `Expand to 1150-1350 words. No URLs. No index levels. Same voice. Return JSON: {"script":"..."}\n\n<<<\n${script}\n>>>`,
-        false,
-        scriptSchema
-      );
-      script = sanitizeForAudio(expand?.script || script);
-    }
-
     const wc = wordCount(script);
     const estimatedMinutes = Math.max(1, Math.round(wc / 150));
 
-    // 4) Save early for UI (script_ready). Always write created_by = userEmail.
     const existing = await base44.asServiceRole.entities.DailyBriefing.filter({
       date,
       created_by: userEmail,
@@ -388,62 +350,13 @@ Return JSON only: { "script": "..." }
       saved = await base44.asServiceRole.entities.DailyBriefing.create(baseRecord);
     }
 
-    if (previewOnly) {
-      return Response.json({
-        success: true,
-        briefing: saved,
-        wordCount: wc,
-        estimatedMinutes,
-        preview_only: true,
-      });
-    }
-
-    // 5) ElevenLabs TTS
-    const elevenLabsApiKey = Deno.env.get("ELEVENLABS_API_KEY");
-    if (!elevenLabsApiKey) {
-      return Response.json({ error: "ELEVENLABS_API_KEY not configured" }, { status: 500 });
-    }
-
-    const voiceId = "Qggl4b0xRMiqOwhPtVWT";
-
-    const ttsResponse = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
-      method: "POST",
-      headers: {
-        Accept: "audio/mpeg",
-        "Content-Type": "application/json",
-        "xi-api-key": elevenLabsApiKey,
-      },
-      body: JSON.stringify({
-        text: script,
-        model_id: "eleven_multilingual_v2",
-        output_format: "mp3_44100_128",
-        voice_settings: {
-          stability: 0.5,
-          similarity_boost: 0.75,
-          style: 0.0,
-          use_speaker_boost: true,
-        },
-      }),
+    return Response.json({
+      success: true,
+      briefing: saved,
+      wordCount: wc,
+      estimatedMinutes,
+      status: "script_ready",
     });
-
-    if (!ttsResponse.ok) {
-      const errorText = await ttsResponse.text();
-      return Response.json({ error: "ElevenLabs TTS failed", details: errorText }, { status: 500 });
-    }
-
-    const audioBlob = await ttsResponse.blob();
-    const audioFile = new File([audioBlob], `briefing-${date}.mp3`, { type: "audio/mpeg" });
-
-    const { file_uri } = await base44.asServiceRole.integrations.Core.UploadPrivateFile({ file: audioFile });
-    const { signed_url } = await base44.asServiceRole.integrations.Core.CreateFileSignedUrl({
-      file_uri,
-      expires_in: 60 * 60 * 24 * 7,
-    });
-
-    const finalRecord = { ...baseRecord, audio_url: signed_url, status: "ready" };
-    const finalSaved = await base44.asServiceRole.entities.DailyBriefing.update(saved.id, finalRecord);
-
-    return Response.json({ success: true, briefing: finalSaved, wordCount: wc, estimatedMinutes });
   } catch (error) {
     console.error("Error in generateBriefing:", error);
     return Response.json({ error: error?.message || String(error), stack: error?.stack }, { status: 500 });
