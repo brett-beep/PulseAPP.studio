@@ -1,232 +1,245 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
-import { format } from 'date-fns';
+import React, { useState } from "react";
+import { motion } from "framer-motion";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { base44 } from "@/api/base44Client";
+import { format } from "date-fns";
 
-import AudioPlayer from '@/components/AudioPlayer';
-import NewsCard from '@/components/NewsCard';
-import MarketSentiment from '@/components/MarketSentiment';
-import KeyHighlights from '@/components/KeyHighlights';
-import OnboardingWizard from '@/components/OnboardingWizard';
-import GenerateBriefingButton from '@/components/GenerateBriefingButton';
+import AudioPlayer from "@/components/AudioPlayer";
+import NewsCard from "@/components/NewsCard";
+import MarketSentiment from "@/components/MarketSentiment";
+import KeyHighlights from "@/components/KeyHighlights";
+import OnboardingWizard from "@/components/OnboardingWizard";
 
-import { Settings, Headphones } from 'lucide-react';
+import { Settings, Headphones } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Link } from 'react-router-dom';
-import { createPageUrl } from '@/utils';
+import { Link } from "react-router-dom";
+import { createPageUrl } from "@/utils";
 
 export default function Home() {
-    const queryClient = useQueryClient();
-    const [isGenerating, setIsGenerating] = useState(false);
+  const queryClient = useQueryClient();
+  const [isGenerating, setIsGenerating] = useState(false);
 
-    // Fetch current user
-    const { data: user, isLoading: userLoading } = useQuery({
-        queryKey: ['currentUser'],
-        queryFn: () => base44.auth.me(),
-    });
+  // Fetch current user
+  const { data: user, isLoading: userLoading } = useQuery({
+    queryKey: ["currentUser"],
+    queryFn: () => base44.auth.me(),
+  });
 
-    // Fetch user preferences
-    const { data: preferences, isLoading: prefsLoading } = useQuery({
-        queryKey: ['userPreferences'],
-        queryFn: async () => {
-            const prefs = await base44.entities.UserPreferences.filter({ created_by: user?.email });
-            return prefs[0] || null;
-        },
-        enabled: !!user,
-    });
+  // Fetch user preferences
+  const { data: preferences, isLoading: prefsLoading } = useQuery({
+    queryKey: ["userPreferences"],
+    queryFn: async () => {
+      const prefs = await base44.entities.UserPreferences.filter({ created_by: user?.email });
+      return prefs[0] || null;
+    },
+    enabled: !!user,
+  });
 
-    // Fetch today's briefing
-    const today = format(new Date(), 'yyyy-MM-dd');
-    const { data: briefings, isLoading: briefingLoading, refetch: refetchBriefing } = useQuery({
-        queryKey: ['todayBriefing', today],
-        queryFn: async () => {
-            const briefings = await base44.entities.DailyBriefing.filter({ 
-                date: today,
-                created_by: user?.email 
-            });
-            return briefings;
-        },
-        enabled: !!user && !!preferences?.onboarding_completed,
-    });
+  // Fetch today's briefing
+  const today = format(new Date(), "yyyy-MM-dd");
+  const { data: briefings, isLoading: briefingLoading, refetch: refetchBriefing } = useQuery({
+    queryKey: ["todayBriefing", today],
+    queryFn: async () => {
+      const b = await base44.entities.DailyBriefing.filter({
+        date: today,
+        created_by: user?.email,
+      });
+      return b;
+    },
+    enabled: !!user && !!preferences?.onboarding_completed,
+  });
 
-    const todayBriefing = briefings?.[0];
+  const todayBriefing = briefings?.[0] || null;
 
-    // Save preferences mutation
-    const savePreferencesMutation = useMutation({
-        mutationFn: async (prefs) => {
-            if (preferences?.id) {
-                return base44.entities.UserPreferences.update(preferences.id, prefs);
-            }
-            return base44.entities.UserPreferences.create(prefs);
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['userPreferences'] });
-        },
-    });
+  // Save preferences mutation
+  const savePreferencesMutation = useMutation({
+    mutationFn: async (prefs) => {
+      if (preferences?.id) return base44.entities.UserPreferences.update(preferences.id, prefs);
+      return base44.entities.UserPreferences.create(prefs);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["userPreferences"] });
+    },
+  });
 
-    // Generate briefing mutation
-    const generateBriefing = async () => {
-        setIsGenerating(true);
-        
-        try {
-            const response = await base44.functions.invoke('generateBriefing', {
-                preferences: preferences,
-                date: today
-            });
+  // Generate briefing mutation (kept same behavior)
+  const generateBriefing = async () => {
+    if (isGenerating) return;
 
-            if (response.data.error) {
-                console.error('Briefing generation error:', response.data.error);
-                alert('Failed to generate briefing: ' + response.data.error);
-            } else {
-                await refetchBriefing();
-            }
-        } catch (error) {
-            console.error('Error generating briefing:', error);
-            alert('Failed to generate briefing. Please try again.');
-        } finally {
-            setIsGenerating(false);
-        }
-    };
+    setIsGenerating(true);
+    try {
+      const response = await base44.functions.invoke("generateBriefing", {
+        preferences: preferences,
+        date: today,
+        // optional: set this true while iterating to save credits
+        // preview_only: true,
+      });
 
-    const handleOnboardingComplete = async (prefs) => {
-        await savePreferencesMutation.mutateAsync(prefs);
-    };
-
-    // Loading state
-    if (userLoading || prefsLoading) {
-        return (
-            <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white p-6">
-                <div className="max-w-4xl mx-auto space-y-8">
-                    <Skeleton className="h-12 w-64" />
-                    <Skeleton className="h-64 w-full rounded-3xl" />
-                    <Skeleton className="h-32 w-full rounded-2xl" />
-                </div>
-            </div>
-        );
+      if (response?.data?.error) {
+        console.error("Briefing generation error:", response.data.error);
+        alert("Failed to generate briefing: " + response.data.error);
+      } else {
+        await refetchBriefing();
+      }
+    } catch (error) {
+      console.error("Error generating briefing:", error);
+      alert("Failed to generate briefing. Please try again.");
+    } finally {
+      setIsGenerating(false);
     }
+  };
 
-    // Show onboarding if not completed
-    if (!preferences?.onboarding_completed) {
-        return <OnboardingWizard onComplete={handleOnboardingComplete} />;
-    }
+  const handleOnboardingComplete = async (prefs) => {
+    await savePreferencesMutation.mutateAsync(prefs);
+  };
 
-    const greeting = () => {
-        const hour = new Date().getHours();
-        if (hour < 12) return 'Good morning';
-        if (hour < 17) return 'Good afternoon';
-        return 'Good evening';
-    };
+  const greeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good morning";
+    if (hour < 17) return "Good afternoon";
+    return "Good evening";
+  };
 
+  // Loading state
+  if (userLoading || prefsLoading) {
     return (
-        <div className="min-h-screen" style={{ background: 'linear-gradient(180deg, rgba(255, 255, 249, 0.7) 0%, rgba(255, 226, 148, 0.51) 76%, rgba(255, 95, 31, 0.52) 100%)' }}>
-            {/* Header */}
-            <header className="border-b border-slate-100 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-                <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-amber-600 rounded-xl flex items-center justify-center">
-                            <Headphones className="h-5 w-5 text-white" />
-                        </div>
-                        <span className="font-semibold text-slate-900 tracking-tight">Briefing</span>
-                    </div>
-                    <Link to={createPageUrl('Settings')}>
-                        <Button variant="ghost" size="icon" className="text-slate-400 hover:text-slate-600">
-                            <Settings className="h-5 w-5" />
-                        </Button>
-                    </Link>
-                </div>
-            </header>
-
-            <main className="max-w-4xl mx-auto px-6 py-12">
-                {/* Audio Player / Generate Button */}
-                <motion.section
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 }}
-                    className="mb-12"
-                >
-                    {todayBriefing?.status === 'ready' ? (
-                        <div className="space-y-6">
-                            <AudioPlayer
-                                audioUrl={todayBriefing.audio_url}
-                                duration={todayBriefing.duration_minutes}
-                                greeting={greeting()}
-                                userName={user?.full_name?.split(' ')[0] || 'there'}
-                                currentDate={format(new Date(), 'MM/dd, EEE')}
-                            />
-                            
-                            <div className="flex items-center justify-between">
-                                <MarketSentiment sentiment={todayBriefing.market_sentiment} />
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={generateBriefing}
-                                    disabled={isGenerating}
-                                    className="text-slate-500"
-                                >
-                                    Regenerate
-                                </Button>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="bg-white rounded-3xl p-12 text-center border border-slate-100 shadow-sm">
-                            <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                                <Headphones className="h-8 w-8 text-amber-500" />
-                            </div>
-                            <h2 className="text-xl font-semibold text-slate-900 mb-2">
-                                Your briefing awaits
-                            </h2>
-                            <p className="text-slate-500 mb-8 max-w-md mx-auto">
-                                Get your personalized financial briefing with the latest market news and insights tailored to your portfolio.
-                            </p>
-                            <GenerateBriefingButton
-                                onGenerate={generateBriefing}
-                                isGenerating={isGenerating}
-                                hasExistingBriefing={false}
-                            />
-                        </div>
-                    )}
-                </motion.section>
-
-                {/* Summary & Key Highlights */}
-                {todayBriefing?.status === 'ready' && (
-                    <>
-                        <motion.section
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.2 }}
-                            className="mb-12"
-                        >
-                            {todayBriefing.summary && (
-                                <div className="bg-white rounded-2xl p-6 border border-slate-100 mb-6">
-                                    <p className="text-slate-700 leading-relaxed">{todayBriefing.summary}</p>
-                                </div>
-                            )}
-                            <KeyHighlights highlights={todayBriefing.key_highlights} />
-                        </motion.section>
-
-                        {/* News Stories */}
-                        <motion.section
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.3 }}
-                        >
-                            <div className="flex items-center justify-between mb-6">
-                                <h2 className="text-xl font-semibold text-slate-900">Curated for You</h2>
-                                <span className="text-sm text-slate-400">
-                                    {todayBriefing.news_stories?.length || 0} stories
-                                </span>
-                            </div>
-                            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                                {todayBriefing.news_stories?.slice(0, 5).map((story, index) => (
-                                    <NewsCard key={index} story={story} index={index} />
-                                ))}
-                            </div>
-                        </motion.section>
-                    </>
-                )}
-            </main>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white p-6">
+        <div className="max-w-4xl mx-auto space-y-8">
+          <Skeleton className="h-12 w-64" />
+          <Skeleton className="h-64 w-full rounded-3xl" />
+          <Skeleton className="h-32 w-full rounded-2xl" />
         </div>
+      </div>
     );
+  }
+
+  // Show onboarding if not completed
+  if (!preferences?.onboarding_completed) {
+    return <OnboardingWizard onComplete={handleOnboardingComplete} />;
+  }
+
+  const firstName = user?.full_name?.split(" ")?.[0] || "there";
+  const audioUrl = todayBriefing?.audio_url || null;
+
+  // Stories + highlights can exist even when audio isn't ready
+  const stories = Array.isArray(todayBriefing?.news_stories) ? todayBriefing.news_stories : [];
+  const highlights = Array.isArray(todayBriefing?.key_highlights) ? todayBriefing.key_highlights : [];
+
+  return (
+    <div
+      className="min-h-screen"
+      style={{
+        background:
+          "linear-gradient(180deg, rgba(255, 255, 249, 0.7) 0%, rgba(255, 226, 148, 0.51) 76%, rgba(255, 95, 31, 0.52) 100%)",
+      }}
+    >
+      {/* Header */}
+      <header className="border-b border-slate-100 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
+        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-amber-600 rounded-xl flex items-center justify-center">
+              <Headphones className="h-5 w-5 text-white" />
+            </div>
+            <span className="font-semibold text-slate-900 tracking-tight">Briefing</span>
+          </div>
+          <Link to={createPageUrl("Settings")}>
+            <Button variant="ghost" size="icon" className="text-slate-400 hover:text-slate-600">
+              <Settings className="h-5 w-5" />
+            </Button>
+          </Link>
+        </div>
+      </header>
+
+      <main className="max-w-4xl mx-auto px-6 py-12">
+        {/* AUDIO PLAYER: always render */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="mb-10"
+        >
+          <div className="relative">
+            {/* Generate/Regenerate button ON TOP OF the player */}
+            <div className="absolute top-6 right-6 z-20">
+              <button
+                onClick={generateBriefing}
+                disabled={isGenerating}
+                className="rounded-full px-4 py-2 text-sm font-semibold transition disabled:opacity-50"
+                style={{
+                  background: "rgba(255, 255, 255, 0.65)",
+                  border: "0.5px solid rgba(255, 255, 255, 0.85)",
+                  backdropFilter: "blur(12px)",
+                  WebkitBackdropFilter: "blur(12px)",
+                  boxShadow: "0 6px 18px rgba(0,0,0,0.08)",
+                }}
+              >
+                {isGenerating ? "Generating…" : audioUrl ? "Regenerate" : "Generate"}
+              </button>
+            </div>
+
+            <AudioPlayer
+              audioUrl={audioUrl}
+              duration={todayBriefing?.duration_minutes || 8}
+              greeting={greeting()}
+              userName={firstName}
+              currentDate={format(new Date(), "MM/dd, EEE")}
+            />
+          </div>
+
+          {/* Small meta row under player (optional) */}
+          <div className="mt-6 flex items-center justify-between">
+            <MarketSentiment sentiment={todayBriefing?.market_sentiment || null} />
+            <div className="text-sm text-slate-500">
+              {briefingLoading ? "Loading briefing…" : todayBriefing?.status ? `Status: ${todayBriefing.status}` : "No briefing yet"}
+            </div>
+          </div>
+        </motion.section>
+
+        {/* Summary & Key Highlights: show if exists (not gated by status) */}
+        {(todayBriefing?.summary || highlights.length > 0) && (
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="mb-12"
+          >
+            {todayBriefing?.summary ? (
+              <div className="bg-white rounded-2xl p-6 border border-slate-100 mb-6">
+                <p className="text-slate-700 leading-relaxed">{todayBriefing.summary}</p>
+              </div>
+            ) : null}
+
+            {highlights.length > 0 ? <KeyHighlights highlights={highlights} /> : null}
+          </motion.section>
+        )}
+
+        {/* Selected Stories: ALWAYS render (empty state if none) */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+        >
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-semibold text-slate-900">Curated for You</h2>
+            <span className="text-sm text-slate-400">{stories.length} stories</span>
+          </div>
+
+          {stories.length === 0 ? (
+            <div className="bg-white/70 rounded-2xl p-6 border border-slate-100">
+              <p className="text-slate-600">
+                No stories yet. Click <span className="font-semibold">Generate</span> on the player to populate today’s briefing.
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {stories.slice(0, 5).map((story, index) => (
+                <NewsCard key={index} story={story} index={index} />
+              ))}
+            </div>
+          )}
+        </motion.section>
+      </main>
+    </div>
+  );
 }
