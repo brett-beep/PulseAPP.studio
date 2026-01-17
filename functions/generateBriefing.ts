@@ -9,7 +9,12 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { preferences, date } = await req.json();
+        const body = await req.json().catch(() => ({}));
+        const preferences = body?.preferences ?? {};
+        const date = (typeof body?.date === "string" && body.date.trim())
+            ? body.date.trim()
+            : new Date().toISOString().slice(0, 10);
+
 
         // Build comprehensive news collection prompt
         const newsPrompt = `You are a financial research analyst tasked with creating a comprehensive daily financial briefing.
