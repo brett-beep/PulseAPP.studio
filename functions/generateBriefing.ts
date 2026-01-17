@@ -6,7 +6,7 @@ function safeISODate(input) {
 }
 
 function wordCount(text) {
-  return text.split(/\s+/).filter(Boolean).length;
+  return String(text || "").split(/\s+/).filter(Boolean).length;
 }
 
 function sanitizeForAudio(s) {
@@ -22,6 +22,52 @@ function sanitizeForAudio(s) {
   t = t.replace(/[ \t]{2,}/g, " ");
   t = t.replace(/\n{3,}/g, "\n\n");
   return t.trim();
+}
+
+function safeText(input, fallback) {
+  const s = typeof input === "string" ? input.trim() : "";
+  return s || (fallback || "");
+}
+
+function normalizePct(input) {
+  const s = String(input ?? "").trim();
+  if (!s) return "0.0%";
+  const m = s.match(/-?\d+(\.\d+)?/);
+  if (!m) return "0.0%";
+  const n = Number(m[0]);
+  if (!Number.isFinite(n)) return "0.0%";
+  const sign = n > 0 ? "+" : "";
+  return `${sign}${n.toFixed(1)}%`;
+}
+
+function randomId() {
+  try {
+    // Deno / Web Crypto
+    return crypto.randomUUID();
+  } catch {
+    return `id_${Math.random().toString(16).slice(2)}_${Date.now()}`;
+  }
+}
+
+function categoryImageUrl(categoryRaw) {
+  const cat = safeText(categoryRaw, "default").toLowerCase();
+  const map = {
+    markets:
+      "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&w=1200&q=70",
+    crypto:
+      "https://images.unsplash.com/photo-1621761191319-c6fb62004040?auto=format&fit=crop&w=1200&q=70",
+    economy:
+      "https://images.unsplash.com/photo-1520607162513-77705c0f0d4a?auto=format&fit=crop&w=1200&q=70",
+    technology:
+      "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=70",
+    "real estate":
+      "https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=1200&q=70",
+    commodities:
+      "https://images.unsplash.com/photo-1614027164847-1b28cfe1df60?auto=format&fit=crop&w=1200&q=70",
+    default:
+      "https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?auto=format&fit=crop&w=1200&q=70",
+  };
+  return map[cat] || map.default;
 }
 
 async function invokeLLM(base44, prompt, addInternet, schema) {
@@ -43,25 +89,50 @@ Deno.serve(async (req) => {
     const date = safeISODate(body?.date);
     const previewOnly = Boolean(body?.preview_only);
 
-    const name =
-      (typeof preferences?.user_name === "string" && preferences.user_name.trim())
-        ? preferences.user_name.trim()
-        : (typeof user?.name === "string" && user.name.trim())
-        ? user.name.trim()
-        : "there";
+    const userEmail = safeText(user?.email);
+    if (!userEmail) return Response.json({ error: "User email missing" }, { status: 400 });
 
-    // 1) Get structured "selected stories" first (this powers your UI section)
+    const name =
+      safeText(preferences?.user_name) ||
+      safeText(user?.name) ||
+      safeText(user?.full_name) ||
+      "there";
+
+    // Preference profile (safe, tolerant of missing fields)
+    const prefProfile = {
+      risk_tolerance: preferences?.risk_tolerance ?? preferences?.riskLevel ?? null,
+      time_horizon: preferences?.time_horizon ?? preferences?.horizon ?? null,
+      goals: preferences?.goals ?? null,
+      sectors: preferences?.sectors ?? null,
+      regions: preferences?.regions ?? null,
+      watchlist: preferences?.watchlist ?? preferences?.tickers ?? null,
+      holdings: preferences?.holdings ?? null,
+      interests: preferences?.interests ?? null,
+      constraints: preferences?.constraints ?? null,
+    };
+
+    // 1) Selected stories (real-time + personalized). Keep schema strict on content fields,
+    // but do NOT require href/id so the model doesn't fail schema unnecessarily.
     const storiesPrompt = `
-You are curating "Selected stories" for a premium morning investor audio briefing.
+You are curating "Selected Stories" for a premium, paid investor briefing product.
 
 DATE: ${date}
 
-Rules:
+USER PROFILE (use this to SELECT and FRAME stories):
+${JSON.stringify(prefProfile, null, 2)}
+
+Selection rules:
 - Return exactly 5 stories.
-- Outlet: outlet name only (e.g., "WSJ", "Bloomberg", "Reuters"). No URLs.
-- No "according to / as reported by / in today's news / dot com".
-- Include market context (index % moves) ONLY as % (no index levels).
-- Keep it investor-relevant.
+- Prioritize: (1) relevance to user's holdings/watchlist/sectors/goals, then (2) market-moving importance, then (3) recency.
+- Each story must be real and verifiable today (use internet context). Prefer reputable sources (Reuters, Bloomberg, WSJ, FT, CNBC, central banks, major filings).
+- Outlet: outlet name only. No URLs in outlet.
+
+Content rules:
+- what_happened: 1–2 sentences, plain language, specific. MUST be non-empty.
+- why_it_matters: exactly 1 sentence, personalized to this user profile. MUST be non-empty.
+- both_sides: two short sentences, one risk/upside angle each. MUST be non-empty.
+- category: one of [markets, crypto, economy, technology, real estate, commodities, default].
+- Include market tape as % moves only (no index levels).
 
 Return JSON only.
 `;
@@ -86,7 +157,7 @@ Return JSON only.
           maxItems: 5,
           items: {
             type: "object",
-            additionalProperties: false,
+            additionalProperties: true,
             properties: {
               title: { type: "string" },
               what_happened: { type: "string" },
@@ -102,6 +173,9 @@ Return JSON only.
               },
               outlet: { type: "string" },
               category: { type: "string" },
+              // optional (nice-to-have)
+              href: { type: "string" },
+              id: { type: "string" },
             },
             required: ["title", "what_happened", "why_it_matters", "both_sides", "outlet", "category"],
           },
@@ -112,7 +186,118 @@ Return JSON only.
 
     const storiesData = await invokeLLM(base44, storiesPrompt, true, storiesSchema);
 
-    // 2) Write script using your 6A structure + those stories
+    if (!storiesData || !Array.isArray(storiesData.news_stories) || storiesData.news_stories.length !== 5) {
+      return Response.json({ error: "Story generation failed: invalid payload" }, { status: 500 });
+    }
+
+    const marketTape = {
+      sp500_pct: normalizePct(storiesData.market_tape?.sp500_pct),
+      nasdaq_pct: normalizePct(storiesData.market_tape?.nasdaq_pct),
+      dow_pct: normalizePct(storiesData.market_tape?.dow_pct),
+    };
+
+    // Enrich stories + enforce non-empty UI fields
+    const allowedCats = new Set(["markets", "crypto", "economy", "technology", "real estate", "commodities", "default"]);
+
+    const enrichedStories = storiesData.news_stories.map((s) => {
+      const rawCat = safeText(s?.category, "default").toLowerCase();
+      const category = allowedCats.has(rawCat) ? rawCat : "default";
+
+      const title = safeText(s?.title, "Untitled story");
+      const what = safeText(s?.what_happened, "");
+      const why = safeText(s?.why_it_matters, "");
+      const sideA = safeText(s?.both_sides?.side_a, "");
+      const sideB = safeText(s?.both_sides?.side_b, "");
+      const outlet = safeText(s?.outlet, "Unknown");
+
+      // Hard validation: do not allow empty shells to be saved
+      if (!what || !why || !sideA || !sideB) {
+        throw new Error("LLM returned incomplete story fields (empty shell).");
+      }
+
+      return {
+        id: safeText(s?.id, randomId()),
+        href: safeText(s?.href, "#"),
+        title,
+        what_happened: what,
+        why_it_matters: why,
+        both_sides: { side_a: sideA, side_b: sideB },
+        outlet,
+        category,
+        imageUrl: categoryImageUrl(category),
+      };
+    });
+
+    // 2) UI metadata: summary, highlights, sentiment
+    const metaPrompt = `
+You are producing metadata for the UI of a premium investor briefing.
+
+DATE: ${date}
+LISTENER: ${name}
+
+MARKET TAPE:
+- S&P: ${marketTape.sp500_pct}
+- Nasdaq: ${marketTape.nasdaq_pct}
+- Dow: ${marketTape.dow_pct}
+
+STORIES:
+${enrichedStories
+  .map(
+    (s, i) => `${i + 1}) ${s.title}
+- category: ${s.category}
+- what_happened: ${s.what_happened}
+- why_it_matters: ${s.why_it_matters}
+`
+  )
+  .join("\n")}
+
+Return JSON only with:
+- summary: 2–3 sentences max, plain language.
+- key_highlights: array of 3–5 short bullets (strings).
+- market_sentiment: { label: "Bullish"|"Neutral"|"Bearish", description: one short sentence }.
+
+No URLs. No index levels. No filler.
+`;
+
+    const metaSchema = {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        summary: { type: "string" },
+        key_highlights: {
+          type: "array",
+          minItems: 3,
+          maxItems: 5,
+          items: { type: "string" },
+        },
+        market_sentiment: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            label: { type: "string" },
+            description: { type: "string" },
+          },
+          required: ["label", "description"],
+        },
+      },
+      required: ["summary", "key_highlights", "market_sentiment"],
+    };
+
+    const meta = await invokeLLM(base44, metaPrompt, false, metaSchema);
+
+    const uiSummary = safeText(meta?.summary, "");
+    const uiHighlights = Array.isArray(meta?.key_highlights)
+      ? meta.key_highlights.map((x) => safeText(x, "")).filter(Boolean)
+      : [];
+    const uiSentiment =
+      meta?.market_sentiment && typeof meta.market_sentiment === "object"
+        ? {
+            label: safeText(meta.market_sentiment.label, "Neutral"),
+            description: safeText(meta.market_sentiment.description, ""),
+          }
+        : { label: "Neutral", description: "" };
+
+    // 3) Spoken script (6A)
     const scriptPrompt = `
 Write the full spoken script for "Pulse" using the provided data.
 
@@ -123,31 +308,31 @@ VOICE:
 - Plain + investor (casual, engaging)
 - Natural pacing, narrative-like
 - Impartial
-- Avoid “not X… but Y” unless it truly adds meaning
-- NO journalistic filler like "according to", "as reported by", "in today's news", "dot com"
-
-MARKET NUMBERS RULE:
+- NO filler like "according to", "as reported by", "in today's news", "dot com"
 - Percent moves only. No index levels.
 
 STRUCTURE (6A One Thread, target ~8 minutes):
-Hook (greet by name first line) -> Tape (use market_tape %s) -> One Thread -> Engage (use up to 4 of the stories, each: facts, curiosity pivot, both sides, short vs long term, tie to thread) -> Call to Action (orientation only) -> Close (one thing to watch tomorrow)
+Hook (greet by name first line) -> Tape -> One Thread -> Engage (use up to 4 stories; facts, curiosity pivot, both sides, short vs long term, tie to thread) -> Call to Action (orientation only) -> Close (one thing to watch tomorrow)
 
 DATA:
 market_tape:
-- S&P: ${storiesData.market_tape.sp500_pct}
-- Nasdaq: ${storiesData.market_tape.nasdaq_pct}
-- Dow: ${storiesData.market_tape.dow_pct}
+- S&P: ${marketTape.sp500_pct}
+- Nasdaq: ${marketTape.nasdaq_pct}
+- Dow: ${marketTape.dow_pct}
 
 stories:
-${storiesData.news_stories
-  .map((s, i) => `
+${enrichedStories
+  .map(
+    (s, i) => `
 ${i + 1}) ${s.title}
 - what: ${s.what_happened}
 - why: ${s.why_it_matters}
 - sideA: ${s.both_sides.side_a}
 - sideB: ${s.both_sides.side_b}
 - outlet: ${s.outlet}
-`).join("\n")}
+`
+  )
+  .join("\n")}
 
 Return JSON only: { "script": "..." }
 `;
@@ -160,7 +345,7 @@ Return JSON only: { "script": "..." }
     };
 
     const scriptData = await invokeLLM(base44, scriptPrompt, false, scriptSchema);
-    let script = sanitizeForAudio(scriptData.script || "");
+    let script = sanitizeForAudio(scriptData?.script || "");
 
     // Expand if too short
     for (let round = 0; round < 2; round++) {
@@ -171,45 +356,53 @@ Return JSON only: { "script": "..." }
         false,
         scriptSchema
       );
-      script = sanitizeForAudio(expand.script || script);
+      script = sanitizeForAudio(expand?.script || script);
     }
 
     const wc = wordCount(script);
     const estimatedMinutes = Math.max(1, Math.round(wc / 150));
 
-    // Save record NOW so UI gets selected stories back
-    const existingUser = await base44.asServiceRole.entities.DailyBriefing.filter({
+    // 4) Save early for UI (script_ready). Always write created_by = userEmail.
+    const existing = await base44.asServiceRole.entities.DailyBriefing.filter({
       date,
-      created_by: user.email,
+      created_by: userEmail,
     });
 
     const baseRecord = {
       date,
+      created_by: userEmail,
       script,
-      summary: null,
-      market_sentiment: null,
-      key_highlights: [],
-      news_stories: storiesData.news_stories,
+      summary: uiSummary,
+      market_sentiment: uiSentiment,
+      key_highlights: uiHighlights,
+      news_stories: enrichedStories,
       duration_minutes: estimatedMinutes,
-      status: previewOnly ? "script_ready" : "ready",
+      status: "script_ready",
       audio_url: null,
     };
 
     let saved;
-    if (existingUser.length > 0) {
-      saved = await base44.asServiceRole.entities.DailyBriefing.update(existingUser[0].id, baseRecord);
+    if (Array.isArray(existing) && existing.length > 0) {
+      saved = await base44.asServiceRole.entities.DailyBriefing.update(existing[0].id, baseRecord);
     } else {
-      saved = await base44.entities.DailyBriefing.create(baseRecord);
+      saved = await base44.asServiceRole.entities.DailyBriefing.create(baseRecord);
     }
 
-    // If previewOnly, stop here (no ElevenLabs credits)
     if (previewOnly) {
-      return Response.json({ success: true, briefing: saved, wordCount: wc, estimatedMinutes, preview_only: true });
+      return Response.json({
+        success: true,
+        briefing: saved,
+        wordCount: wc,
+        estimatedMinutes,
+        preview_only: true,
+      });
     }
 
-    // ElevenLabs
+    // 5) ElevenLabs TTS
     const elevenLabsApiKey = Deno.env.get("ELEVENLABS_API_KEY");
-    if (!elevenLabsApiKey) return Response.json({ error: "ELEVENLABS_API_KEY not configured" }, { status: 500 });
+    if (!elevenLabsApiKey) {
+      return Response.json({ error: "ELEVENLABS_API_KEY not configured" }, { status: 500 });
+    }
 
     const voiceId = "Qggl4b0xRMiqOwhPtVWT";
 
