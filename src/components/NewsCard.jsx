@@ -14,6 +14,7 @@ const categoryColors = {
 };
 
 export default function NewsCard({ story, index }) {
+    const [isPanelOpen, setIsPanelOpen] = useState(false);
     const getCategoryColor = (category) => {
         const cat = category?.toLowerCase() || 'default';
         return categoryColors[cat] || categoryColors.default;
@@ -55,6 +56,13 @@ export default function NewsCard({ story, index }) {
                     </div>
                 </div>
             )}
+            </motion.article>
+
+            <StoryPlayerPanel 
+                story={story} 
+                isOpen={isPanelOpen} 
+                onClose={() => setIsPanelOpen(false)} 
+            />
         </motion.article>
     );
 }
