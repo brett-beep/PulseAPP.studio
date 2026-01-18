@@ -289,6 +289,10 @@ Return JSON only.
         title: safeText(story?.headline, "Breaking News"),
         what_happened: safeText(story?.what_happened, ""),
         why_it_matters: safeText(story?.portfolio_impact, ""),
+        both_sides: {
+          side_a: safeText(story?.portfolio_impact, ""),
+          side_b: ""
+        },
         outlet: safeText(story?.source, "Unknown"),
         category,
       };
@@ -358,6 +362,10 @@ Return 2 stories in same format as before.
         title: safeText(story?.headline, "Breaking News"),
         what_happened: safeText(story?.what_happened, ""),
         why_it_matters: safeText(story?.portfolio_impact, ""),
+        both_sides: {
+          side_a: safeText(story?.portfolio_impact, ""),
+          side_b: ""
+        },
         outlet: safeText(story?.source, "Unknown"),
         category,
       };
