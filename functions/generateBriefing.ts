@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
     const preferences = body?.preferences ?? {};
     const date = safeISODate(body?.date);
     const audioOnly = Boolean(body?.audio_only);
-    const skipAudio = Boolean(body?.skip_audio); // NEW: option to skip audio generation
+    const skipAudio = Boolean(body?.skip_audio);
 
     const userEmail = safeText(user?.email);
     if (!userEmail) return Response.json({ error: "User email missing" }, { status: 400 });
@@ -154,7 +154,6 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Mark generating
       await base44.asServiceRole.entities.DailyBriefing.update(briefing.id, {
         status: "generating",
       });
@@ -178,7 +177,7 @@ Deno.serve(async (req) => {
     }
 
     // =========================================================
-    // FULL MODE: generate stories/meta/script AND audio
+    // FULL MODE: generate news-first briefing
     // =========================================================
 
     const name =
@@ -199,35 +198,45 @@ Deno.serve(async (req) => {
       constraints: preferences?.constraints ?? null,
     };
 
-    const storiesPrompt = `
-You are curating "Selected Stories" for a premium, paid investor briefing product.
+    // =========================================================
+    // STEP 1: Pull TOP 3 HEADLINE STORIES (NEWS-FIRST)
+    // =========================================================
+    const headlinePrompt = `
+You are curating the TOP 3 HEADLINE STORIES for a premium investor briefing on ${date}.
 
-DATE: ${date}
+CRITICAL: These must be REAL, BREAKING financial/market news from the last 24 hours. Use internet search to find:
+- Breaking corporate news (earnings, M&A, executive changes)
+- Major economic data releases (jobs, inflation, GDP)
+- Federal Reserve or central bank announcements
+- Significant market-moving events
+- Geopolitical developments affecting markets
 
-USER PROFILE (use this to SELECT and FRAME stories):
+USER PROFILE (use to PRIORITIZE which headlines matter most):
 ${JSON.stringify(prefProfile, null, 2)}
 
-Selection rules:
-- Return exactly 5 stories.
-- Prioritize: (1) relevance to user's holdings/watchlist/sectors/goals, then (2) market-moving importance, then (3) recency.
-- Each story must be real and verifiable today (use internet context). Prefer reputable sources (Reuters, Bloomberg, WSJ, FT, CNBC, central banks, major filings).
-- Outlet: outlet name only. No URLs in outlet.
+Selection criteria:
+1. RECENCY: Must be from last 24 hours (prioritize overnight/morning news)
+2. IMPACT: Market-moving potential
+3. RELEVANCE: Connection to user's portfolio/watchlist/sectors
 
-Content rules:
-- what_happened: 1–2 sentences, specific. MUST be non-empty.
-- why_it_matters: exactly 1 sentence, personalized. MUST be non-empty.
-- both_sides: two short sentences. MUST be non-empty.
-- category: one of [markets, crypto, economy, technology, real estate, commodities, default].
-- Include market tape as % moves only (no index levels).
+For each story return:
+- headline: attention-grabbing title (10 words max)
+- what_happened: 2-3 sentences of facts only
+- portfolio_impact: 1-2 sentences explaining what this means for investors like this user
+- source: outlet name (Reuters, Bloomberg, WSJ, etc.)
+- category: [markets, economy, technology, crypto, real estate, commodities, default]
+
+Also include current market snapshot:
+- S&P 500, Nasdaq, Dow movements (% only, no levels)
 
 Return JSON only.
 `;
 
-    const storiesSchema = {
+    const headlineSchema = {
       type: "object",
       additionalProperties: false,
       properties: {
-        market_tape: {
+        market_snapshot: {
           type: "object",
           additionalProperties: false,
           properties: {
@@ -237,104 +246,146 @@ Return JSON only.
           },
           required: ["sp500_pct", "nasdaq_pct", "dow_pct"],
         },
-        news_stories: {
+        top_headlines: {
           type: "array",
-          minItems: 5,
-          maxItems: 5,
+          minItems: 3,
+          maxItems: 3,
           items: {
             type: "object",
             additionalProperties: true,
             properties: {
               id: { type: "string" },
-              href: { type: "string" },
-              title: { type: "string" },
+              headline: { type: "string" },
               what_happened: { type: "string" },
-              why_it_matters: { type: "string" },
-              both_sides: {
-                type: "object",
-                additionalProperties: false,
-                properties: {
-                  side_a: { type: "string" },
-                  side_b: { type: "string" },
-                },
-                required: ["side_a", "side_b"],
-              },
-              outlet: { type: "string" },
+              portfolio_impact: { type: "string" },
+              source: { type: "string" },
               category: { type: "string" },
+              href: { type: "string" },
             },
-            required: ["title", "what_happened", "why_it_matters", "both_sides", "outlet", "category"],
+            required: ["headline", "what_happened", "portfolio_impact", "source", "category"],
           },
         },
       },
-      required: ["market_tape", "news_stories"],
+      required: ["market_snapshot", "top_headlines"],
     };
 
-    const storiesData = await invokeLLM(base44, storiesPrompt, true, storiesSchema);
+    // Use internet search to get real-time news
+    const headlineData = await invokeLLM(base44, headlinePrompt, true, headlineSchema);
 
-    if (!storiesData || !Array.isArray(storiesData.news_stories) || storiesData.news_stories.length !== 5) {
-      return Response.json({ error: "Story generation failed: invalid payload" }, { status: 500 });
+    if (!headlineData || !Array.isArray(headlineData.top_headlines) || headlineData.top_headlines.length !== 3) {
+      return Response.json({ error: "Headline generation failed: invalid payload" }, { status: 500 });
     }
 
     const allowedCats = new Set(["markets", "crypto", "economy", "technology", "real estate", "commodities", "default"]);
 
-    const enrichedStories = storiesData.news_stories.map((s) => {
-      const rawCat = safeText(s?.category, "default").toLowerCase();
+    const topStories = headlineData.top_headlines.map((story) => {
+      const rawCat = safeText(story?.category, "default").toLowerCase();
       const category = allowedCats.has(rawCat) ? rawCat : "default";
 
-      const title = safeText(s?.title, "Untitled story");
-      const what = safeText(s?.what_happened, "");
-      const why = safeText(s?.why_it_matters, "");
-      const sideA = safeText(s?.both_sides?.side_a, "");
-      const sideB = safeText(s?.both_sides?.side_b, "");
-      const outlet = safeText(s?.outlet, "Unknown");
-
-      if (!what || !why || !sideA || !sideB) throw new Error("LLM returned incomplete story fields.");
-
       return {
-        id: safeText(s?.id, randomId()),
-        href: safeText(s?.href, "#"),
+        id: safeText(story?.id, randomId()),
+        href: safeText(story?.href, "#"),
         imageUrl: categoryImageUrl(category),
-        title,
-        what_happened: what,
-        why_it_matters: why,
-        both_sides: { side_a: sideA, side_b: sideB },
-        outlet,
+        title: safeText(story?.headline, "Breaking News"),
+        what_happened: safeText(story?.what_happened, ""),
+        why_it_matters: safeText(story?.portfolio_impact, ""),
+        outlet: safeText(story?.source, "Unknown"),
         category,
       };
     });
 
-    const marketTape = {
-      sp500_pct: normalizePct(storiesData.market_tape?.sp500_pct),
-      nasdaq_pct: normalizePct(storiesData.market_tape?.nasdaq_pct),
-      dow_pct: normalizePct(storiesData.market_tape?.dow_pct),
+    const marketSnapshot = {
+      sp500_pct: normalizePct(headlineData.market_snapshot?.sp500_pct),
+      nasdaq_pct: normalizePct(headlineData.market_snapshot?.nasdaq_pct),
+      dow_pct: normalizePct(headlineData.market_snapshot?.dow_pct),
     };
 
-    const metaPrompt = `
-You are producing metadata for the UI of a premium investor briefing.
+    // =========================================================
+    // STEP 2: Generate 2 additional context stories
+    // =========================================================
+    const contextPrompt = `
+You already have these 3 TOP HEADLINES:
+${topStories.map((s, i) => `${i + 1}. ${s.title}`).join('\n')}
 
-DATE: ${date}
+Now find 2 ADDITIONAL stories that provide context or related developments. These should:
+- Complement the top 3 (not duplicate)
+- Be from the last 48 hours
+- Add depth to the briefing
+
+USER PROFILE:
+${JSON.stringify(prefProfile, null, 2)}
+
+Return 2 stories in same format as before.
+`;
+
+    const contextSchema = {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        context_stories: {
+          type: "array",
+          minItems: 2,
+          maxItems: 2,
+          items: {
+            type: "object",
+            additionalProperties: true,
+            properties: {
+              id: { type: "string" },
+              headline: { type: "string" },
+              what_happened: { type: "string" },
+              portfolio_impact: { type: "string" },
+              source: { type: "string" },
+              category: { type: "string" },
+              href: { type: "string" },
+            },
+            required: ["headline", "what_happened", "portfolio_impact", "source", "category"],
+          },
+        },
+      },
+      required: ["context_stories"],
+    };
+
+    const contextData = await invokeLLM(base44, contextPrompt, true, contextSchema);
+
+    const contextStories = (contextData?.context_stories || []).map((story) => {
+      const rawCat = safeText(story?.category, "default").toLowerCase();
+      const category = allowedCats.has(rawCat) ? rawCat : "default";
+
+      return {
+        id: safeText(story?.id, randomId()),
+        href: safeText(story?.href, "#"),
+        imageUrl: categoryImageUrl(category),
+        title: safeText(story?.headline, "Breaking News"),
+        what_happened: safeText(story?.what_happened, ""),
+        why_it_matters: safeText(story?.portfolio_impact, ""),
+        outlet: safeText(story?.source, "Unknown"),
+        category,
+      };
+    });
+
+    // Combine: 3 headlines + 2 context = 5 total stories
+    const allStories = [...topStories, ...contextStories];
+
+    // =========================================================
+    // STEP 3: Generate Metadata
+    // =========================================================
+    const metaPrompt = `
+Create briefing metadata for ${date}.
+
 LISTENER: ${name}
 
-MARKET TAPE:
-- S&P: ${marketTape.sp500_pct}
-- Nasdaq: ${marketTape.nasdaq_pct}
-- Dow: ${marketTape.dow_pct}
+TOP 3 HEADLINES:
+${topStories.map((s, i) => `${i + 1}. ${s.title} - ${s.what_happened}`).join('\n')}
 
-STORIES:
-${enrichedStories
-  .map(
-    (s, i) => `${i + 1}) ${s.title}
-- category: ${s.category}
-- what_happened: ${s.what_happened}
-- why_it_matters: ${s.why_it_matters}
-`
-  )
-  .join("\n")}
+MARKET SNAPSHOT:
+- S&P: ${marketSnapshot.sp500_pct}
+- Nasdaq: ${marketSnapshot.nasdaq_pct}
+- Dow: ${marketSnapshot.dow_pct}
 
-Return JSON only with:
-- summary: 2–3 sentences max.
-- key_highlights: array of 3–5 bullets.
-- market_sentiment: { label: "bullish"|"bearish"|"neutral"|"mixed", description: one sentence }.
+Return JSON with:
+- summary: 2-3 sentence overview focusing on the top headlines
+- key_highlights: 3-5 bullets (lead with news, not markets)
+- market_sentiment: { label: "bullish"|"bearish"|"neutral"|"mixed", description: one sentence }
 `;
 
     const metaSchema = {
@@ -364,43 +415,48 @@ Return JSON only with:
       : [];
     const uiSentiment = meta?.market_sentiment || { label: "neutral", description: "" };
 
+    // =========================================================
+    // STEP 4: Generate Script (NEWS-FIRST STRUCTURE)
+    // =========================================================
     const scriptPrompt = `
-Write the full spoken script for "Pulse" using the provided data.
+Write the spoken script for "Pulse" - a news-first investor briefing.
 
-LISTENER NAME: ${name}
+LISTENER: ${name}
 DATE: ${date}
 
-VOICE:
-- Plain + investor
-- Natural pacing
-- Impartial
-- No filler like "according to"
-- Percent moves only. No index levels.
+SCRIPT STRUCTURE (NEWS-FIRST):
+1. HOOK: Open with the #1 headline (10-15 seconds)
+2. TOP 3 HEADLINES: Cover each headline with what happened + portfolio impact (60-90 seconds)
+3. MARKET SNAPSHOT: Quick tape - S&P, Nasdaq, Dow % moves only (15 seconds)
+4. CONTEXT STORIES: Brief mention of 1-2 supporting stories (30 seconds)
+5. CLOSE: Actionable takeaway + sign-off (15 seconds)
 
-STRUCTURE (6A):
-Hook -> Tape -> One Thread -> Engage (up to 4 stories) -> Call to Action -> Close
+VOICE GUIDELINES:
+- Conversational but authoritative
+- No filler phrases ("according to", "it appears")
+- Percent moves only, NO index levels
+- Natural pacing with pauses
+- Direct address to listener
 
 DATA:
-market_tape:
-- S&P: ${marketTape.sp500_pct}
-- Nasdaq: ${marketTape.nasdaq_pct}
-- Dow: ${marketTape.dow_pct}
 
-stories:
-${enrichedStories
-  .map(
-    (s, i) => `
-${i + 1}) ${s.title}
-- what: ${s.what_happened}
-- why: ${s.why_it_matters}
-- sideA: ${s.both_sides.side_a}
-- sideB: ${s.both_sides.side_b}
-- outlet: ${s.outlet}
-`
-  )
-  .join("\n")}
+TOP 3 HEADLINES (LEAD WITH THESE):
+${topStories.map((s, i) => `
+${i + 1}. ${s.title}
+   What: ${s.what_happened}
+   Impact: ${s.why_it_matters}
+   Source: ${s.outlet}
+`).join('\n')}
 
-Return JSON only: { "script": "..." }
+MARKET SNAPSHOT (mention AFTER headlines):
+- S&P: ${marketSnapshot.sp500_pct}
+- Nasdaq: ${marketSnapshot.nasdaq_pct}
+- Dow: ${marketSnapshot.dow_pct}
+
+CONTEXT STORIES (brief mentions):
+${contextStories.map((s, i) => `${i + 1}. ${s.title} - ${s.what_happened}`).join('\n')}
+
+Return JSON: { "script": "..." }
 `;
 
     const scriptSchema = {
@@ -416,12 +472,14 @@ Return JSON only: { "script": "..." }
     const wc = wordCount(script);
     const estimatedMinutes = Math.max(1, Math.round(wc / 150));
 
+    // =========================================================
+    // STEP 5: Save Briefing
+    // =========================================================
     const existing = await base44.asServiceRole.entities.DailyBriefing.filter({
       date,
       created_by: userEmail,
     });
 
-    // Save briefing with script first
     const baseRecord = {
       date,
       created_by: userEmail,
@@ -429,7 +487,7 @@ Return JSON only: { "script": "..." }
       summary: uiSummary,
       market_sentiment: uiSentiment,
       key_highlights: uiHighlights,
-      news_stories: enrichedStories,
+      news_stories: allStories,
       duration_minutes: estimatedMinutes,
       status: skipAudio ? "script_ready" : "generating",
       audio_url: null,
@@ -442,7 +500,6 @@ Return JSON only: { "script": "..." }
       saved = await base44.asServiceRole.entities.DailyBriefing.create(baseRecord);
     }
 
-    // If skip_audio is true, return early with script only
     if (skipAudio) {
       return Response.json({
         success: true,
@@ -454,7 +511,7 @@ Return JSON only: { "script": "..." }
     }
 
     // =========================================================
-    // Generate audio automatically
+    // STEP 6: Generate Audio
     // =========================================================
     const audioFile = await generateAudioFile(script, date, elevenLabsApiKey);
 
