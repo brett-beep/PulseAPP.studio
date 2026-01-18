@@ -77,6 +77,38 @@ async function invokeLLM(base44, prompt, addInternet, schema) {
   });
 }
 
+async function generateAudioFile(script, date, elevenLabsApiKey) {
+  const voiceId = "Qggl4b0xRMiqOwhPtVWT";
+
+  const ttsResponse = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+    method: "POST",
+    headers: {
+      Accept: "audio/mpeg",
+      "Content-Type": "application/json",
+      "xi-api-key": elevenLabsApiKey,
+    },
+    body: JSON.stringify({
+      text: script,
+      model_id: "eleven_multilingual_v2",
+      output_format: "mp3_44100_128",
+      voice_settings: {
+        stability: 0.5,
+        similarity_boost: 0.75,
+        style: 0.0,
+        use_speaker_boost: true,
+      },
+    }),
+  });
+
+  if (!ttsResponse.ok) {
+    const errorText = await ttsResponse.text();
+    throw new Error(`ElevenLabs TTS failed: ${errorText}`);
+  }
+
+  const audioBlob = await ttsResponse.blob();
+  return new File([audioBlob], `briefing-${date}.mp3`, { type: "audio/mpeg" });
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -87,19 +119,20 @@ Deno.serve(async (req) => {
     const preferences = body?.preferences ?? {};
     const date = safeISODate(body?.date);
     const audioOnly = Boolean(body?.audio_only);
+    const skipAudio = Boolean(body?.skip_audio); // NEW: option to skip audio generation
 
     const userEmail = safeText(user?.email);
     if (!userEmail) return Response.json({ error: "User email missing" }, { status: 400 });
+
+    const elevenLabsApiKey = Deno.env.get("ELEVENLABS_API_KEY");
+    if (!skipAudio && !elevenLabsApiKey) {
+      return Response.json({ error: "ELEVENLABS_API_KEY not configured" }, { status: 500 });
+    }
 
     // =========================================================
     // AUDIO-ONLY MODE: convert existing script -> audio_url
     // =========================================================
     if (audioOnly) {
-      const elevenLabsApiKey = Deno.env.get("ELEVENLABS_API_KEY");
-      if (!elevenLabsApiKey) {
-        return Response.json({ error: "ELEVENLABS_API_KEY not configured" }, { status: 500 });
-      }
-
       const existing = await base44.asServiceRole.entities.DailyBriefing.filter({
         date,
         created_by: userEmail,
@@ -121,44 +154,12 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Mark generating (optional but helps UI)
+      // Mark generating
       await base44.asServiceRole.entities.DailyBriefing.update(briefing.id, {
         status: "generating",
       });
 
-      const voiceId = "Qggl4b0xRMiqOwhPtVWT";
-
-      const ttsResponse = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
-        method: "POST",
-        headers: {
-          Accept: "audio/mpeg",
-          "Content-Type": "application/json",
-          "xi-api-key": elevenLabsApiKey,
-        },
-        body: JSON.stringify({
-          text: script,
-          model_id: "eleven_multilingual_v2",
-          output_format: "mp3_44100_128",
-          voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.75,
-            style: 0.0,
-            use_speaker_boost: true,
-          },
-        }),
-      });
-
-      if (!ttsResponse.ok) {
-        const errorText = await ttsResponse.text();
-        await base44.asServiceRole.entities.DailyBriefing.update(briefing.id, { status: "failed" });
-        return Response.json(
-          { error: "ElevenLabs TTS failed", details: errorText },
-          { status: 500 }
-        );
-      }
-
-      const audioBlob = await ttsResponse.blob();
-      const audioFile = new File([audioBlob], `briefing-${date}.mp3`, { type: "audio/mpeg" });
+      const audioFile = await generateAudioFile(script, date, elevenLabsApiKey);
 
       const { file_uri } = await base44.asServiceRole.integrations.Core.UploadPrivateFile({
         file: audioFile,
@@ -177,7 +178,7 @@ Deno.serve(async (req) => {
     }
 
     // =========================================================
-    // SCRIPT MODE: generate stories/meta/script and save script_ready
+    // FULL MODE: generate stories/meta/script AND audio
     // =========================================================
 
     const name =
@@ -420,6 +421,7 @@ Return JSON only: { "script": "..." }
       created_by: userEmail,
     });
 
+    // Save briefing with script first
     const baseRecord = {
       date,
       created_by: userEmail,
@@ -429,7 +431,7 @@ Return JSON only: { "script": "..." }
       key_highlights: uiHighlights,
       news_stories: enrichedStories,
       duration_minutes: estimatedMinutes,
-      status: "script_ready",
+      status: skipAudio ? "script_ready" : "generating",
       audio_url: null,
     };
 
@@ -440,12 +442,41 @@ Return JSON only: { "script": "..." }
       saved = await base44.asServiceRole.entities.DailyBriefing.create(baseRecord);
     }
 
+    // If skip_audio is true, return early with script only
+    if (skipAudio) {
+      return Response.json({
+        success: true,
+        briefing: saved,
+        wordCount: wc,
+        estimatedMinutes,
+        status: "script_ready",
+      });
+    }
+
+    // =========================================================
+    // Generate audio automatically
+    // =========================================================
+    const audioFile = await generateAudioFile(script, date, elevenLabsApiKey);
+
+    const { file_uri } = await base44.asServiceRole.integrations.Core.UploadPrivateFile({
+      file: audioFile,
+    });
+    const { signed_url } = await base44.asServiceRole.integrations.Core.CreateFileSignedUrl({
+      file_uri,
+      expires_in: 60 * 60 * 24 * 7,
+    });
+
+    const updated = await base44.asServiceRole.entities.DailyBriefing.update(saved.id, {
+      audio_url: signed_url,
+      status: "ready",
+    });
+
     return Response.json({
       success: true,
-      briefing: saved,
+      briefing: updated,
       wordCount: wc,
       estimatedMinutes,
-      status: "script_ready",
+      status: "ready",
     });
   } catch (error) {
     console.error("Error in generateBriefing:", error);
