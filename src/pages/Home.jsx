@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
@@ -10,7 +10,7 @@ import MarketSentiment from "@/components/MarketSentiment";
 import KeyHighlights from "@/components/KeyHighlights";
 import OnboardingWizard from "@/components/OnboardingWizard";
 
-import { Settings, Headphones } from "lucide-react";
+import { Settings, Headphones, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "react-router-dom";
@@ -19,6 +19,8 @@ import { createPageUrl } from "@/utils";
 export default function Home() {
   const queryClient = useQueryClient();
   const [isGenerating, setIsGenerating] = useState(false);
+  const [newsCards, setNewsCards] = useState([]);
+  const [isLoadingNews, setIsLoadingNews] = useState(true);
 
   // Fetch current user
   const { data: user, isLoading: userLoading } = useQuery({
@@ -52,6 +54,36 @@ export default function Home() {
 
   const todayBriefing = briefings?.[0] || null;
 
+  // =========================================================
+  // NEW: Fetch news cards immediately on page load
+  // =========================================================
+  useEffect(() => {
+    async function loadNewsCards() {
+      // Only load if user is authenticated and onboarding is complete
+      if (!user || !preferences?.onboarding_completed) return;
+
+      try {
+        setIsLoadingNews(true);
+        const response = await base44.functions.invoke("fetchNewsCards", {
+          count: 5,
+          preferences: preferences,
+        });
+
+        if (response?.data?.success && response?.data?.stories) {
+          setNewsCards(response.data.stories);
+        } else {
+          console.error("Failed to load news cards:", response?.data?.error);
+        }
+      } catch (error) {
+        console.error("Error loading news cards:", error);
+      } finally {
+        setIsLoadingNews(false);
+      }
+    }
+
+    loadNewsCards();
+  }, [user, preferences?.onboarding_completed]);
+
   // Save preferences mutation
   const savePreferencesMutation = useMutation({
     mutationFn: async (prefs) => {
@@ -77,8 +109,10 @@ export default function Home() {
     return [];
   };
 
-  // Mode A: generate stories/script only (fast)
-  const generateBriefingScript = async () => {
+  // =========================================================
+  // Generate FULL briefing (script + audio automatically)
+  // =========================================================
+  const generateFullBriefing = async () => {
     if (isGenerating) return;
 
     setIsGenerating(true);
@@ -86,44 +120,20 @@ export default function Home() {
       const response = await base44.functions.invoke("generateBriefing", {
         preferences: preferences,
         date: today,
-        // backend must support this flag and skip ElevenLabs
-        audio_only: false,
+        skip_audio: false, // Generate both script AND audio
       });
 
       if (response?.data?.error) {
-        console.error("Briefing script generation error:", response.data.error);
+        console.error("Briefing generation error:", response.data.error);
         alert("Failed to generate briefing: " + response.data.error);
       } else {
         await refetchBriefing();
+        // Optional: refresh news cards after briefing is generated
+        // setNewsCards(response.data.briefing.news_stories || newsCards);
       }
     } catch (error) {
-      console.error("Error generating briefing script:", error);
+      console.error("Error generating briefing:", error);
       alert("Failed to generate briefing. Please try again.");
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  // Mode B: generate audio only (slow)
-  const generateBriefingAudio = async () => {
-    if (isGenerating) return;
-
-    setIsGenerating(true);
-    try {
-      const response = await base44.functions.invoke("generateBriefing", {
-        date: today,
-        audio_only: true,
-      });
-
-      if (response?.data?.error) {
-        console.error("Audio generation error:", response.data.error);
-        alert("Failed to generate audio: " + response.data.error);
-      } else {
-        await refetchBriefing();
-      }
-    } catch (error) {
-      console.error("Error generating audio:", error);
-      alert("Failed to generate audio. Please try again.");
     } finally {
       setIsGenerating(false);
     }
@@ -161,7 +171,6 @@ export default function Home() {
   const firstName = user?.full_name?.split(" ")?.[0] || "there";
   const audioUrl = todayBriefing?.audio_url || null;
 
-  const stories = parseJsonArray(todayBriefing?.news_stories);
   const highlights = parseJsonArray(todayBriefing?.key_highlights);
 
   // Guard sentiment type (new schema uses object)
@@ -171,18 +180,19 @@ export default function Home() {
       : null;
 
   const status = todayBriefing?.status || null;
-  const hasScript = Boolean(todayBriefing?.script);
-  const canGenerateAudio = status === "script_ready" && !audioUrl && hasScript;
 
-  const onGenerate =
-    audioUrl ? null : canGenerateAudio ? generateBriefingAudio : generateBriefingScript;
+  // Determine which stories to show: 
+  // 1. If briefing exists with stories, show those
+  // 2. Otherwise show the instant news cards
+  const briefingStories = parseJsonArray(todayBriefing?.news_stories);
+  const displayStories = briefingStories.length > 0 ? briefingStories : newsCards;
 
   const statusLabel = briefingLoading
     ? "Loading briefing…"
     : audioUrl
     ? "Status: Ready to Play"
-    : canGenerateAudio
-    ? "Status: Script Ready — Generate Audio"
+    : isGenerating
+    ? "Status: Generating..."
     : "Status: Ready to Generate";
 
   return (
@@ -224,7 +234,7 @@ export default function Home() {
             greeting={greeting()}
             userName={firstName}
             currentDate={format(new Date(), "MM/dd, EEE")}
-            onGenerate={onGenerate}
+            onGenerate={generateFullBriefing}
             isGenerating={isGenerating}
             status={status}
           />
@@ -235,6 +245,7 @@ export default function Home() {
           </div>
         </motion.section>
 
+        {/* Summary & Highlights (only show if briefing exists) */}
         {(todayBriefing?.summary || highlights.length > 0) && (
           <motion.section
             initial={{ opacity: 0, y: 20 }}
@@ -252,25 +263,41 @@ export default function Home() {
           </motion.section>
         )}
 
+        {/* NEWS CARDS - Shows immediately on page load */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
         >
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold text-slate-900">Curated for You</h2>
-            <span className="text-sm text-slate-400">{stories.length} stories</span>
+            <h2 className="text-xl font-semibold text-slate-900">
+              {briefingStories.length > 0 ? "From Your Briefing" : "Breaking News"}
+            </h2>
+            <span className="text-sm text-slate-400">
+              {displayStories.length} {displayStories.length === 1 ? "story" : "stories"}
+            </span>
           </div>
 
-          {stories.length === 0 ? (
-            <div className="bg-white/70 rounded-2xl p-6 border border-slate-100">
+          {isLoadingNews ? (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="bg-white/70 rounded-2xl p-6 border border-slate-100">
+                  <Skeleton className="h-4 w-3/4 mb-3" />
+                  <Skeleton className="h-3 w-full mb-2" />
+                  <Skeleton className="h-3 w-5/6" />
+                </div>
+              ))}
+            </div>
+          ) : displayStories.length === 0 ? (
+            <div className="bg-white/70 rounded-2xl p-6 border border-slate-100 text-center">
               <p className="text-slate-600">
-                No stories yet. Click <span className="font-semibold">Generate</span> on the player to populate today’s briefing.
+                No news available. Please try refreshing the page or click{" "}
+                <span className="font-semibold">Generate</span> to create your briefing.
               </p>
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
-              {stories.map((story, index) => (
+              {displayStories.map((story, index) => (
                 <NewsCard key={story?.id || index} story={story} index={index} />
               ))}
             </div>
