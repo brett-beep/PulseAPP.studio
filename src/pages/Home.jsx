@@ -55,15 +55,30 @@ export default function Home() {
   const todayBriefing = briefings?.[0] || null;
 
   // =========================================================
-  // NEW: Fetch news cards immediately on page load
+  // NEW: Fetch news cards immediately on page load (with caching)
   // =========================================================
   useEffect(() => {
     async function loadNewsCards() {
       // Only load if user is authenticated and onboarding is complete
       if (!user || !preferences?.onboarding_completed) return;
 
+      // Check if we already have cached news cards (within last 30 minutes)
+      const cachedNews = sessionStorage.getItem('newsCards');
+      const cacheTimestamp = sessionStorage.getItem('newsCardsTimestamp');
+      const now = Date.now();
+      const thirtyMinutes = 30 * 60 * 1000;
+
+      if (cachedNews && cacheTimestamp && (now - parseInt(cacheTimestamp)) < thirtyMinutes) {
+        console.log("✅ Using cached news cards");
+        setNewsCards(JSON.parse(cachedNews));
+        setIsLoadingNews(false);
+        return;
+      }
+
       try {
         setIsLoadingNews(true);
+        console.log("📡 Fetching fresh news cards...");
+        
         const response = await base44.functions.invoke("fetchNewsCards", {
           count: 5,
           preferences: preferences,
@@ -71,11 +86,21 @@ export default function Home() {
 
         if (response?.data?.success && response?.data?.stories) {
           setNewsCards(response.data.stories);
+          // Cache the results
+          sessionStorage.setItem('newsCards', JSON.stringify(response.data.stories));
+          sessionStorage.setItem('newsCardsTimestamp', now.toString());
+          console.log("✅ News cards cached");
         } else {
           console.error("Failed to load news cards:", response?.data?.error);
         }
       } catch (error) {
         console.error("Error loading news cards:", error);
+        
+        // If rate limited and we have old cache, use it
+        if (cachedNews) {
+          console.log("⚠️ Rate limited - using stale cache");
+          setNewsCards(JSON.parse(cachedNews));
+        }
       } finally {
         setIsLoadingNews(false);
       }
