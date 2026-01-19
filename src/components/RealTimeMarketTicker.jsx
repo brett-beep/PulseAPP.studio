@@ -10,7 +10,7 @@ export default function RealTimeMarketTicker({ watchlist = [] }) {
 
   // Take top 3 stocks from user's watchlist
   const topStocks = watchlist.slice(0, 3);
-  const symbols = ['SPY', ...topStocks]; // SPY = S&P 500 ETF
+  const symbols = ['QQQ', ...topStocks]; // QQQ = Nasdaq-100 ETF
 
   useEffect(() => {
     async function fetchMarketData() {
@@ -55,8 +55,8 @@ export default function RealTimeMarketTicker({ watchlist = [] }) {
         const validResults = results.filter(Boolean);
 
         setMarketData({
-          sp500: validResults.find(d => d.symbol === 'SPY'),
-          userStocks: validResults.filter(d => d.symbol !== 'SPY')
+          sp500: validResults.find(d => d.symbol === 'QQQ'), // Using QQQ for Nasdaq
+          userStocks: validResults.filter(d => d.symbol !== 'QQQ')
         });
       } catch (error) {
         console.error('Error fetching market data:', error);
@@ -117,28 +117,28 @@ export default function RealTimeMarketTicker({ watchlist = [] }) {
     
     if (change > 1) return { 
       label: 'Bullish', 
-      description: 'Markets rallying higher',
+      description: 'Nasdaq rallying higher',
       color: 'text-green-600'
     };
     if (change > 0.3) return { 
       label: 'Positive', 
-      description: 'Markets trending up',
+      description: 'Nasdaq trending up',
       color: 'text-green-600'
     };
     if (change < -1) return { 
       label: 'Bearish', 
-      description: 'Markets under pressure',
+      description: 'Nasdaq under pressure',
       color: 'text-red-600'
     };
     if (change < -0.3) return { 
       label: 'Negative', 
-      description: 'Markets trending down',
+      description: 'Nasdaq trending down',
       color: 'text-red-600'
     };
     
     return { 
       label: 'Neutral', 
-      description: 'Markets trading sideways',
+      description: 'Nasdaq trading sideways',
       color: 'text-slate-600'
     };
   };
