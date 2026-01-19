@@ -219,9 +219,9 @@ export default function Home() {
   }
 
   // Show onboarding if not completed
-  if (!preferences?.onboarding_completed) {
+  if (true) {  // Force show onboarding
     return <OnboardingWizard onComplete={handleOnboardingComplete} />;
-  }
+}
 
   const firstName = user?.full_name?.split(" ")?.[0] || "there";
   const audioUrl = todayBriefing?.audio_url || null;
