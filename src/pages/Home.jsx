@@ -177,6 +177,8 @@ export default function Home() {
 
   // Loading state
   if (userLoading || prefsLoading) {
+    console.log("userWatchlist:", userWatchlist);
+    console.log("userWatchlist length:", userWatchlist.length);
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white p-6">
         <div className="max-w-4xl mx-auto space-y-8">
