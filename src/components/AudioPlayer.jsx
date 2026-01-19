@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence, useMotionValue, useSpring } from "framer-motion";
-import { Play, Pause, RotateCcw, FastForward, Volume2, VolumeX } from "lucide-react";
+import { Play, Pause, RotateCcw, FastForward, Volume2, VolumeX, Gauge } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { GlassFilter } from "@/components/ui/liquid-glass-button";
 
@@ -24,11 +24,15 @@ export default function AudioPlayer({
   const [currentTime, setCurrentTime] = useState(0);
   const [totalDuration, setTotalDuration] = useState((duration || 0) * 60 || 0);
   const [isMuted, setIsMuted] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const [showSpeedMenu, setShowSpeedMenu] = useState(false);
 
   const mx = useMotionValue(300);
   const my = useMotionValue(200);
   const sx = useSpring(mx, { stiffness: 200, damping: 30, mass: 0.5 });
   const sy = useSpring(my, { stiffness: 200, damping: 30, mass: 0.5 });
+
+  const speedOptions = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -74,6 +78,14 @@ export default function AudioPlayer({
     };
   }, [audioUrl, duration, onComplete]);
 
+  // Apply playback rate when it changes
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (audio) {
+      audio.playbackRate = playbackRate;
+    }
+  }, [playbackRate]);
+
   const progress = totalDuration > 0 ? currentTime / totalDuration : 0;
 
   const togglePlay = async () => {
@@ -114,6 +126,11 @@ export default function AudioPlayer({
     if (!a) return;
     a.muted = !isMuted;
     setIsMuted(!isMuted);
+  };
+
+  const changeSpeed = (speed) => {
+    setPlaybackRate(speed);
+    setShowSpeedMenu(false);
   };
 
   const formatTime = (seconds) => {
@@ -421,11 +438,69 @@ export default function AudioPlayer({
             <FastForward className="h-5 w-5 text-slate-600" />
           </motion.button>
 
-          <div className="w-14" />
-          </div>
+          {/* Speed Control Button */}
+          <div className="relative">
+            <motion.button
+              whileHover={{ scale: 1.12 }}
+              whileTap={{ scale: 0.94 }}
+              onClick={() => setShowSpeedMenu(!showSpeedMenu)}
+              className="w-14 h-14 rounded-full flex items-center justify-center relative"
+              style={{
+                background: "rgba(255, 255, 255, 0.6)",
+                backdropFilter: "blur(10px)",
+                border: "0.5px solid rgba(255, 255, 255, 0.8)",
+                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
+              }}
+            >
+              <Gauge className="h-5 w-5 text-slate-600" />
+              <span className="absolute -bottom-1 text-[10px] font-semibold text-slate-700">
+                {playbackRate}x
+              </span>
+            </motion.button>
 
-          {/* Generate Button / Generating Message */}
-          <AnimatePresence mode="wait">
+            {/* Speed Menu Dropdown */}
+            <AnimatePresence>
+              {showSpeedMenu && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute bottom-full mb-2 right-0 rounded-2xl overflow-hidden"
+                  style={{
+                    background: "rgba(255, 255, 255, 0.95)",
+                    backdropFilter: "blur(20px)",
+                    border: "0.5px solid rgba(255, 255, 255, 0.8)",
+                    boxShadow: "0 8px 24px rgba(0, 0, 0, 0.12), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
+                  }}
+                >
+                  <div className="p-2 flex flex-col gap-1">
+                    {speedOptions.map((speed) => (
+                      <motion.button
+                        key={speed}
+                        whileHover={{ scale: 1.05, x: 2 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => changeSpeed(speed)}
+                        className="px-4 py-2 rounded-xl text-sm font-medium text-left transition-colors"
+                        style={{
+                          background: playbackRate === speed 
+                            ? "linear-gradient(135deg, rgba(255, 140, 75, 0.2) 0%, rgba(255, 85, 45, 0.2) 100%)"
+                            : "transparent",
+                          color: playbackRate === speed ? "rgb(255, 85, 45)" : "rgb(71, 85, 105)",
+                        }}
+                      >
+                        {speed}x
+                      </motion.button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+
+        {/* Generate Button / Generating Message */}
+        <AnimatePresence mode="wait">
           {isGenerating ? (
             <motion.div
               key="generating"
@@ -476,8 +551,8 @@ export default function AudioPlayer({
               Generate Briefing
             </motion.button>
           ) : null}
-          </AnimatePresence>
-          </div>
+        </AnimatePresence>
+      </div>
     </motion.div>
   );
 }
