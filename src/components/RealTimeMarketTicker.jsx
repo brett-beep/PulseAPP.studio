@@ -14,6 +14,7 @@ export default function RealTimeMarketTicker({ watchlist = [] }) {
 console.log("🎯 Ticker received watchlist:", watchlist);
 console.log("🎯 topStocks (first 3):", topStocks);
 console.log("🎯 symbols to fetch:", symbols);
+
   const symbols = ['QQQ', ...topStocks]; // QQQ = Nasdaq-100 ETF
 
   useEffect(() => {
