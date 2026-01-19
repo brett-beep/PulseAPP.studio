@@ -10,12 +10,11 @@ export default function RealTimeMarketTicker({ watchlist = [] }) {
 
   // Take top 3 stocks from user's watchlist
   const topStocks = watchlist.slice(0, 3);
-  const topStocks = watchlist.slice(0, 3);
-console.log("🎯 Ticker received watchlist:", watchlist);
-console.log("🎯 topStocks (first 3):", topStocks);
-console.log("🎯 symbols to fetch:", symbols);
-
   const symbols = ['QQQ', ...topStocks]; // QQQ = Nasdaq-100 ETF
+
+  console.log("🎯 Ticker received watchlist:", watchlist);
+  console.log("🎯 topStocks (first 3):", topStocks);
+  console.log("🎯 symbols to fetch:", symbols);
 
   useEffect(() => {
     async function fetchMarketData() {
@@ -58,6 +57,9 @@ console.log("🎯 symbols to fetch:", symbols);
 
         const results = await Promise.all(promises);
         const validResults = results.filter(Boolean);
+
+        console.log("🎯 validResults:", validResults);
+        console.log("🎯 userStocks filtered:", validResults.filter(d => d.symbol !== 'QQQ'));
 
         setMarketData({
           sp500: validResults.find(d => d.symbol === 'QQQ'), // Using QQQ for Nasdaq
@@ -179,7 +181,7 @@ console.log("🎯 symbols to fetch:", symbols);
 
   return (
     <div className="flex items-center gap-6 flex-wrap">
-      {/* S&P 500 Sentiment */}
+      {/* Nasdaq Sentiment */}
       <div className="flex items-center gap-2">
         <div className={`h-2 w-2 rounded-full ${
           sentiment.label === 'Bullish' || sentiment.label === 'Positive' ? 'bg-green-500' :
@@ -199,7 +201,7 @@ console.log("🎯 symbols to fetch:", symbols);
         <div className="h-4 w-px bg-slate-200" />
       )}
 
-      {/* User's Top Stocks */}
+      {/* User's Top 3 Stocks */}
       <div className="flex items-center gap-4">
         {marketData.userStocks.map((stock) => (
           <React.Fragment key={stock.symbol}>
