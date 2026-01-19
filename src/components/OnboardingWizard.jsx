@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import StockPicker from "@/components/StockPicker";
 import { 
     ArrowRight, 
     ArrowLeft, 
@@ -44,7 +45,6 @@ export default function OnboardingWizard({ onComplete }) {
         briefing_length: 'medium',
         preferred_voice: 'professional'
     });
-    const [holdingInput, setHoldingInput] = useState('');
 
     const handleGoalToggle = (goal) => {
         setPreferences(prev => ({
@@ -64,20 +64,18 @@ export default function OnboardingWizard({ onComplete }) {
         }));
     };
 
-    const addHolding = () => {
-        if (holdingInput.trim()) {
-            setPreferences(prev => ({
-                ...prev,
-                portfolio_holdings: [...prev.portfolio_holdings, holdingInput.trim().toUpperCase()]
-            }));
-            setHoldingInput('');
-        }
-    };
-
-    const removeHolding = (holding) => {
+    // Stock picker handlers
+    const handleAddStock = (symbol) => {
         setPreferences(prev => ({
             ...prev,
-            portfolio_holdings: prev.portfolio_holdings.filter(h => h !== holding)
+            portfolio_holdings: [...prev.portfolio_holdings, symbol]
+        }));
+    };
+
+    const handleRemoveStock = (symbol) => {
+        setPreferences(prev => ({
+            ...prev,
+            portfolio_holdings: prev.portfolio_holdings.filter(h => h !== symbol)
         }));
     };
 
@@ -196,34 +194,18 @@ export default function OnboardingWizard({ onComplete }) {
                 return (
                     <div className="space-y-6">
                         <p className="text-slate-600 text-center">
-                            Add your portfolio holdings (ticker symbols) for personalized insights.
+                            Add stocks to track - these will appear on your home page with live prices
                         </p>
-                        <div className="flex gap-2 max-w-md mx-auto">
-                            <Input
-                                value={holdingInput}
-                                onChange={(e) => setHoldingInput(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && addHolding()}
-                                placeholder="e.g., AAPL, TSLA, BTC"
-                                className="flex-1"
-                            />
-                            <Button onClick={addHolding} className="bg-amber-500 hover:bg-amber-600">
-                                Add
-                            </Button>
-                        </div>
-                        <div className="flex flex-wrap gap-2 justify-center min-h-[40px]">
-                            {preferences.portfolio_holdings.map(holding => (
-                                <Badge
-                                    key={holding}
-                                    variant="secondary"
-                                    className="px-3 py-1 cursor-pointer hover:bg-red-100 hover:text-red-700 transition-colors"
-                                    onClick={() => removeHolding(holding)}
-                                >
-                                    {holding} ×
-                                </Badge>
-                            ))}
-                        </div>
+                        
+                        <StockPicker
+                            selectedStocks={preferences.portfolio_holdings}
+                            onAdd={handleAddStock}
+                            onRemove={handleRemoveStock}
+                            maxStocks={10}
+                        />
+                        
                         <p className="text-xs text-slate-400 text-center">
-                            Click on a holding to remove it. Skip if you prefer not to share.
+                            Click the × button to remove stocks. You can skip or add more later in Settings.
                         </p>
                     </div>
                 );
