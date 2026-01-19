@@ -156,22 +156,38 @@ export default function Home() {
 
     setIsGenerating(true);
     try {
+      // Log preferences being sent to verify investment_interests are included
+      console.log("📤 [Generate Briefing] Sending preferences:", preferences);
+      console.log("📤 [Generate Briefing] Investment interests:", preferences?.investment_interests);
+      console.log("📤 [Generate Briefing] Portfolio holdings:", preferences?.portfolio_holdings);
+      console.log("📤 [Generate Briefing] Investment goals:", preferences?.investment_goals);
+      
       const response = await base44.functions.invoke("generateBriefing", {
-        preferences: preferences,
+        preferences: {
+          user_name: preferences?.user_name || user?.full_name?.split(" ")?.[0] || "there",
+          risk_tolerance: preferences?.risk_tolerance,
+          time_horizon: preferences?.time_horizon,
+          investment_goals: preferences?.investment_goals,
+          investment_interests: preferences?.investment_interests,
+          portfolio_holdings: preferences?.portfolio_holdings,
+          briefing_length: preferences?.briefing_length,
+          preferred_voice: preferences?.preferred_voice,
+        },
         date: today,
         skip_audio: false, // Generate both script AND audio
       });
 
       if (response?.data?.error) {
-        console.error("Briefing generation error:", response.data.error);
+        console.error("❌ Briefing generation error:", response.data.error);
         alert("Failed to generate briefing: " + response.data.error);
       } else {
+        console.log("✅ Briefing generated successfully");
         await refetchBriefing();
         // Optional: refresh news cards after briefing is generated
         // setNewsCards(response.data.briefing.news_stories || newsCards);
       }
     } catch (error) {
-      console.error("Error generating briefing:", error);
+      console.error("❌ Error generating briefing:", error);
       alert("Failed to generate briefing. Please try again.");
     } finally {
       setIsGenerating(false);
