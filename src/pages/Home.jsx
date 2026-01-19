@@ -53,16 +53,6 @@ export default function Home() {
   });
 
   const todayBriefing = briefings?.[0] || null;
-// DEBUG: Log briefing details
-useEffect(() => {
-  if (todayBriefing) {
-    console.log("📋 Briefing data:", todayBriefing);
-    console.log("🔊 Audio URL:", todayBriefing?.audio_url);
-    console.log("📊 Status:", todayBriefing?.status);
-    console.log("📝 Script exists?", !!todayBriefing?.script);
-  }
-}, [todayBriefing]);
-
   // =========================================================
   // NEW: Fetch news cards immediately on page load (with caching)
   // =========================================================
