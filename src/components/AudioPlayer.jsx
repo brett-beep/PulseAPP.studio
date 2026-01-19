@@ -453,7 +453,7 @@ export default function AudioPlayer({
               }}
             >
               <Gauge className="h-5 w-5 text-slate-600" />
-              <span className="absolute -bottom-1 text-[10px] font-semibold text-slate-700">
+              <span className="absolute -bottom-0.5 text-[10px] font-semibold text-slate-700">
                 {playbackRate}x
               </span>
             </motion.button>
