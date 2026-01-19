@@ -6,10 +6,9 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import StockPicker from "@/components/StockPicker";
 import { 
     ArrowLeft, 
     Target, 
@@ -19,8 +18,7 @@ import {
     Clock,
     Save,
     Check,
-    X,
-    Plus
+    TrendingUp
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -37,7 +35,6 @@ const interestOptions = [
 
 export default function Settings() {
     const queryClient = useQueryClient();
-    const [holdingInput, setHoldingInput] = useState('');
 
     // Fetch current user
     const { data: user } = useQuery({
@@ -95,20 +92,18 @@ export default function Settings() {
         }));
     };
 
-    const addHolding = () => {
-        if (holdingInput.trim()) {
-            setEditedPrefs(prev => ({
-                ...prev,
-                portfolio_holdings: [...(prev.portfolio_holdings || []), holdingInput.trim().toUpperCase()]
-            }));
-            setHoldingInput('');
-        }
-    };
-
-    const removeHolding = (holding) => {
+    // Stock picker handlers
+    const handleAddStock = (symbol) => {
         setEditedPrefs(prev => ({
             ...prev,
-            portfolio_holdings: prev.portfolio_holdings?.filter(h => h !== holding) || []
+            portfolio_holdings: [...(prev.portfolio_holdings || []), symbol]
+        }));
+    };
+
+    const handleRemoveStock = (symbol) => {
+        setEditedPrefs(prev => ({
+            ...prev,
+            portfolio_holdings: prev.portfolio_holdings?.filter(h => h !== symbol) || []
         }));
     };
 
@@ -139,7 +134,7 @@ export default function Settings() {
                         className="bg-amber-500 hover:bg-amber-600"
                     >
                         <Save className="h-4 w-4 mr-2" />
-                        Save Changes
+                        {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
                     </Button>
                 </div>
             </header>
@@ -255,7 +250,7 @@ export default function Settings() {
 
                 <Separator />
 
-                {/* Portfolio Holdings */}
+                {/* Portfolio Holdings - UPDATED WITH STOCK PICKER */}
                 <motion.section
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -263,42 +258,22 @@ export default function Settings() {
                 >
                     <div className="flex items-center gap-3 mb-4">
                         <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center">
-                            <Briefcase className="h-5 w-5 text-green-500" />
+                            <TrendingUp className="h-5 w-5 text-green-500" />
                         </div>
                         <div>
                             <h2 className="font-semibold text-slate-900">Portfolio Holdings</h2>
-                            <p className="text-sm text-slate-500">Your ticker symbols for personalized news</p>
+                            <p className="text-sm text-slate-500">
+                              Select stocks to track - these will appear on your home page with live prices
+                            </p>
                         </div>
                     </div>
-                    <div className="flex gap-2 mb-4">
-                        <Input
-                            value={holdingInput}
-                            onChange={(e) => setHoldingInput(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && addHolding()}
-                            placeholder="e.g., AAPL, TSLA, BTC"
-                            className="flex-1"
-                        />
-                        <Button onClick={addHolding} variant="outline">
-                            <Plus className="h-4 w-4" />
-                        </Button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                        {editedPrefs.portfolio_holdings?.map(holding => (
-                            <Badge
-                                key={holding}
-                                variant="secondary"
-                                className="px-3 py-1 flex items-center gap-2"
-                            >
-                                {holding}
-                                <button 
-                                    onClick={() => removeHolding(holding)}
-                                    className="hover:text-red-500 transition-colors"
-                                >
-                                    <X className="h-3 w-3" />
-                                </button>
-                            </Badge>
-                        ))}
-                    </div>
+                    
+                    <StockPicker
+                        selectedStocks={editedPrefs.portfolio_holdings || []}
+                        onAdd={handleAddStock}
+                        onRemove={handleRemoveStock}
+                        maxStocks={10}
+                    />
                 </motion.section>
 
                 <Separator />
