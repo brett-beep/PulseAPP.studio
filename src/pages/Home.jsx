@@ -6,7 +6,7 @@ import { format } from "date-fns";
 
 import AudioPlayer from "@/components/AudioPlayer";
 import NewsCard from "@/components/NewsCard";
-import MarketSentiment from "@/components/MarketSentiment";
+import RealTimeMarketTicker from "@/components/RealTimeMarketTicker";
 import KeyHighlights from "@/components/KeyHighlights";
 import OnboardingWizard from "@/components/OnboardingWizard";
 
@@ -197,6 +197,9 @@ export default function Home() {
   const audioUrl = todayBriefing?.audio_url || null;
 
   const highlights = parseJsonArray(todayBriefing?.key_highlights);
+  
+  // Get user's watchlist for real-time ticker
+  const userWatchlist = parseJsonArray(preferences?.watchlist || preferences?.tickers);
 
   // Guard sentiment type (new schema uses object)
   const sentiment =
@@ -264,9 +267,8 @@ export default function Home() {
             status={status}
           />
 
-          <div className="mt-6 flex items-center justify-between">
-            <MarketSentiment sentiment={sentiment} />
-            <div className="text-sm text-slate-500">{statusLabel}</div>
+          <div className="mt-6">
+            <RealTimeMarketTicker watchlist={userWatchlist} />
           </div>
         </motion.section>
 
