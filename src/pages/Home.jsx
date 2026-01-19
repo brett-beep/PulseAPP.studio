@@ -268,8 +268,7 @@ export default function Home() {
           />
 
           <div className="mt-6">
-  {/* <RealTimeMarketTicker watchlist={userWatchlist} /> */}
-  <p className="text-sm text-slate-500">Market ticker coming soon...</p>
+  <RealTimeMarketTicker watchlist={userWatchlist} />
 </div>
         </motion.section>
 
