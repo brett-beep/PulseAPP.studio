@@ -17,21 +17,33 @@ export default function RealTimeMarketTicker({ watchlist = [] }) {
       try {
         setIsLoading(true);
         
-        // Using Finnhub free API (60 calls/min)
-        const apiKey = import.meta.env.VITE_FINNHUB_API_KEY || 'demo';
+        // Using Finnhub API with your key
+        const apiKey = 'd5n7s19r01qh5ppc5ln0d5n7s19r01qh5ppc5lng';
         
         const promises = symbols.map(async (symbol) => {
           try {
             const response = await fetch(
               `https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${apiKey}`
             );
+            
+            if (!response.ok) {
+              console.error(`API error for ${symbol}: ${response.status}`);
+              return null;
+            }
+            
             const data = await response.json();
+            
+            // Validate data exists
+            if (!data || data.c === undefined || data.c === null) {
+              console.error(`No price data for ${symbol}`);
+              return null;
+            }
             
             return {
               symbol,
               price: data.c, // current price
-              change: data.d, // change
-              changePercent: data.dp, // change percent
+              change: data.d || 0, // change
+              changePercent: data.dp || 0, // change percent
             };
           } catch (err) {
             console.error(`Error fetching ${symbol}:`, err);
@@ -62,7 +74,7 @@ export default function RealTimeMarketTicker({ watchlist = [] }) {
   }, [symbols.join(',')]);
 
   const renderTicker = (data) => {
-    if (!data) return null;
+    if (!data || !data.price || data.price === 0) return null;
 
     const isPositive = data.change >= 0;
     const isFlat = Math.abs(data.change) < 0.01;
@@ -138,6 +150,22 @@ export default function RealTimeMarketTicker({ watchlist = [] }) {
           <div className="h-2 w-2 bg-slate-300 rounded-full animate-pulse" />
           <span className="text-sm text-slate-400">Loading market data...</span>
         </div>
+      </div>
+    );
+  }
+
+  // If API failed completely, show fallback
+  if (!marketData.sp500 && marketData.userStocks.length === 0) {
+    return (
+      <div className="flex items-center gap-2">
+        <div className="h-2 w-2 bg-slate-400 rounded-full" />
+        <span className="text-sm text-slate-600">Neutral</span>
+        <span className="text-sm text-slate-500">Markets trading sideways</span>
+        {topStocks.length > 0 && (
+          <span className="text-sm text-slate-400 ml-4">
+            (API key required for live prices)
+          </span>
+        )}
       </div>
     );
   }
