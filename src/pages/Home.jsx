@@ -48,38 +48,13 @@ export default function Home() {
     queryKey: ["todayBriefing", today],
     queryFn: async () => {
       console.log("🔍 [Briefing Query] Executing query...");
-      
-      // First, try WITHOUT user filter to see if ANY briefings exist
-      console.log("🔍 [DEBUG] Trying query WITHOUT user filter...");
-      const allBriefings = await base44.entities.DailyBriefing.filter({
+      const b = await base44.entities.DailyBriefing.filter({
         date: today,
       });
-      console.log("🔍 [DEBUG] ALL briefings for date (no user filter):", allBriefings);
-      console.log("🔍 [DEBUG] Count:", allBriefings?.length);
-      
-      // Log the first record to see actual field names
-      if (allBriefings && allBriefings.length > 0) {
-        console.log("🔍 [DEBUG] First record fields:", Object.keys(allBriefings[0]));
-        console.log("🔍 [DEBUG] First record full data:", allBriefings[0]);
-        console.log("🔍 [DEBUG] created_by field:", allBriefings[0].created_by);
-        console.log("🔍 [DEBUG] user_email field:", allBriefings[0].user_email);
-      }
-      
-      // Now try WITH user filter
-      console.log("🔍 [DEBUG] Trying query WITH created_by filter...");
-      const userBriefings = await base44.entities.DailyBriefing.filter({
-        date: today,
-        created_by: user?.email,
-      });
-      console.log("🔍 [DEBUG] Briefings with created_by filter:", userBriefings);
-      console.log("🔍 [DEBUG] Count:", userBriefings?.length);
-      
-      // Return whichever has results (prioritize user-filtered)
-      const result = userBriefings?.length > 0 ? userBriefings : allBriefings;
-      console.log("🔍 [Briefing Query] Final result:", result);
-      console.log("🔍 [Briefing Query] Is array?", Array.isArray(result));
-      console.log("🔍 [Briefing Query] Length:", result?.length);
-      return result;
+      console.log("🔍 [Briefing Query] Raw result:", b);
+      console.log("🔍 [Briefing Query] Is array?", Array.isArray(b));
+      console.log("🔍 [Briefing Query] Length:", b?.length);
+      return b;
     },
     enabled: !!user && !!preferences?.onboarding_completed,
     staleTime: 0,
@@ -243,7 +218,8 @@ export default function Home() {
   // Get user's watchlist for real-time ticker (from portfolio_holdings)
   const userWatchlist = parseJsonArray(preferences?.portfolio_holdings || []);
   console.log("userWatchlist:", userWatchlist);
-    console.log("userWatchlist length:", userWatchlist.length);
+  console.log("userWatchlist length:", userWatchlist.length);
+  
   // Guard sentiment type (new schema uses object)
   const sentiment =
     todayBriefing?.market_sentiment && typeof todayBriefing.market_sentiment === "object"
@@ -311,8 +287,8 @@ export default function Home() {
           />
 
           <div className="mt-6">
-  <RealTimeMarketTicker watchlist={userWatchlist} />
-</div>
+            <RealTimeMarketTicker watchlist={userWatchlist} />
+          </div>
         </motion.section>
 
         {/* Summary & Highlights (only show if briefing exists) */}
