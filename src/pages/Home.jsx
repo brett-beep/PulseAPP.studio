@@ -40,19 +40,35 @@ export default function Home() {
 
   // Fetch today's briefing
   const today = format(new Date(), "yyyy-MM-dd");
-  const { data: briefings, isLoading: briefingLoading, refetch: refetchBriefing } = useQuery({
+  console.log("🔍 [Briefing Query] Date filter:", today);
+  console.log("🔍 [Briefing Query] User email:", user?.email);
+  console.log("🔍 [Briefing Query] Onboarding completed:", preferences?.onboarding_completed);
+  
+  const { data: briefings, isLoading: briefingLoading, error: briefingError, refetch: refetchBriefing } = useQuery({
     queryKey: ["todayBriefing", today],
     queryFn: async () => {
+      console.log("🔍 [Briefing Query] Executing query...");
       const b = await base44.entities.DailyBriefing.filter({
         date: today,
         created_by: user?.email,
       });
+      console.log("🔍 [Briefing Query] Raw result:", b);
+      console.log("🔍 [Briefing Query] Is array?", Array.isArray(b));
+      console.log("🔍 [Briefing Query] Length:", b?.length);
       return b;
     },
     enabled: !!user && !!preferences?.onboarding_completed,
+    staleTime: 0,
+    refetchOnMount: true,
   });
 
+  console.log("🔍 [Briefing State] isLoading:", briefingLoading);
+  console.log("🔍 [Briefing State] error:", briefingError);
+  console.log("🔍 [Briefing State] briefings data:", briefings);
+
   const todayBriefing = briefings?.[0] || null;
+  console.log("🔍 [Briefing State] todayBriefing (first item):", todayBriefing);
+  console.log("🔍 [Briefing State] audio_url:", todayBriefing?.audio_url);
   // =========================================================
   // NEW: Fetch news cards immediately on page load (with caching)
   // =========================================================
@@ -194,6 +210,9 @@ export default function Home() {
 
   const firstName = user?.full_name?.split(" ")?.[0] || "there";
   const audioUrl = todayBriefing?.audio_url || null;
+  
+  console.log("🎵 [AudioPlayer] audioUrl prop:", audioUrl);
+  console.log("🎵 [AudioPlayer] todayBriefing object:", todayBriefing);
 
   const highlights = parseJsonArray(todayBriefing?.key_highlights);
   

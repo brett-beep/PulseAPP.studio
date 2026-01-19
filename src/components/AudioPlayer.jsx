@@ -15,6 +15,10 @@ export default function AudioPlayer({
   isGenerating = false,
   status = null,
 }) {
+  console.log("🎵 [AudioPlayer Component] Rendered with audioUrl:", audioUrl);
+  console.log("🎵 [AudioPlayer Component] isGenerating:", isGenerating);
+  console.log("🎵 [AudioPlayer Component] status:", status);
+  
   const audioRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -28,27 +32,45 @@ export default function AudioPlayer({
 
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio) {
+      console.log("🎵 [Audio Element] No audio ref");
+      return;
+    }
+
+    console.log("🎵 [Audio Element] Setting up event listeners for:", audioUrl);
 
     const handleTimeUpdate = () => setCurrentTime(audio.currentTime || 0);
     const handleLoadedMetadata = () => {
+      console.log("🎵 [Audio Element] Metadata loaded, duration:", audio.duration);
       const d = audio.duration;
       if (Number.isFinite(d) && d > 0) setTotalDuration(d);
       else setTotalDuration((duration || 0) * 60 || 0);
     };
     const handleEnded = () => {
+      console.log("🎵 [Audio Element] Playback ended");
       setIsPlaying(false);
       onComplete?.();
+    };
+    const handleError = (e) => {
+      console.error("🎵 [Audio Element] Error:", e);
+      console.error("🎵 [Audio Element] Error details:", audio.error);
+    };
+    const handleCanPlay = () => {
+      console.log("🎵 [Audio Element] Can play");
     };
 
     audio.addEventListener("timeupdate", handleTimeUpdate);
     audio.addEventListener("loadedmetadata", handleLoadedMetadata);
     audio.addEventListener("ended", handleEnded);
+    audio.addEventListener("error", handleError);
+    audio.addEventListener("canplay", handleCanPlay);
 
     return () => {
       audio.removeEventListener("timeupdate", handleTimeUpdate);
       audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
       audio.removeEventListener("ended", handleEnded);
+      audio.removeEventListener("error", handleError);
+      audio.removeEventListener("canplay", handleCanPlay);
     };
   }, [audioUrl, duration, onComplete]);
 
@@ -234,7 +256,14 @@ export default function AudioPlayer({
         }}
       />
 
-      {audioUrl ? <audio ref={audioRef} src={audioUrl} preload="metadata" /> : null}
+      {audioUrl ? (
+        <audio 
+          ref={audioRef} 
+          src={audioUrl} 
+          preload="metadata" 
+          crossOrigin="anonymous"
+        />
+      ) : null}
 
       <div className="relative z-10">
         {/* Header with date */}
