@@ -268,8 +268,9 @@ export default function Home() {
           />
 
           <div className="mt-6">
-            <RealTimeMarketTicker watchlist={userWatchlist} />
-          </div>
+  {/* <RealTimeMarketTicker watchlist={userWatchlist} /> */}
+  <p className="text-sm text-slate-500">Market ticker coming soon...</p>
+</div>
         </motion.section>
 
         {/* Summary & Highlights (only show if briefing exists) */}
