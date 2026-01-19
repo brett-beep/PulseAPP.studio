@@ -198,8 +198,8 @@ export default function Home() {
 
   const highlights = parseJsonArray(todayBriefing?.key_highlights);
   
-  // Get user's watchlist for real-time ticker
-  const userWatchlist = parseJsonArray(preferences?.watchlist || preferences?.tickers);
+  // Get user's watchlist for real-time ticker (from portfolio_holdings)
+  const userWatchlist = parseJsonArray(preferences?.portfolio_holdings || []);
 
   // Guard sentiment type (new schema uses object)
   const sentiment =
