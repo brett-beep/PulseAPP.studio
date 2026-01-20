@@ -39,7 +39,7 @@ export default function NewsCard({ story, index }) {
     };
 
  const descriptionText = stripLinksAndUrls(story.what_happened || story.summary || '');
-const whyItMattersText = stripLinksAndUrls(story.why_it_matters || story.relevance_reason || '');
+const whyItMattersText = stripLinksAndUrls(story.why_it_matters || '');
 
     
     const needsExpansion = descriptionText.length > 150;
