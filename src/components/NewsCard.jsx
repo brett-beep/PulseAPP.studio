@@ -30,8 +30,8 @@ export default function NewsCard({ story, index }) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.1 }}
             whileHover={{ y: -4 }}
-            layout
-            className="group bg-white rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-100 flex flex-col h-full"
+            className="group bg-white rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-100 flex flex-col"
+            style={{ alignSelf: 'flex-start' }}
         >
             {/* Header - Fixed height */}
             <div className="flex items-start justify-between gap-4 mb-4 flex-shrink-0">
@@ -49,59 +49,58 @@ export default function NewsCard({ story, index }) {
                 {story.title}
             </h3>
 
-            {/* Description - Expandable */}
-            <motion.div
-                layout
-                className="flex-shrink-0"
-            >
-                <AnimatePresence mode="wait">
-                    <motion.p
-                        key={isExpanded ? 'expanded' : 'collapsed'}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className={`text-slate-600 text-sm leading-relaxed ${!isExpanded ? 'line-clamp-3' : ''}`}
-                    >
-                        {story.what_happened || story.summary}
-                    </motion.p>
-                </AnimatePresence>
-
-                {/* More/Less Button */}
-                {needsExpansion && (
-                    <motion.button
-                        onClick={() => setIsExpanded(!isExpanded)}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        className="mt-2 text-xs font-bold underline text-slate-500 hover:text-amber-500 transition-colors"
-                    >
-                        {isExpanded ? 'less' : 'more'}
-                    </motion.button>
-                )}
-            </motion.div>
-
-            {/* Impact - Fixed to 2 lines, pushes to bottom */}
-            {(story.relevance_reason || story.why_it_matters) && (
-                <motion.div 
-                    layout
-                    className="pt-4 border-t border-slate-100 mt-auto"
+            {/* Description - Expandable with inline more button */}
+            <div className="flex-shrink-0 mb-4">
+                <motion.div
+                    initial={false}
+                    animate={{ 
+                        height: isExpanded ? 'auto' : 'auto',
+                    }}
+                    transition={{ 
+                        duration: 0.3,
+                        ease: [0.25, 0.1, 0.25, 1]
+                    }}
+                    className="overflow-hidden"
                 >
+                    <p className={`text-slate-600 text-sm leading-relaxed inline ${!isExpanded ? 'line-clamp-3' : ''}`}>
+                        {story.what_happened || story.summary}
+                        {needsExpansion && !isExpanded && '... '}
+                        {needsExpansion && (
+                            <motion.button
+                                onClick={() => setIsExpanded(!isExpanded)}
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                className="inline text-xs font-bold underline text-slate-500 hover:text-amber-500 transition-colors ml-0"
+                            >
+                                {isExpanded ? 'less' : 'more'}
+                            </motion.button>
+                        )}
+                    </p>
+                </motion.div>
+            </div>
+
+            {/* Impact - Expandable, pushes to bottom */}
+            {(story.relevance_reason || story.why_it_matters) && (
+                <div className="pt-4 border-t border-slate-100 mt-auto">
                     <div className="flex items-start gap-2">
                         <div className="w-1 h-1 bg-amber-400 rounded-full mt-1.5 flex-shrink-0" />
-                        <AnimatePresence mode="wait">
-                            <motion.p
-                                key={isExpanded ? 'expanded-impact' : 'collapsed-impact'}
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                transition={{ duration: 0.2 }}
-                                className={`text-xs text-slate-500 italic ${!isExpanded ? 'line-clamp-2' : ''}`}
-                            >
+                        <motion.div
+                            initial={false}
+                            animate={{ 
+                                height: isExpanded ? 'auto' : 'auto',
+                            }}
+                            transition={{ 
+                                duration: 0.3,
+                                ease: [0.25, 0.1, 0.25, 1]
+                            }}
+                            className="overflow-hidden flex-1"
+                        >
+                            <p className={`text-xs text-slate-500 italic ${!isExpanded ? 'line-clamp-2' : ''}`}>
                                 {story.why_it_matters || story.relevance_reason}
-                            </motion.p>
-                        </AnimatePresence>
+                            </p>
+                        </motion.div>
                     </div>
-                </motion.div>
+                </div>
             )}
         </motion.article>
     );
