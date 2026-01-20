@@ -5,6 +5,30 @@ function safeText(input, fallback) {
   return s || (fallback || "");
 }
 
+function stripLinksAndUrls(s) {
+  if (!s) return "";
+  let t = String(s);
+
+  // Remove markdown links: [text](url) => text
+  t = t.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, "$1");
+
+  // Remove raw URLs
+  t = t.replace(/https?:\/\/\S+/gi, "");
+
+  // Remove leftover "(domain.com)" style mentions often produced as citations
+  t = t.replace(/\(\s*[a-z0-9-]+\.(com|net|org|io|co|ca|ai|app)(?:\/[^)]*)?\s*\)/gi, "");
+
+  // Remove utm fragments that sometimes leak without full URLs
+  t = t.replace(/\butm_[a-z0-9_]+\b/gi, "");
+
+  // Cleanup formatting
+  t = t.replace(/[*_`>#]/g, "");
+  t = t.replace(/[ \t]{2,}/g, " ");
+  t = t.replace(/\n{3,}/g, "\n\n");
+
+  return t.trim();
+}
+
 function randomId() {
   try {
     return crypto.randomUUID();
@@ -139,17 +163,28 @@ Deno.serve(async (req) => {
     console.log("🤖 [fetchNewsCards] Enhancing stories with LLM...");
 
     // Use LLM to enhance each story with better summaries
-    const enhancementPrompt = `You are a financial news analyst. Enhance these ${topNews.length} news stories for retail investors.
+    const enhancementPrompt = `You are a buy-side market analyst rewriting news blurbs for retail investors.
 
-For each story, provide:
-1. "what_happened" - A clear, specific 2-3 sentence summary with actual numbers, percentages, or key facts. Be specific (e.g., "Mortgage rates rose to 7.2%, up 0.3% this week" not "Mortgage rates jumped higher").
-2. "why_it_matters" - A concise 1-2 sentence explanation of the direct investment implications. Be actionable and specific to investor portfolios.
+For each story, return:
 
-USER'S INVESTMENT PROFILE:
+1) what_happened (2-3 sentences, specific + concrete):
+   - Must include at least ONE concrete anchor:
+     * a number (%, $, bps, yield level, inflation print, EPS, revenue, guidance, etc.), OR
+     * a named company/ticker AND the market move (e.g., “shares fell ~3% premarket”), OR
+     * a clear “channel” to markets (rates, USD, oil, credit spreads, earnings, regulation, supply chain).
+   - Explain the *mechanism*: WHY markets care (risk-on/off, margins, demand, policy path, liquidity, etc.).
+   - DO NOT include URLs, markdown links, citations, or “(source.com)” in the text.
+
+2) why_it_matters (1-2 sentences, actionable investor framing):
+   - Call out what could move next: the specific asset class/sector/ticker sensitivity.
+   - If relevant, tie directly to the user's interests/holdings.
+   - DO NOT include URLs, markdown links, citations, or “(source.com)”.
+
+USER PROFILE:
 - Interests: ${userInterests.length > 0 ? userInterests.join(', ') : 'General markets'}
 - Holdings: ${userHoldings.length > 0 ? userHoldings.map(h => typeof h === 'string' ? h : h?.symbol).join(', ') : 'Not specified'}
 
-NEWS STORIES TO ENHANCE:
+NEWS STORIES:
 ${topNews.map((article, i) => `
 STORY ${i + 1}:
 Headline: ${article.headline || 'No headline'}
@@ -206,8 +241,14 @@ IMPORTANT:
                        enhancedData?.enhanced_stories?.[index];
       
       // Use enhanced content if available, otherwise fall back to raw
-      const whatHappened = enhanced?.what_happened || safeText(article.summary, "Details pending.");
-      const whyItMatters = enhanced?.why_it_matters || generateFallbackWhyItMatters(category);
+     const whatHappenedRaw =
+  enhanced?.what_happened || safeText(article.summary, "Details pending.");
+const whyItMattersRaw =
+  enhanced?.why_it_matters || generateFallbackWhyItMatters(category);
+
+const whatHappened = stripLinksAndUrls(whatHappenedRaw);
+const whyItMatters = stripLinksAndUrls(whyItMattersRaw);
+
 
       return {
         id: safeText(article.id?.toString(), randomId()),
