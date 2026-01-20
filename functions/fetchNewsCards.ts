@@ -34,29 +34,18 @@ function categoryImageUrl(categoryRaw) {
   return map[cat] || map.default;
 }
 
-// Clean up LLM output - remove URLs, markdown links, source citations
-function cleanText(input) {
-  let text = safeText(input, "");
-  // Remove markdown links: [text](url)
-  text = text.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
-  // Remove raw URLs
-  text = text.replace(/https?:\/\/[^\s)]+/g, "");
-  // Remove parentheses with just whitespace or empty
-  text = text.replace(/\(\s*\)/g, "");
-  // Remove source citations like ([bisnow.com]) or (Source: ...)
-  text = text.replace(/\(\[?[^\)]*\.(com|org|net)[^\)]*\]?\)/gi, "");
-  text = text.replace(/\(Source:[^)]*\)/gi, "");
-  // Clean up extra whitespace
-  text = text.replace(/\s{2,}/g, " ").trim();
-  return text;
-}
-
-async function invokeLLM(base44, prompt, addInternet, schema) {
-  return await base44.integrations.Core.InvokeLLM({
-    prompt,
-    add_context_from_internet: addInternet,
-    response_json_schema: schema,
-  });
+// Detect category from headline/summary keywords
+function detectCategory(headline, summary) {
+  const text = `${headline} ${summary}`.toLowerCase();
+  
+  if (text.match(/crypto|bitcoin|ethereum|btc|eth|blockchain|defi|nft/)) return "crypto";
+  if (text.match(/real estate|housing|mortgage|property|rent|home price/)) return "real estate";
+  if (text.match(/oil|gold|silver|commodity|commodities|wheat|corn|natural gas/)) return "commodities";
+  if (text.match(/tech|software|ai|artificial intelligence|chip|semiconductor|apple|google|microsoft|meta|amazon|nvidia/)) return "technology";
+  if (text.match(/fed|inflation|gdp|unemployment|interest rate|economy|economic|recession|jobs report/)) return "economy";
+  if (text.match(/stock|market|s&p|nasdaq|dow|earnings|ipo|merger|acquisition/)) return "markets";
+  
+  return "markets"; // Default to markets for financial news
 }
 
 Deno.serve(async (req) => {
@@ -69,103 +58,102 @@ Deno.serve(async (req) => {
     const count = body?.count || 5;
     const preferences = body?.preferences || {};
 
-    const prefProfile = {
-      interests: preferences?.interests ?? preferences?.investment_interests ?? null,
-      holdings: preferences?.holdings ?? preferences?.portfolio_holdings ?? null,
-      goals: preferences?.goals ?? preferences?.investment_goals ?? null,
-    };
-
-    console.log("📡 Fetching news cards with preferences:", prefProfile);
-
-    const newsPrompt = `
-You are curating ${count} TOP NEWS STORIES for an investor news feed.
-
-CRITICAL REQUIREMENTS:
-1. Stories must be REAL, CURRENT financial/market news from the last 24 hours
-2. PRIORITIZE credible financial news sources: Reuters, Bloomberg, WSJ, CNBC, Financial Times, MarketWatch, Barron's, Forbes, Yahoo Finance, AP News, CNN Business, NYT Business
-3. DO NOT use Wikipedia as a source
-4. DO NOT include URLs or source links in the text content - just write the facts
-
-USER PROFILE (use to PRIORITIZE relevant stories):
-${JSON.stringify(prefProfile, null, 2)}
-
-${prefProfile.interests && Array.isArray(prefProfile.interests) && prefProfile.interests.length > 0 
-  ? `\nPRIORITY INTERESTS: ${prefProfile.interests.join(', ')}. Prioritize stories in these areas.`
-  : ''}
-
-LENGTH REQUIREMENTS:
-- headline: 60-80 characters max (be punchy and direct)
-- what_happened: 3-5 full sentences with complete context, details, and facts. NO URLs or links in the text.
-- portfolio_impact: 1-2 sentences MAX explaining why this matters to investors. Keep it concise. NO URLs or links.
-
-For each story return:
-- headline: attention-grabbing title (60-80 chars)
-- what_happened: 3-5 complete sentences (NO URLs in text)
-- portfolio_impact: 1-2 sentences MAX on investor relevance (NO URLs)
-- source: outlet name ONLY (e.g. "Reuters", "Bloomberg", "WSJ")
-- category: [markets, economy, technology, crypto, real estate, commodities, default]
-
-Return JSON with array of ${count} stories.
-`;
-
-    const newsSchema = {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        stories: {
-          type: "array",
-          minItems: count,
-          maxItems: count,
-          items: {
-            type: "object",
-            additionalProperties: true,
-            properties: {
-              id: { type: "string" },
-              headline: { type: "string", maxLength: 80 },
-              what_happened: { type: "string" },
-              portfolio_impact: { type: "string" },
-              source: { type: "string" },
-              category: { type: "string" },
-            },
-            required: ["headline", "what_happened", "portfolio_impact", "source", "category"],
-          },
-        },
-      },
-      required: ["stories"],
-    };
-
-    const newsData = await invokeLLM(base44, newsPrompt, true, newsSchema);
-
-    if (!newsData || !Array.isArray(newsData.stories)) {
-      return Response.json({ error: "Failed to fetch news stories" }, { status: 500 });
+    // Get Finnhub API key from environment
+    const finnhubApiKey = Deno.env.get("FINNHUB_API_KEY");
+    if (!finnhubApiKey) {
+      return Response.json({ error: "FINNHUB_API_KEY not configured" }, { status: 500 });
     }
 
-    const allowedCats = new Set(["markets", "crypto", "economy", "technology", "real estate", "commodities", "default"]);
+    console.log("📡 Fetching news from Finnhub API...");
 
-    // Only truncate headline
-    const truncateHeadline = (text, maxLen) => {
-      const clean = safeText(text, "");
-      if (clean.length <= maxLen) return clean;
-      return clean.substring(0, maxLen - 3) + "...";
-    };
+    // Fetch general market news from Finnhub
+    const finnhubResponse = await fetch(
+      `https://finnhub.io/api/v1/news?category=general&token=${finnhubApiKey}`
+    );
 
-    const stories = newsData.stories.map((story) => {
-      const rawCat = safeText(story?.category, "default").toLowerCase();
-      const category = allowedCats.has(rawCat) ? rawCat : "default";
+    if (!finnhubResponse.ok) {
+      const errorText = await finnhubResponse.text();
+      console.error("Finnhub API error:", errorText);
+      return Response.json({ error: "Failed to fetch news from Finnhub" }, { status: 500 });
+    }
+
+    const finnhubNews = await finnhubResponse.json();
+    console.log(`📰 Received ${finnhubNews.length} articles from Finnhub`);
+
+    if (!Array.isArray(finnhubNews) || finnhubNews.length === 0) {
+      return Response.json({ error: "No news available from Finnhub" }, { status: 500 });
+    }
+
+    // Get user's interests for relevance scoring
+    const userInterests = preferences?.investment_interests || preferences?.interests || [];
+    const userHoldings = preferences?.portfolio_holdings || preferences?.holdings || [];
+
+    // Score and sort news by relevance to user preferences
+    const scoredNews = finnhubNews.map(article => {
+      let relevanceScore = 0;
+      const textToSearch = `${article.headline} ${article.summary}`.toLowerCase();
+
+      // Boost score for articles matching user interests
+      if (Array.isArray(userInterests)) {
+        userInterests.forEach(interest => {
+          if (textToSearch.includes(interest.toLowerCase())) {
+            relevanceScore += 10;
+          }
+        });
+      }
+
+      // Boost score for articles mentioning user's holdings
+      if (Array.isArray(userHoldings)) {
+        userHoldings.forEach(holding => {
+          const symbol = typeof holding === 'string' ? holding : holding?.symbol;
+          if (symbol && textToSearch.includes(symbol.toLowerCase())) {
+            relevanceScore += 15;
+          }
+        });
+      }
+
+      // Recency bonus (newer = higher score)
+      const articleAge = Date.now() / 1000 - article.datetime;
+      const hoursOld = articleAge / 3600;
+      if (hoursOld < 1) relevanceScore += 5;
+      else if (hoursOld < 6) relevanceScore += 3;
+      else if (hoursOld < 24) relevanceScore += 1;
+
+      return { ...article, relevanceScore };
+    });
+
+    // Sort by relevance score (highest first), then by recency
+    scoredNews.sort((a, b) => {
+      if (b.relevanceScore !== a.relevanceScore) {
+        return b.relevanceScore - a.relevanceScore;
+      }
+      return b.datetime - a.datetime;
+    });
+
+    // Take top N stories
+    const topNews = scoredNews.slice(0, count);
+
+    // Transform Finnhub format to your app's format
+    const stories = topNews.map((article) => {
+      const category = detectCategory(article.headline, article.summary);
+      
+      // Generate a "why it matters" based on category
+      const whyItMatters = generateWhyItMatters(article.headline, article.summary, category, userInterests);
 
       return {
-        id: safeText(story?.id, randomId()),
-        href: "#",
-        imageUrl: categoryImageUrl(category),
-        title: truncateHeadline(story?.headline, 80),
-        what_happened: cleanText(story?.what_happened),
-        why_it_matters: cleanText(story?.portfolio_impact),
+        id: safeText(article.id?.toString(), randomId()),
+        href: safeText(article.url, "#"),
+        imageUrl: article.image || categoryImageUrl(category),
+        title: safeText(article.headline, ""),
+        what_happened: safeText(article.summary, ""),
+        why_it_matters: whyItMatters,
         both_sides: {
-          side_a: cleanText(story?.portfolio_impact),
+          side_a: whyItMatters,
           side_b: ""
         },
-        outlet: safeText(story?.source, "Unknown"),
+        outlet: safeText(article.source, "Unknown"),
         category,
+        datetime: article.datetime,
       };
     });
 
@@ -173,6 +161,7 @@ Return JSON with array of ${count} stories.
       success: true,
       stories,
       count: stories.length,
+      source: "finnhub"
     });
 
   } catch (error) {
@@ -183,3 +172,34 @@ Return JSON with array of ${count} stories.
     }, { status: 500 });
   }
 });
+
+// Generate investor-relevant "why it matters" summary
+function generateWhyItMatters(headline, summary, category, userInterests) {
+  const text = `${headline} ${summary}`.toLowerCase();
+  
+  // Category-specific relevance statements
+  const categoryStatements = {
+    crypto: "Cryptocurrency investors should monitor this development for potential market volatility.",
+    "real estate": "This could impact real estate investments and housing market dynamics.",
+    commodities: "Commodity traders may see price movements based on this news.",
+    technology: "Tech sector investors should consider how this affects growth stocks.",
+    economy: "This macroeconomic development could influence broader market sentiment.",
+    markets: "Market participants should factor this into their investment decisions.",
+  };
+
+  // Check for specific themes
+  if (text.includes("earnings") || text.includes("profit") || text.includes("revenue")) {
+    return "Earnings results can significantly impact stock valuations and sector sentiment.";
+  }
+  if (text.includes("fed") || text.includes("interest rate") || text.includes("inflation")) {
+    return "Fed policy and inflation data directly affect market valuations and investment strategies.";
+  }
+  if (text.includes("merger") || text.includes("acquisition") || text.includes("deal")) {
+    return "M&A activity often signals sector consolidation and can create investment opportunities.";
+  }
+  if (text.includes("layoff") || text.includes("job cut") || text.includes("restructur")) {
+    return "Corporate restructuring may indicate challenges but could improve long-term profitability.";
+  }
+
+  return categoryStatements[category] || categoryStatements.markets;
+}
