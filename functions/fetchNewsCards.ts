@@ -82,9 +82,9 @@ You are curating ${count} TOP NEWS STORIES for an investor news feed.
 
 CRITICAL REQUIREMENTS:
 1. Stories must be REAL, CURRENT financial/market news from the last 24 hours
-2. ONLY use credible financial news sources: Reuters, Bloomberg, WSJ, CNBC, Financial Times, MarketWatch, Barron's, Forbes, Business Insider, Yahoo Finance, The Economist, AP News, CNN Business, NYT Business
-3. DO NOT use Wikipedia, random blogs, or non-news sources
-4. DO NOT include URLs or source links in the text content
+2. PRIORITIZE credible financial news sources: Reuters, Bloomberg, WSJ, CNBC, Financial Times, MarketWatch, Barron's, Forbes, Yahoo Finance, AP News, CNN Business, NYT Business
+3. DO NOT use Wikipedia as a source
+4. DO NOT include URLs or source links in the text content - just write the facts
 
 USER PROFILE (use to PRIORITIZE relevant stories):
 ${JSON.stringify(prefProfile, null, 2)}
@@ -95,14 +95,14 @@ ${prefProfile.interests && Array.isArray(prefProfile.interests) && prefProfile.i
 
 LENGTH REQUIREMENTS:
 - headline: 60-80 characters max (be punchy and direct)
-- what_happened: 3-5 full sentences with complete context, details, and facts. NO URLs or links.
+- what_happened: 3-5 full sentences with complete context, details, and facts. NO URLs or links in the text.
 - portfolio_impact: 1-2 sentences MAX explaining why this matters to investors. Keep it concise. NO URLs or links.
 
 For each story return:
 - headline: attention-grabbing title (60-80 chars)
-- what_happened: 3-5 complete sentences (NO URLs)
+- what_happened: 3-5 complete sentences (NO URLs in text)
 - portfolio_impact: 1-2 sentences MAX on investor relevance (NO URLs)
-- source: outlet name ONLY (e.g. "Reuters", "Bloomberg", "WSJ" - NOT the full URL)
+- source: outlet name ONLY (e.g. "Reuters", "Bloomberg", "WSJ")
 - category: [markets, economy, technology, crypto, real estate, commodities, default]
 
 Return JSON with array of ${count} stories.
@@ -141,14 +141,6 @@ Return JSON with array of ${count} stories.
     }
 
     const allowedCats = new Set(["markets", "crypto", "economy", "technology", "real estate", "commodities", "default"]);
-    
-    // Allowed credible sources
-    const credibleSources = new Set([
-      "reuters", "bloomberg", "wsj", "wall street journal", "cnbc", "financial times", "ft",
-      "marketwatch", "barron's", "barrons", "forbes", "business insider", "yahoo finance",
-      "the economist", "economist", "ap news", "associated press", "cnn business", "cnn",
-      "nyt", "new york times", "nytimes", "seeking alpha", "morningstar", "investor's business daily"
-    ]);
 
     // Only truncate headline
     const truncateHeadline = (text, maxLen) => {
@@ -157,34 +149,26 @@ Return JSON with array of ${count} stories.
       return clean.substring(0, maxLen - 3) + "...";
     };
 
-    const stories = newsData.stories
-      .filter((story) => {
-        // Filter out non-credible sources
-        const source = safeText(story?.source, "").toLowerCase();
-        return credibleSources.has(source) || 
-               [...credibleSources].some(s => source.includes(s));
-      })
-      .map((story) => {
-        const rawCat = safeText(story?.category, "default").toLowerCase();
-        const category = allowedCats.has(rawCat) ? rawCat : "default";
+    const stories = newsData.stories.map((story) => {
+      const rawCat = safeText(story?.category, "default").toLowerCase();
+      const category = allowedCats.has(rawCat) ? rawCat : "default";
 
-        return {
-          id: safeText(story?.id, randomId()),
-          href: "#",
-          imageUrl: categoryImageUrl(category),
-          title: truncateHeadline(story?.headline, 80),
-          what_happened: cleanText(story?.what_happened),
-          why_it_matters: cleanText(story?.portfolio_impact),
-          both_sides: {
-            side_a: cleanText(story?.portfolio_impact),
-            side_b: ""
-          },
-          outlet: safeText(story?.source, "Unknown"),
-          category,
-        };
-      });
+      return {
+        id: safeText(story?.id, randomId()),
+        href: "#",
+        imageUrl: categoryImageUrl(category),
+        title: truncateHeadline(story?.headline, 80),
+        what_happened: cleanText(story?.what_happened),
+        why_it_matters: cleanText(story?.portfolio_impact),
+        both_sides: {
+          side_a: cleanText(story?.portfolio_impact),
+          side_b: ""
+        },
+        outlet: safeText(story?.source, "Unknown"),
+        category,
+      };
+    });
 
-    // If filtering removed too many, return what we have
     return Response.json({
       success: true,
       stories,
