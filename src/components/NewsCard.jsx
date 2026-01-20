@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ExternalLink, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
 
 const categoryColors = {
@@ -23,7 +25,11 @@ export default function NewsCard({ story, index }) {
     const needsExpansion = (story.what_happened?.length > 200 || story.why_it_matters?.length > 150);
 
     return (
-        <article
+        <motion.article
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.1 }}
+            whileHover={{ y: -4 }}
             className="group bg-white rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-100 flex flex-col"
             style={{ alignSelf: 'flex-start' }}
         >
@@ -43,17 +49,15 @@ export default function NewsCard({ story, index }) {
                 {story.title}
             </h3>
 
-            {/* Description - Expandable with inline more button */}
+            {/* Description - Expandable with inline more button - SIMPLIFIED */}
             <div className="flex-shrink-0 mb-4">
-                <p className="text-slate-600 text-sm leading-relaxed">
-                    <span className={!isExpanded ? 'line-clamp-3' : ''}>
-                        {story.what_happened || story.summary}
-                    </span>
-                    {needsExpansion && !isExpanded && '...'}
+                <p className={`text-slate-600 text-sm leading-relaxed ${!isExpanded ? 'line-clamp-3' : ''}`}>
+                    {story.what_happened || story.summary}
+                    {needsExpansion && !isExpanded && '... '}
                     {needsExpansion && (
                         <button
                             onClick={() => setIsExpanded(!isExpanded)}
-                            className="text-xs font-bold underline text-slate-500 hover:text-amber-500 transition-colors"
+                            className="inline text-xs font-bold underline text-slate-500 hover:text-amber-500 transition-colors ml-0"
                         >
                             {isExpanded ? 'less' : 'more'}
                         </button>
@@ -61,7 +65,7 @@ export default function NewsCard({ story, index }) {
                 </p>
             </div>
 
-            {/* Impact - Expandable, pushes to bottom */}
+            {/* Impact - Expandable, pushes to bottom - SIMPLIFIED */}
             {(story.relevance_reason || story.why_it_matters) && (
                 <div className="pt-4 border-t border-slate-100 mt-auto">
                     <div className="flex items-start gap-2">
@@ -74,6 +78,6 @@ export default function NewsCard({ story, index }) {
                     </div>
                 </div>
             )}
-        </article>
+        </motion.article>
     );
 }

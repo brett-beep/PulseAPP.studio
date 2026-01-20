@@ -458,106 +458,47 @@ Return JSON with:
       : [];
     const uiSentiment = meta?.market_sentiment || { label: "neutral", description: "" };
 
-    // Updated STEP 4 section for your generateBriefing function
-// Replace the existing "STEP 4: Generate Script" section with this:
-
     // =========================================================
-    // STEP 4: Generate Script with Hybrid Framework + Personal Opening
+    // STEP 4: Generate Script (NEWS-FIRST STRUCTURE)
     // =========================================================
-    
-    // Determine time of day for accurate greeting
-    const now = new Date();
-    const hour = now.getHours();
-    let timeGreeting = "Good morning";
-    if (hour >= 12 && hour < 17) timeGreeting = "Good afternoon";
-    if (hour >= 17) timeGreeting = "Good evening";
-    
-    // Determine day context for personal touch
-    const dayOfWeek = now.getDay(); // 0 = Sunday, 6 = Saturday
-    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-    const isMonday = dayOfWeek === 1;
-    const isFriday = dayOfWeek === 5;
-    
-    // Check if it's a major holiday (expand as needed)
-    const month = now.getMonth() + 1;
-    const day = now.getDate();
-    let holidayGreeting = null;
-    
-    if (month === 1 && day === 1) holidayGreeting = "Happy New Year";
-    if (month === 7 && day === 4) holidayGreeting = "Happy Fourth of July";
-    if (month === 12 && day === 25) holidayGreeting = "Merry Christmas";
-    if (month === 12 && day === 31) holidayGreeting = "Happy New Year's Eve";
-    if (month === 11 && (day >= 22 && day <= 28) && dayOfWeek === 4) holidayGreeting = "Happy Thanksgiving";
-    // Add Memorial Day (last Monday of May)
-    if (month === 5 && dayOfWeek === 1 && day >= 25) holidayGreeting = "Happy Memorial Day";
-    // Add Labor Day (first Monday of September)
-    if (month === 9 && dayOfWeek === 1 && day <= 7) holidayGreeting = "Happy Labor Day";
-    
     const scriptPrompt = `
 Write the spoken script for "Pulse" - a news-first investor briefing.
 
 LISTENER: ${name}
 DATE: ${date}
-TIME OF DAY: ${timeGreeting}
-${holidayGreeting ? `HOLIDAY: ${holidayGreeting}` : ''}
-${isWeekend ? 'CONTEXT: Weekend' : ''}
-${isMonday ? 'CONTEXT: Monday (start of week)' : ''}
-${isFriday ? 'CONTEXT: Friday (end of week)' : ''}
 
-CRITICAL: TARGET LENGTH IS 5 MINUTES (650-750 words).
+CRITICAL: TARGET LENGTH IS 5 MINUTES (750-800 words). This is LONGER than a typical summary.
+Do NOT be overly brief. Develop each story with detail and context.
 
-SCRIPT STRUCTURE - HYBRID FRAMEWORK:
+SCRIPT STRUCTURE (NEWS-FIRST):
+1. HOOK: Open with the #1 headline (15-20 seconds, ~40 words)
+2. TOP 3 HEADLINES: Cover EACH headline in detail with:
+   - What happened (the facts)
+   - Why it matters for investors
+   - Market reaction or implications
+   (2-2.5 minutes total, ~350-400 words)
+3. MARKET SNAPSHOT: S&P, Nasdaq, Dow % moves with brief context (20-30 seconds, ~60 words)
+4. CONTEXT STORIES: Develop 1-2 supporting stories with detail (45-60 seconds, ~120 words)
+5. CLOSE: Actionable takeaway + sign-off (15-20 seconds, ~40 words)
 
-1. PERSONAL OPENING (20-30 words):
-   - Start with: "${timeGreeting}, ${name}"
-   ${holidayGreeting ? `- Include holiday greeting: "${holidayGreeting}"` : ''}
-   ${isWeekend ? '- Add: "Hope you\'re enjoying your weekend" or similar weekend acknowledgment' : ''}
-   ${isMonday ? '- Add: "Hope you had a great weekend" or "Let\'s start the week strong"' : ''}
-   ${isFriday ? '- Add: "Let\'s wrap up the week" or similar end-of-week sentiment' : ''}
-   - Make it feel like talking to a friend, not reading news
-   - Then transition: "Let's get into it" or "Here's what moved markets today"
-
-2. TOP 3 STORIES - Each follows HYBRID FRAMEWORK:
-   
-   FRAMEWORK (adapt flexibly based on story type):
-   • HOOK: Lead with the most important fact (the headline number/event)
-   • QUESTION: Pose "why" to create curiosity ("Why now?" "What changed?" "Why would they?")
-   • FACTS: Give clean supporting details (what actually happened)
-   • DEEPER MEANING: Reveal the insight (what it means for portfolios, what others aren't saying)
-   
-   Not every story needs all 4 parts - adapt naturally.
-   (~150-180 words per story, develop each fully)
-   
-3. MARKET SNAPSHOT (30-40 words):
-   - S&P, Nasdaq, Dow % moves
-   - Brief one-sentence context on what led the move
-   
-4. CLOSING (30-40 words):
-   - Synthesize the big themes from all stories
-   - One actionable insight or thought
-   - Sign off: "That's your Pulse. See you tomorrow" or similar
-
-TOTAL TARGET: 650-750 words
+TOTAL TARGET: 750-800 words for a 5-minute briefing
 
 VOICE GUIDELINES:
-- Conversational but authoritative (like talking to a smart friend)
-- Use the hybrid framework flexibly - not formulaic
-- Natural questions that a listener would actually ask
-- Insights should be portfolio-relevant and actionable
-- No filler phrases ("according to", "it appears", "it seems")
-- Percent moves ONLY, no index levels
-- Direct address ("you", "your portfolio")
-- Flow naturally between stories
+- Conversational but authoritative
+- Develop stories with detail - don't rush through them
+- No filler phrases ("according to", "it appears")
+- Percent moves only, NO index levels
+- Natural pacing with pauses
+- Direct address to listener
 
 DATA:
 
-TOP 3 HEADLINES:
+TOP 3 HEADLINES (DEVELOP EACH FULLY):
 ${topStories.map((s, i) => `
 ${i + 1}. ${s.title}
    What: ${s.what_happened}
    Impact: ${s.why_it_matters}
    Source: ${s.outlet}
-   Category: ${s.category}
 `).join('\n')}
 
 MARKET SNAPSHOT:
@@ -565,20 +506,10 @@ MARKET SNAPSHOT:
 - Nasdaq: ${marketSnapshot.nasdaq_pct}
 - Dow: ${marketSnapshot.dow_pct}
 
-CONTEXT STORIES (weave in if relevant):
+CONTEXT STORIES (develop these with detail):
 ${contextStories.map((s, i) => `${i + 1}. ${s.title} - ${s.what_happened}`).join('\n')}
 
-EXAMPLE STORY STRUCTURE (adapt as needed):
-
-"[Company X] just announced [big number/event]. (HOOK)
-
-Why would they do this now? (QUESTION - optional, use when natural)
-
-Here's what's happening. [2-3 sentences of clean facts]. (FACTS)
-
-But here's what most people are missing. [Deeper insight - portfolio/market impact]. (DEEPER MEANING)"
-
-Remember: The framework is a guide, not a formula. Let the story dictate the structure.
+Remember: Aim for 750-800 words total. Be thorough and informative, not rushed.
 
 Return JSON: { "script": "..." }
 `;
@@ -595,7 +526,7 @@ Return JSON: { "script": "..." }
 
     const wc = wordCount(script);
     const estimatedMinutes = Math.max(1, Math.round(wc / 150)); // 150 words per minute
-    
+
     // =========================================================
     // STEP 5: Save Briefing
     // =========================================================
