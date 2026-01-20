@@ -19,9 +19,9 @@ export default function NewsCard({ story, index }) {
         return categoryColors[cat] || categoryColors.default;
     };
 
-    // Check if content is long enough to need "more" button
-    // Lowered threshold since backend already truncates content
-    const needsExpansion = (story.what_happened?.length > 100 || story.why_it_matters?.length > 80);
+    // Check if "what happened" content needs expansion (only for this section)
+    const descriptionText = story.what_happened || story.summary || '';
+    const needsExpansion = descriptionText.length > 100;
 
     return (
         <article
@@ -44,17 +44,17 @@ export default function NewsCard({ story, index }) {
                 {story.title}
             </h3>
 
-            {/* Description - Expandable with inline more button */}
+            {/* Description (What Happened) - Expandable with inline more button */}
             <div className="flex-shrink-0 mb-4">
                 <p className="text-slate-600 text-sm leading-relaxed">
                     <span className={!isExpanded ? 'line-clamp-3' : ''}>
-                        {story.what_happened || story.summary}
+                        {descriptionText}
                     </span>
                     {needsExpansion && !isExpanded && '...'}
                     {needsExpansion && (
                         <button
                             onClick={() => setIsExpanded(!isExpanded)}
-                            className="text-xs font-bold underline text-slate-500 hover:text-amber-500 transition-colors"
+                            className="text-xs font-bold underline text-slate-500 hover:text-amber-500 transition-colors ml-1"
                         >
                             {isExpanded ? 'less' : 'more'}
                         </button>
@@ -62,13 +62,13 @@ export default function NewsCard({ story, index }) {
                 </p>
             </div>
 
-            {/* Impact - Expandable, pushes to bottom */}
+            {/* Why It Matters - ALWAYS shows full text, NOT linked to expand */}
             {(story.relevance_reason || story.why_it_matters) && (
                 <div className="pt-4 border-t border-slate-100 mt-auto">
                     <div className="flex items-start gap-2">
                         <div className="w-1 h-1 bg-amber-400 rounded-full mt-1.5 flex-shrink-0" />
                         <div className="flex-1">
-                            <p className={`text-xs text-slate-500 italic ${!isExpanded ? 'line-clamp-2' : ''}`}>
+                            <p className="text-xs text-slate-500 italic">
                                 {story.why_it_matters || story.relevance_reason}
                             </p>
                         </div>
