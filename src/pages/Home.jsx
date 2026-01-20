@@ -21,7 +21,6 @@ export default function Home() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [newsCards, setNewsCards] = useState([]);
   const [isLoadingNews, setIsLoadingNews] = useState(true);
-  const [expandedCardId, setExpandedCardId] = useState(null);
 
   // Fetch current user
   const { data: user, isLoading: userLoading } = useQuery({
@@ -384,16 +383,8 @@ export default function Home() {
               {displayStories.map((story, index) => (
                 <NewsCard 
                   key={story?.id || index} 
-                  article={{
-                    headline: story?.title,
-                    summary: story?.what_happened,
-                    source: story?.outlet,
-                    url: story?.href,
-                    category: story?.category,
-                    related: []
-                  }}
-                  isExpanded={expandedCardId === story?.id}
-                  onToggle={() => setExpandedCardId(expandedCardId === story?.id ? null : story?.id)}
+                  story={story}
+                  index={index}
                 />
               ))}
             </div>
