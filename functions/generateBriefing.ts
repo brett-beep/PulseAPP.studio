@@ -395,8 +395,8 @@ Return 2 stories in same format as before.
         href: safeText(story?.href, "#"),
         imageUrl: categoryImageUrl(category),
         title: truncate(story?.headline, 80),
-        what_happened: truncate(story?.what_happened, 200),
-        why_it_matters: truncate(story?.portfolio_impact, 150),
+        what_happened: safeText(story?.what_happened, ""),
+        why_it_matters: safeText(story?.portfolio_impact, ""),
         both_sides: {
           side_a: truncate(story?.portfolio_impact, 150),
           side_b: ""
