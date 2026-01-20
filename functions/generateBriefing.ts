@@ -186,15 +186,16 @@ Deno.serve(async (req) => {
       safeText(user?.full_name) ||
       "there";
 
+    // UPDATED: Map preferences properly including investment_interests
     const prefProfile = {
       risk_tolerance: preferences?.risk_tolerance ?? preferences?.riskLevel ?? null,
       time_horizon: preferences?.time_horizon ?? preferences?.horizon ?? null,
-      goals: preferences?.goals ?? null,
+      goals: preferences?.goals ?? preferences?.investment_goals ?? null,
       sectors: preferences?.sectors ?? null,
       regions: preferences?.regions ?? null,
       watchlist: preferences?.watchlist ?? preferences?.tickers ?? null,
-      holdings: preferences?.holdings ?? null,
-      interests: preferences?.interests ?? null,
+      holdings: preferences?.holdings ?? preferences?.portfolio_holdings ?? null,
+      interests: preferences?.interests ?? preferences?.investment_interests ?? null,
       constraints: preferences?.constraints ?? null,
     };
 
@@ -214,15 +215,25 @@ CRITICAL: These must be REAL, BREAKING financial/market news from the last 24 ho
 USER PROFILE (use to PRIORITIZE which headlines matter most):
 ${JSON.stringify(prefProfile, null, 2)}
 
+${prefProfile.interests && Array.isArray(prefProfile.interests) && prefProfile.interests.length > 0 
+  ? `\nPRIORITY INTERESTS: The user is particularly interested in: ${prefProfile.interests.join(', ')}. 
+Prioritize stories related to these sectors/topics when selecting headlines.`
+  : ''}
+
 Selection criteria:
 1. RECENCY: Must be from last 24 hours (prioritize overnight/morning news)
 2. IMPACT: Market-moving potential
-3. RELEVANCE: Connection to user's portfolio/watchlist/sectors
+3. RELEVANCE: Connection to user's portfolio/watchlist/sectors/interests
+
+STRICT LENGTH REQUIREMENTS (for equal-sized UI cards):
+- headline: 60-80 characters max (be punchy and direct)
+- what_happened: 150-200 characters max (2 short sentences, facts only)
+- portfolio_impact: 120-150 characters max (1-2 sentences, what it means for investors)
 
 For each story return:
-- headline: attention-grabbing title (10 words max)
-- what_happened: 2-3 sentences of facts only
-- portfolio_impact: 1-2 sentences explaining what this means for investors like this user
+- headline: attention-grabbing title (60-80 chars)
+- what_happened: 2 sentences of facts (150-200 chars)
+- portfolio_impact: 1-2 sentences investor impact (120-150 chars)
 - source: outlet name (Reuters, Bloomberg, WSJ, etc.)
 - category: [markets, economy, technology, crypto, real estate, commodities, default]
 
@@ -255,9 +266,9 @@ Return JSON only.
             additionalProperties: true,
             properties: {
               id: { type: "string" },
-              headline: { type: "string" },
-              what_happened: { type: "string" },
-              portfolio_impact: { type: "string" },
+              headline: { type: "string", maxLength: 80 },
+              what_happened: { type: "string", maxLength: 200 },
+              portfolio_impact: { type: "string", maxLength: 150 },
               source: { type: "string" },
               category: { type: "string" },
               href: { type: "string" },
@@ -319,6 +330,16 @@ Now find 2 ADDITIONAL stories that provide context or related developments. Thes
 USER PROFILE:
 ${JSON.stringify(prefProfile, null, 2)}
 
+${prefProfile.interests && Array.isArray(prefProfile.interests) && prefProfile.interests.length > 0 
+  ? `\nUSER INTERESTS: ${prefProfile.interests.join(', ')}. 
+Look for stories related to these areas when selecting context stories.`
+  : ''}
+
+STRICT LENGTH REQUIREMENTS (for equal-sized UI cards):
+- headline: 60-80 characters max
+- what_happened: 150-200 characters max (2 short sentences)
+- portfolio_impact: 120-150 characters max (1-2 sentences)
+
 Return 2 stories in same format as before.
 `;
 
@@ -335,9 +356,9 @@ Return 2 stories in same format as before.
             additionalProperties: true,
             properties: {
               id: { type: "string" },
-              headline: { type: "string" },
-              what_happened: { type: "string" },
-              portfolio_impact: { type: "string" },
+              headline: { type: "string", maxLength: 80 },
+              what_happened: { type: "string", maxLength: 200 },
+              portfolio_impact: { type: "string", maxLength: 150 },
               source: { type: "string" },
               category: { type: "string" },
               href: { type: "string" },
@@ -432,15 +453,25 @@ Write the spoken script for "Pulse" - a news-first investor briefing.
 LISTENER: ${name}
 DATE: ${date}
 
+CRITICAL: TARGET LENGTH IS 5 MINUTES (750-800 words). This is LONGER than a typical summary.
+Do NOT be overly brief. Develop each story with detail and context.
+
 SCRIPT STRUCTURE (NEWS-FIRST):
-1. HOOK: Open with the #1 headline (10-15 seconds)
-2. TOP 3 HEADLINES: Cover each headline with what happened + portfolio impact (60-90 seconds)
-3. MARKET SNAPSHOT: Quick tape - S&P, Nasdaq, Dow % moves only (15 seconds)
-4. CONTEXT STORIES: Brief mention of 1-2 supporting stories (30 seconds)
-5. CLOSE: Actionable takeaway + sign-off (15 seconds)
+1. HOOK: Open with the #1 headline (15-20 seconds, ~40 words)
+2. TOP 3 HEADLINES: Cover EACH headline in detail with:
+   - What happened (the facts)
+   - Why it matters for investors
+   - Market reaction or implications
+   (2-2.5 minutes total, ~350-400 words)
+3. MARKET SNAPSHOT: S&P, Nasdaq, Dow % moves with brief context (20-30 seconds, ~60 words)
+4. CONTEXT STORIES: Develop 1-2 supporting stories with detail (45-60 seconds, ~120 words)
+5. CLOSE: Actionable takeaway + sign-off (15-20 seconds, ~40 words)
+
+TOTAL TARGET: 750-800 words for a 5-minute briefing
 
 VOICE GUIDELINES:
 - Conversational but authoritative
+- Develop stories with detail - don't rush through them
 - No filler phrases ("according to", "it appears")
 - Percent moves only, NO index levels
 - Natural pacing with pauses
@@ -448,7 +479,7 @@ VOICE GUIDELINES:
 
 DATA:
 
-TOP 3 HEADLINES (LEAD WITH THESE):
+TOP 3 HEADLINES (DEVELOP EACH FULLY):
 ${topStories.map((s, i) => `
 ${i + 1}. ${s.title}
    What: ${s.what_happened}
@@ -456,13 +487,15 @@ ${i + 1}. ${s.title}
    Source: ${s.outlet}
 `).join('\n')}
 
-MARKET SNAPSHOT (mention AFTER headlines):
+MARKET SNAPSHOT:
 - S&P: ${marketSnapshot.sp500_pct}
 - Nasdaq: ${marketSnapshot.nasdaq_pct}
 - Dow: ${marketSnapshot.dow_pct}
 
-CONTEXT STORIES (brief mentions):
+CONTEXT STORIES (develop these with detail):
 ${contextStories.map((s, i) => `${i + 1}. ${s.title} - ${s.what_happened}`).join('\n')}
+
+Remember: Aim for 750-800 words total. Be thorough and informative, not rushed.
 
 Return JSON: { "script": "..." }
 `;
@@ -478,7 +511,7 @@ Return JSON: { "script": "..." }
     const script = sanitizeForAudio(scriptData?.script || "");
 
     const wc = wordCount(script);
-    const estimatedMinutes = Math.max(1, Math.round(wc / 150));
+    const estimatedMinutes = Math.max(1, Math.round(wc / 150)); // 150 words per minute
 
     // =========================================================
     // STEP 5: Save Briefing
