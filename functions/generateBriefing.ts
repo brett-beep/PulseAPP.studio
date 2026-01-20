@@ -225,15 +225,15 @@ Selection criteria:
 2. IMPACT: Market-moving potential
 3. RELEVANCE: Connection to user's portfolio/watchlist/sectors/interests
 
-STRICT LENGTH REQUIREMENTS (for equal-sized UI cards):
+LENGTH REQUIREMENTS:
 - headline: 60-80 characters max (be punchy and direct)
-- what_happened: 150-200 characters max (2 short sentences, facts only)
-- portfolio_impact: 120-150 characters max (1-2 sentences, what it means for investors)
+- what_happened: 3-5 sentences with full details and context about the story
+- portfolio_impact: 2-3 sentences explaining what this means for investors and their portfolios
 
 For each story return:
 - headline: attention-grabbing title (60-80 chars)
-- what_happened: 2 sentences of facts (150-200 chars)
-- portfolio_impact: 1-2 sentences investor impact (120-150 chars)
+- what_happened: 3-5 sentences with full details
+- portfolio_impact: 2-3 sentences on investor impact
 - source: outlet name (Reuters, Bloomberg, WSJ, etc.)
 - category: [markets, economy, technology, crypto, real estate, commodities, default]
 
@@ -267,8 +267,8 @@ Return JSON only.
             properties: {
               id: { type: "string" },
               headline: { type: "string", maxLength: 80 },
-              what_happened: { type: "string", maxLength: 200 },
-              portfolio_impact: { type: "string", maxLength: 150 },
+              what_happened: { type: "string" },
+              portfolio_impact: { type: "string" },
               source: { type: "string" },
               category: { type: "string" },
               href: { type: "string" },
@@ -289,26 +289,26 @@ Return JSON only.
 
     const allowedCats = new Set(["markets", "crypto", "economy", "technology", "real estate", "commodities", "default"]);
 
+    // Helper function for truncating only headlines
+    const truncateTitle = (text, maxLen) => {
+      const clean = safeText(text, "");
+      if (clean.length <= maxLen) return clean;
+      return clean.substring(0, maxLen - 3) + "...";
+    };
+
     const topStories = headlineData.top_headlines.map((story) => {
       const rawCat = safeText(story?.category, "default").toLowerCase();
       const category = allowedCats.has(rawCat) ? rawCat : "default";
-
-      // Hard truncate to ensure equal card sizes
-      const truncate = (text, maxLen) => {
-        const clean = safeText(text, "");
-        if (clean.length <= maxLen) return clean;
-        return clean.substring(0, maxLen - 3) + "...";
-      };
 
       return {
         id: safeText(story?.id, randomId()),
         href: safeText(story?.href, "#"),
         imageUrl: categoryImageUrl(category),
-        title: truncate(story?.headline, 80),
+        title: truncateTitle(story?.headline, 80),
         what_happened: safeText(story?.what_happened, ""),
         why_it_matters: safeText(story?.portfolio_impact, ""),
         both_sides: {
-          side_a: truncate(story?.portfolio_impact, 150),
+          side_a: safeText(story?.portfolio_impact, ""),
           side_b: ""
         },
         outlet: safeText(story?.source, "Unknown"),
@@ -342,10 +342,10 @@ ${prefProfile.interests && Array.isArray(prefProfile.interests) && prefProfile.i
 Look for stories related to these areas when selecting context stories.`
   : ''}
 
-STRICT LENGTH REQUIREMENTS (for equal-sized UI cards):
+LENGTH REQUIREMENTS:
 - headline: 60-80 characters max
-- what_happened: 150-200 characters max (2 short sentences)
-- portfolio_impact: 120-150 characters max (1-2 sentences)
+- what_happened: 3-5 sentences with full details and context about the story
+- portfolio_impact: 2-3 sentences explaining what this means for investors
 
 Return 2 stories in same format as before.
 `;
@@ -364,8 +364,8 @@ Return 2 stories in same format as before.
             properties: {
               id: { type: "string" },
               headline: { type: "string", maxLength: 80 },
-              what_happened: { type: "string", maxLength: 200 },
-              portfolio_impact: { type: "string", maxLength: 150 },
+              what_happened: { type: "string" },
+              portfolio_impact: { type: "string" },
               source: { type: "string" },
               category: { type: "string" },
               href: { type: "string" },
@@ -379,13 +379,6 @@ Return 2 stories in same format as before.
 
     const contextData = await invokeLLM(base44, contextPrompt, true, contextSchema);
 
-    // Helper function for truncation
-    const truncate = (text, maxLen) => {
-      const clean = safeText(text, "");
-      if (clean.length <= maxLen) return clean;
-      return clean.substring(0, maxLen - 3) + "...";
-    };
-
     const contextStories = (contextData?.context_stories || []).map((story) => {
       const rawCat = safeText(story?.category, "default").toLowerCase();
       const category = allowedCats.has(rawCat) ? rawCat : "default";
@@ -394,11 +387,11 @@ Return 2 stories in same format as before.
         id: safeText(story?.id, randomId()),
         href: safeText(story?.href, "#"),
         imageUrl: categoryImageUrl(category),
-        title: truncate(story?.headline, 80),
+        title: truncateTitle(story?.headline, 80),
         what_happened: safeText(story?.what_happened, ""),
         why_it_matters: safeText(story?.portfolio_impact, ""),
         both_sides: {
-          side_a: truncate(story?.portfolio_impact, 150),
+          side_a: safeText(story?.portfolio_impact, ""),
           side_b: ""
         },
         outlet: safeText(story?.source, "Unknown"),
@@ -457,9 +450,6 @@ Return JSON with:
       ? meta.key_highlights.map((x) => safeText(x, "")).filter(Boolean)
       : [];
     const uiSentiment = meta?.market_sentiment || { label: "neutral", description: "" };
-
-   // Updated STEP 4 section for your generateBriefing function
-// Replace the existing "STEP 4: Generate Script" section with this:
 
     // =========================================================
     // STEP 4: Generate Script with Hybrid Framework + Personal Opening
