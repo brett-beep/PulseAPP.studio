@@ -210,6 +210,11 @@ Deno.serve(async (req) => {
     }
 
     const finnhubNews = await finnhubResponse.json();
+    console.log("🧪 [fetchNewsCards] Sample headlines (raw 10):");
+(finnhubNews || []).slice(0, 10).forEach((a, i) => {
+  console.log(`   RAW ${i + 1}:`, a?.headline);
+});
+
     console.log(`📰 [fetchNewsCards] Received ${finnhubNews?.length || 0} articles`);
 
     if (!Array.isArray(finnhubNews) || finnhubNews.length === 0) {
@@ -277,6 +282,10 @@ Deno.serve(async (req) => {
     }
 
     console.log(`🧠 [fetchNewsCards] Selected ${topNews.length} diversified stories`);
+console.log("🧪 [fetchNewsCards] Selected headlines (diversified):");
+(topNews || []).forEach((a, i) => {
+  console.log(`   PICK ${i + 1}:`, a?.headline);
+});
 
     console.log("🤖 [fetchNewsCards] Enhancing stories with LLM...");
 
