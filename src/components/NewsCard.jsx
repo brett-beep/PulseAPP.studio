@@ -11,6 +11,25 @@ const categoryColors = {
     'default': 'bg-slate-500/10 text-slate-400 border-slate-500/20'
 };
 
+function stripLinksAndUrls(s) {
+  if (!s) return "";
+  let t = String(s);
+
+  // Remove markdown links: [text](url) → text
+  t = t.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, "$1");
+
+  // Remove raw URLs
+  t = t.replace(/https?:\/\/\S+/gi, "");
+
+  // Remove "(domain.com/...)" citations
+  t = t.replace(
+    /\(\s*[a-z0-9-]+\.(com|net|org|io|co|ca|ai|app)(?:\/[^)]*)?\s*\)/gi,
+    ""
+  );
+
+  return t.trim();
+}
+
 export default function NewsCard({ story, index }) {
     const [isExpanded, setIsExpanded] = useState(false);
 
