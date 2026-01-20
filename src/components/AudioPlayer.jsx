@@ -160,9 +160,9 @@ export default function AudioPlayer({
               <Button
                 onClick={togglePlayPause}
                 size="lg"
-                className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-full w-14 h-14"
+                className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-full w-16 h-16 shadow-lg hover:shadow-xl transition-shadow"
               >
-                {isPlaying ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6 ml-0.5" />}
+                {isPlaying ? <Pause className="h-7 w-7" /> : <Play className="h-7 w-7 ml-0.5" />}
               </Button>
 
               <div className="flex items-center gap-2 ml-2">
