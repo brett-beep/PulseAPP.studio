@@ -1,109 +1,107 @@
-// NewsCard.jsx - Fixed version
-// Remove the h-[280px] constraint from non-expanded cards
-// Only apply expansion animation to the selected card
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ExternalLink, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Badge } from "@/components/ui/badge";
 
-import React from 'react';
-import { motion } from 'framer-motion';
+const categoryColors = {
+    'markets': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+    'crypto': 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+    'economy': 'bg-green-500/10 text-green-400 border-green-500/20',
+    'technology': 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
+    'real estate': 'bg-orange-500/10 text-orange-400 border-orange-500/20',
+    'commodities': 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
+    'default': 'bg-slate-500/10 text-slate-400 border-slate-500/20'
+};
 
-export default function NewsCard({ article, isExpanded, onToggle }) {
-  const handleClick = () => {
-    onToggle();
-  };
+export default function NewsCard({ story, index }) {
+    const [isExpanded, setIsExpanded] = useState(false);
 
-  return (
-    <motion.div
-      layout
-      initial={false}
-      animate={isExpanded ? {
-        scale: 1.02,
-        zIndex: 10,
-      } : {
-        scale: 1,
-        zIndex: 1,
-      }}
-      transition={{
-        layout: { duration: 0.3, ease: "easeInOut" },
-        scale: { duration: 0.2 }
-      }}
-      className={`
-        relative rounded-2xl overflow-hidden cursor-pointer
-        transition-all duration-300
-        ${isExpanded ? 'col-span-full' : ''}
-      `}
-      onClick={handleClick}
-    >
-      {/* Glassmorphic background */}
-      <div className="absolute inset-0 bg-white/10 backdrop-blur-md" />
-      
-      {/* Gradient border effect */}
-      <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-blue-500/20 via-purple-500/20 to-pink-500/20 opacity-50" />
-      
-      {/* Content */}
-      <div className="relative p-6 h-full flex flex-col">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-2">
-              {article.source && (
-                <span className="text-xs font-medium text-blue-400 uppercase tracking-wide">
-                  {article.source}
-                </span>
-              )}
-              {article.datetime && (
-                <span className="text-xs text-gray-400">
-                  {new Date(article.datetime * 1000).toLocaleDateString()}
-                </span>
-              )}
-            </div>
-            <h3 className="text-lg font-semibold text-white line-clamp-2 mb-2">
-              {article.headline}
-            </h3>
-          </div>
-        </div>
+    const getCategoryColor = (category) => {
+        const cat = category?.toLowerCase() || 'default';
+        return categoryColors[cat] || categoryColors.default;
+    };
 
-        {/* Summary - show more when expanded */}
-        <motion.div
-          layout
-          className="flex-1"
+    // Check if content is long enough to need "more" button
+    const needsExpansion = (story.what_happened?.length > 200 || story.why_it_matters?.length > 150);
+
+    return (
+        <motion.article
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.1 }}
+            whileHover={{ y: -4 }}
+            className="group bg-white rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-100 flex flex-col"
+            style={{ alignSelf: 'flex-start' }}
         >
-          <p className={`text-sm text-gray-300 ${isExpanded ? '' : 'line-clamp-3'}`}>
-            {article.summary}
-          </p>
-        </motion.div>
+            {/* Header - Fixed height */}
+            <div className="flex items-start justify-between gap-4 mb-4 flex-shrink-0">
+                <Badge 
+                    variant="outline" 
+                    className={`${getCategoryColor(story.category)} text-xs font-medium tracking-wide uppercase`}
+                >
+                    {story.category || 'News'}
+                </Badge>
+                <span className="text-xs text-slate-400 font-medium whitespace-nowrap">{story.source}</span>
+            </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/10">
-          <div className="flex items-center gap-2">
-            {article.related && article.related.length > 0 && (
-              <span className="text-xs text-gray-400">
-                {article.related.join(', ')}
-              </span>
+            {/* Title - Fixed to 2 lines with ellipsis */}
+            <h3 className="text-lg font-semibold text-slate-900 mb-2 leading-tight group-hover:text-amber-600 transition-colors line-clamp-2 flex-shrink-0">
+                {story.title}
+            </h3>
+
+            {/* Description - Expandable with inline more button */}
+            <div className="flex-shrink-0 mb-4">
+                <motion.div
+                    initial={false}
+                    animate={{ 
+                        height: isExpanded ? 'auto' : 'auto',
+                    }}
+                    transition={{ 
+                        duration: 0.3,
+                        ease: [0.25, 0.1, 0.25, 1]
+                    }}
+                    className="overflow-hidden"
+                >
+                    <p className={`text-slate-600 text-sm leading-relaxed inline ${!isExpanded ? 'line-clamp-3' : ''}`}>
+                        {story.what_happened || story.summary}
+                        {needsExpansion && !isExpanded && '... '}
+                        {needsExpansion && (
+                            <motion.button
+                                onClick={() => setIsExpanded(!isExpanded)}
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                className="inline text-xs font-bold underline text-slate-500 hover:text-amber-500 transition-colors ml-0"
+                            >
+                                {isExpanded ? 'less' : 'more'}
+                            </motion.button>
+                        )}
+                    </p>
+                </motion.div>
+            </div>
+
+            {/* Impact - Expandable, pushes to bottom */}
+            {(story.relevance_reason || story.why_it_matters) && (
+                <div className="pt-4 border-t border-slate-100 mt-auto">
+                    <div className="flex items-start gap-2">
+                        <div className="w-1 h-1 bg-amber-400 rounded-full mt-1.5 flex-shrink-0" />
+                        <motion.div
+                            initial={false}
+                            animate={{ 
+                                height: isExpanded ? 'auto' : 'auto',
+                            }}
+                            transition={{ 
+                                duration: 0.3,
+                                ease: [0.25, 0.1, 0.25, 1]
+                            }}
+                            className="overflow-hidden flex-1"
+                        >
+                            <p className={`text-xs text-slate-500 italic ${!isExpanded ? 'line-clamp-2' : ''}`}>
+                                {story.why_it_matters || story.relevance_reason}
+                            </p>
+                        </motion.div>
+                    </div>
+                </div>
             )}
-          </div>
-          {article.url && (
-            <a
-              href={article.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
-            >
-              Read more →
-            </a>
-          )}
-        </div>
-
-        {/* Expand indicator */}
-        <div className="absolute bottom-4 right-4">
-          <motion.div
-            animate={{ rotate: isExpanded ? 180 : 0 }}
-            transition={{ duration: 0.2 }}
-            className="text-gray-400"
-          >
-            ↓
-          </motion.div>
-        </div>
-      </div>
-    </motion.div>
-  );
+        </motion.article>
+    );
 }
