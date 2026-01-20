@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence, useMotionValue, useSpring } from "framer-motion";
-import { Play, Pause, RotateCcw, FastForward, Volume2, VolumeX, Gauge } from "lucide-react";
+import { Play, Pause, RotateCcw, FastForward, Volume2, VolumeX, Gauge, Clock } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { GlassFilter } from "@/components/ui/liquid-glass-button";
 
@@ -14,10 +14,17 @@ export default function AudioPlayer({
   onGenerate,
   isGenerating = false,
   status = null,
+  // NEW PROPS for countdown timer feature
+  canGenerateNew = true,
+  timeUntilNextBriefing = null,
+  briefingCount = 0,
 }) {
   console.log("🎵 [AudioPlayer Component] Rendered with audioUrl:", audioUrl);
   console.log("🎵 [AudioPlayer Component] isGenerating:", isGenerating);
   console.log("🎵 [AudioPlayer Component] status:", status);
+  console.log("🎵 [AudioPlayer Component] canGenerateNew:", canGenerateNew);
+  console.log("🎵 [AudioPlayer Component] timeUntilNextBriefing:", timeUntilNextBriefing);
+  console.log("🎵 [AudioPlayer Component] briefingCount:", briefingCount);
   
   const audioRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -154,6 +161,16 @@ export default function AudioPlayer({
     my.set(e.clientY - rect.top);
   };
 
+  // NEW: Determine button state and text
+  const isButtonDisabled = isGenerating || !canGenerateNew;
+  const getButtonText = () => {
+    if (isGenerating) return "Generating...";
+    if (briefingCount >= 3) return "Daily Limit Reached";
+    if (!canGenerateNew && timeUntilNextBriefing) return "Generate Briefing";
+    if (audioUrl) return "Generate New Update";
+    return "Generate Briefing";
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20, scale: 0.98 }}
@@ -283,7 +300,7 @@ export default function AudioPlayer({
       ) : null}
 
       <div className="relative z-10">
-        {/* Header with date */}
+        {/* Header with date and briefing count */}
         <div className="flex items-center justify-between mb-8">
           <div>
             <p className="text-slate-500/80 text-xs font-medium tracking-wider uppercase mb-1">
@@ -293,15 +310,22 @@ export default function AudioPlayer({
               {greeting}, <span className="font-semibold text-slate-900">{userName}</span>
             </p>
           </div>
-          <motion.div
-            animate={{ 
-              scale: isPlaying ? [1, 1.15, 1] : 1,
-              opacity: isPlaying ? [0.7, 1, 0.7] : 0.75
-            }}
-            transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
-            className="w-2.5 h-2.5 rounded-full"
-            style={{ background: "linear-gradient(135deg, rgba(255, 140, 80, 0.95) 0%, rgba(255, 90, 50, 1) 100%)" }}
-          />
+          <div className="flex items-center gap-3">
+            {/* NEW: Briefing count indicator */}
+            <div className="text-right">
+              <p className="text-slate-400 text-[10px] font-medium tracking-wider uppercase">Today</p>
+              <p className="text-slate-700 text-sm font-semibold">{briefingCount} / 3</p>
+            </div>
+            <motion.div
+              animate={{ 
+                scale: isPlaying ? [1, 1.15, 1] : 1,
+                opacity: isPlaying ? [0.7, 1, 0.7] : 0.75
+              }}
+              transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
+              className="w-2.5 h-2.5 rounded-full"
+              style={{ background: "linear-gradient(135deg, rgba(255, 140, 80, 0.95) 0%, rgba(255, 90, 50, 1) 100%)" }}
+            />
+          </div>
         </div>
 
         {/* Waveform */}
@@ -499,7 +523,7 @@ export default function AudioPlayer({
           </div>
         </div>
 
-        {/* Generate Button / Generating Message */}
+        {/* Generate Button / Generating Message / Countdown Timer */}
         <AnimatePresence mode="wait">
           {isGenerating ? (
             <motion.div
@@ -528,29 +552,65 @@ export default function AudioPlayer({
                 </span>
               </p>
             </motion.div>
-          ) : !audioUrl && onGenerate ? (
-            <motion.button
-              key="generate"
+          ) : (
+            <motion.div
+              key="generate-section"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              whileHover={{ scale: 1.05, y: -2 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={onGenerate}
-              className="mx-auto mt-8 px-6 py-3 rounded-full text-sm font-semibold text-white transition-all"
-              style={{
-                background: "linear-gradient(135deg, rgba(255, 140, 75, 0.95) 0%, rgba(255, 85, 45, 1) 100%)",
-                border: "1px solid rgba(255, 255, 255, 0.5)",
-                boxShadow: `
-                  0 8px 24px rgba(255, 100, 50, 0.3),
-                  0 4px 12px rgba(255, 100, 50, 0.2),
-                  inset 0 1px 1px rgba(255, 255, 255, 0.3)
-                `,
-              }}
+              className="flex flex-col items-center mt-8 gap-2"
             >
-              Generate Briefing
-            </motion.button>
-          ) : null}
+              {/* Generate Button - Always visible, but greyed out when disabled */}
+              <motion.button
+                whileHover={canGenerateNew ? { scale: 1.05, y: -2 } : {}}
+                whileTap={canGenerateNew ? { scale: 0.98 } : {}}
+                onClick={canGenerateNew ? onGenerate : undefined}
+                disabled={isButtonDisabled}
+                className={`px-6 py-3 rounded-full text-sm font-semibold transition-all ${
+                  isButtonDisabled ? 'cursor-not-allowed' : 'cursor-pointer'
+                }`}
+                style={{
+                  background: isButtonDisabled
+                    ? "linear-gradient(135deg, rgba(180, 180, 180, 0.6) 0%, rgba(150, 150, 150, 0.7) 100%)"
+                    : "linear-gradient(135deg, rgba(255, 140, 75, 0.95) 0%, rgba(255, 85, 45, 1) 100%)",
+                  border: "1px solid rgba(255, 255, 255, 0.5)",
+                  boxShadow: isButtonDisabled
+                    ? "0 4px 12px rgba(0, 0, 0, 0.1)"
+                    : `
+                      0 8px 24px rgba(255, 100, 50, 0.3),
+                      0 4px 12px rgba(255, 100, 50, 0.2),
+                      inset 0 1px 1px rgba(255, 255, 255, 0.3)
+                    `,
+                  color: isButtonDisabled ? "rgba(255, 255, 255, 0.8)" : "white",
+                }}
+              >
+                {getButtonText()}
+              </motion.button>
+
+              {/* Countdown Timer - Shows when button is disabled due to cooldown */}
+              {timeUntilNextBriefing && timeUntilNextBriefing !== "Daily limit reached" && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex items-center gap-1.5 text-slate-500 text-xs"
+                >
+                  <Clock className="h-3 w-3" />
+                  <span>Next briefing available in {timeUntilNextBriefing}</span>
+                </motion.div>
+              )}
+
+              {/* Daily limit message */}
+              {timeUntilNextBriefing === "Daily limit reached" && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-slate-500 text-xs"
+                >
+                  Daily limit reached. Resets at midnight.
+                </motion.div>
+              )}
+            </motion.div>
+          )}
         </AnimatePresence>
       </div>
     </motion.div>
