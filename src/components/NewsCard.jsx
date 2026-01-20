@@ -19,16 +19,16 @@ export default function NewsCard({ story, index }) {
         return categoryColors[cat] || categoryColors.default;
     };
 
-    // Check if "what happened" content needs expansion (only for this section)
     const descriptionText = story.what_happened || story.summary || '';
-    const needsExpansion = descriptionText.length > 100;
+    // More generous threshold - 150 chars usually means it'll wrap to 3+ lines
+    const needsExpansion = descriptionText.length > 150;
 
     return (
         <article
             className="group bg-white rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-100 flex flex-col"
             style={{ alignSelf: 'flex-start' }}
         >
-            {/* Header - Fixed height */}
+            {/* Header */}
             <div className="flex items-start justify-between gap-4 mb-4 flex-shrink-0">
                 <Badge 
                     variant="outline" 
@@ -36,42 +36,37 @@ export default function NewsCard({ story, index }) {
                 >
                     {story.category || 'News'}
                 </Badge>
-                <span className="text-xs text-slate-400 font-medium whitespace-nowrap">{story.source}</span>
+                <span className="text-xs text-slate-400 font-medium whitespace-nowrap">{story.outlet || story.source}</span>
             </div>
 
-            {/* Title - Fixed to 2 lines with ellipsis */}
+            {/* Title */}
             <h3 className="text-lg font-semibold text-slate-900 mb-2 leading-tight group-hover:text-amber-600 transition-colors line-clamp-2 flex-shrink-0">
                 {story.title}
             </h3>
 
-            {/* Description (What Happened) - Expandable with inline more button */}
+            {/* Description (What Happened) */}
             <div className="flex-shrink-0 mb-4">
-                <p className="text-slate-600 text-sm leading-relaxed">
-                    <span className={!isExpanded ? 'line-clamp-3' : ''}>
-                        {descriptionText}
-                    </span>
-                    {needsExpansion && !isExpanded && '...'}
-                    {needsExpansion && (
-                        <button
-                            onClick={() => setIsExpanded(!isExpanded)}
-                            className="text-xs font-bold underline text-slate-500 hover:text-amber-500 transition-colors ml-1"
-                        >
-                            {isExpanded ? 'less' : 'more'}
-                        </button>
-                    )}
+                <p className={`text-slate-600 text-sm leading-relaxed ${!isExpanded && needsExpansion ? 'line-clamp-3' : ''}`}>
+                    {descriptionText}
                 </p>
+                {needsExpansion && (
+                    <button
+                        onClick={() => setIsExpanded(!isExpanded)}
+                        className="text-xs font-medium text-amber-600 hover:text-amber-700 transition-colors mt-1"
+                    >
+                        {isExpanded ? '← Show less' : 'Read more →'}
+                    </button>
+                )}
             </div>
 
-            {/* Why It Matters - ALWAYS shows full text, NOT linked to expand */}
+            {/* Why It Matters - Always fully visible */}
             {(story.relevance_reason || story.why_it_matters) && (
                 <div className="pt-4 border-t border-slate-100 mt-auto">
                     <div className="flex items-start gap-2">
-                        <div className="w-1 h-1 bg-amber-400 rounded-full mt-1.5 flex-shrink-0" />
-                        <div className="flex-1">
-                            <p className="text-xs text-slate-500 italic">
-                                {story.why_it_matters || story.relevance_reason}
-                            </p>
-                        </div>
+                        <div className="w-1 h-1 bg-amber-400 rounded-full mt-2 flex-shrink-0" />
+                        <p className="text-xs text-slate-500 italic leading-relaxed">
+                            {story.why_it_matters || story.relevance_reason}
+                        </p>
                     </div>
                 </div>
             )}
