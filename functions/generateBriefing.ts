@@ -597,13 +597,8 @@ Return JSON: { "script": "..." }
     const estimatedMinutes = Math.max(1, Math.round(wc / 150)); // 150 words per minute
 
     // =========================================================
-    // STEP 5: Save Briefing
+    // STEP 5: Save Briefing (ALWAYS CREATE NEW - supports multiple per day)
     // =========================================================
-    const existing = await base44.asServiceRole.entities.DailyBriefing.filter({
-      date,
-      created_by: userEmail,
-    });
-
     const baseRecord = {
       date,
       created_by: userEmail,
@@ -617,12 +612,8 @@ Return JSON: { "script": "..." }
       audio_url: null,
     };
 
-    let saved;
-    if (Array.isArray(existing) && existing.length > 0) {
-      saved = await base44.asServiceRole.entities.DailyBriefing.update(existing[0].id, baseRecord);
-    } else {
-      saved = await base44.asServiceRole.entities.DailyBriefing.create(baseRecord);
-    }
+    // Always create new briefing (supports 3-per-day feature)
+    const saved = await base44.asServiceRole.entities.DailyBriefing.create(baseRecord);
 
     if (skipAudio) {
       return Response.json({
