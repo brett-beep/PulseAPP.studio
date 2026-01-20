@@ -32,6 +32,19 @@ function stripLinksAndUrls(s) {
   return t.trim();
 }
 
+function capToTwoSentences(text) {
+  const t = safeText(text, "").trim();
+  if (!t) return "";
+
+  // Split on sentence endings. Keeps things deterministic.
+  const parts = t
+    .replace(/\s+/g, " ")
+    .split(/(?<=[.!?])\s+/)
+    .filter(Boolean);
+
+  return parts.slice(0, 2).join(" ").trim();
+}
+
 function normalizeHeadline(s) {
   return String(s || "")
     .toLowerCase()
@@ -305,7 +318,10 @@ For each story, return:
 2) why_it_matters (1-2 sentences, actionable investor framing):
    - Call out what could move next: the specific asset class/sector/ticker sensitivity.
    - If relevant, tie directly to the user's interests/holdings.
+   - Focus only on the investable implication (what could move, and why).
+   - No filler, no hedging, no general advice.
    - DO NOT include URLs, markdown links, citations, or “(source.com)”.
+
 
 USER PROFILE:
 - Interests: ${Array.isArray(userInterests) && userInterests.length > 0 ? userInterests.join(", ") : "General markets"}
@@ -379,23 +395,23 @@ Return JSON only.`;
         enhanced?.why_it_matters || generateFallbackWhyItMatters(category);
 
       const whatHappened = stripLinksAndUrls(whatHappenedRaw);
-      const whyItMatters = stripLinksAndUrls(whyItMattersRaw);
+      const whyItMatters = capToTwoSentences(stripLinksAndUrls(whyItMattersRaw));
 
       return {
-        id: safeText(article.id?.toString(), randomId()),
-        href: safeText(article.url, "#"),
-        imageUrl: article.image || categoryImageUrl(category),
-        title: safeText(article.headline, ""),
-        what_happened: whatHappened,
-        why_it_matters: whyItMatters,
-        both_sides: {
-          side_a: whyItMatters,
-          side_b: "",
-        },
-        outlet: safeText(article.source, "Unknown"),
-        category,
-        datetime: article.datetime,
-      };
+  id: safeText(article.id?.toString(), randomId()),
+  href: safeText(article.url, "#"),
+  imageUrl: article.image || categoryImageUrl(category),
+  title: safeText(article.headline, ""),
+  what_happened: whatHappened,
+  why_it_matters: cappedWhyItMatters,
+  both_sides: {
+    side_a: cappedWhyItMatters,
+    side_b: "",
+  },
+  outlet: safeText(article.source, "Unknown"),
+  category,
+  datetime: article.datetime,
+};
     });
 
     console.log(`✅ [fetchNewsCards] Returning ${stories.length} enhanced stories`);
