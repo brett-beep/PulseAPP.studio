@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from "@/components/ui/badge";
 
 const categoryColors = {
@@ -24,15 +23,7 @@ export default function NewsCard({ story, index }) {
     const needsExpansion = (story.what_happened?.length > 200 || story.why_it_matters?.length > 150);
 
     return (
-        <motion.article
-            layout
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ 
-                delay: index * 0.1,
-                layout: { duration: 0.3, ease: [0.4, 0, 0.2, 1] }
-            }}
-            whileHover={{ y: -4 }}
+        <article
             className="group bg-white rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-100 flex flex-col"
             style={{ alignSelf: 'flex-start' }}
         >
@@ -48,29 +39,16 @@ export default function NewsCard({ story, index }) {
             </div>
 
             {/* Title - Fixed to 2 lines with ellipsis */}
-            <motion.h3 
-                layout
-                className="text-lg font-semibold text-slate-900 mb-2 leading-tight group-hover:text-amber-600 transition-colors line-clamp-2 flex-shrink-0"
-            >
+            <h3 className="text-lg font-semibold text-slate-900 mb-2 leading-tight group-hover:text-amber-600 transition-colors line-clamp-2 flex-shrink-0">
                 {story.title}
-            </motion.h3>
+            </h3>
 
             {/* Description - Expandable with inline more button */}
-            <motion.div 
-                layout
-                className="flex-shrink-0 mb-4 overflow-hidden"
-            >
-                <motion.p 
-                    layout="position"
-                    className="text-slate-600 text-sm leading-relaxed"
-                >
-                    <motion.span
-                        layout="position"
-                        animate={{ opacity: 1 }}
-                        className={!isExpanded ? 'line-clamp-3' : ''}
-                    >
+            <div className="flex-shrink-0 mb-4">
+                <p className="text-slate-600 text-sm leading-relaxed">
+                    <span className={!isExpanded ? 'line-clamp-3' : ''}>
                         {story.what_happened || story.summary}
-                    </motion.span>
+                    </span>
                     {needsExpansion && !isExpanded && '...'}
                     {needsExpansion && (
                         <button
@@ -80,32 +58,22 @@ export default function NewsCard({ story, index }) {
                             {isExpanded ? 'less' : 'more'}
                         </button>
                     )}
-                </motion.p>
-            </motion.div>
+                </p>
+            </div>
 
             {/* Impact - Expandable, pushes to bottom */}
             {(story.relevance_reason || story.why_it_matters) && (
-                <motion.div 
-                    layout
-                    className="pt-4 border-t border-slate-100 mt-auto"
-                >
+                <div className="pt-4 border-t border-slate-100 mt-auto">
                     <div className="flex items-start gap-2">
                         <div className="w-1 h-1 bg-amber-400 rounded-full mt-1.5 flex-shrink-0" />
-                        <motion.div 
-                            layout="position"
-                            className="flex-1 overflow-hidden"
-                        >
-                            <motion.p 
-                                layout="position"
-                                animate={{ opacity: 1 }}
-                                className={`text-xs text-slate-500 italic ${!isExpanded ? 'line-clamp-2' : ''}`}
-                            >
+                        <div className="flex-1">
+                            <p className={`text-xs text-slate-500 italic ${!isExpanded ? 'line-clamp-2' : ''}`}>
                                 {story.why_it_matters || story.relevance_reason}
-                            </motion.p>
-                        </motion.div>
+                            </p>
+                        </div>
                     </div>
-                </motion.div>
+                </div>
             )}
-        </motion.article>
+        </article>
     );
 }
