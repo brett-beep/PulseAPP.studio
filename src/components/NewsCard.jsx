@@ -25,31 +25,35 @@ export default function NewsCard({ story, index }) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.1 }}
             whileHover={{ y: -4 }}
-            className="group bg-white rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-100"
+            className="group bg-white rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-100 flex flex-col h-full"
         >
-            <div className="flex items-start justify-between gap-4 mb-4">
+            {/* Header - Fixed height */}
+            <div className="flex items-start justify-between gap-4 mb-4 flex-shrink-0">
                 <Badge 
                     variant="outline" 
                     className={`${getCategoryColor(story.category)} text-xs font-medium tracking-wide uppercase`}
                 >
                     {story.category || 'News'}
                 </Badge>
-                <span className="text-xs text-slate-400 font-medium">{story.source}</span>
+                <span className="text-xs text-slate-400 font-medium whitespace-nowrap">{story.source}</span>
             </div>
 
-            <h3 className="text-lg font-semibold text-slate-900 mb-2 leading-tight group-hover:text-amber-600 transition-colors">
+            {/* Title - Fixed to 2 lines with ellipsis */}
+            <h3 className="text-lg font-semibold text-slate-900 mb-2 leading-tight group-hover:text-amber-600 transition-colors line-clamp-2 flex-shrink-0">
                 {story.title}
             </h3>
 
-            <p className="text-slate-600 text-sm leading-relaxed mb-4">
+            {/* Description - Fixed to 3 lines with ellipsis */}
+            <p className="text-slate-600 text-sm leading-relaxed mb-4 line-clamp-3 flex-shrink-0">
                 {story.what_happened || story.summary}
             </p>
 
+            {/* Impact - Fixed to 2 lines, pushes to bottom */}
             {(story.relevance_reason || story.why_it_matters) && (
-                <div className="pt-4 border-t border-slate-100">
-                    <div className="flex items-center gap-2">
-                        <div className="w-1 h-1 bg-amber-400 rounded-full" />
-                        <p className="text-xs text-slate-500 italic">
+                <div className="pt-4 border-t border-slate-100 mt-auto">
+                    <div className="flex items-start gap-2">
+                        <div className="w-1 h-1 bg-amber-400 rounded-full mt-1.5 flex-shrink-0" />
+                        <p className="text-xs text-slate-500 italic line-clamp-2">
                             {story.why_it_matters || story.relevance_reason}
                         </p>
                     </div>
