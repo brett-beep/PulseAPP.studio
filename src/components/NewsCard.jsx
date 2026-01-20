@@ -19,15 +19,19 @@ export default function NewsCard({ story, index }) {
         return categoryColors[cat] || categoryColors.default;
     };
 
-    // Check if content is long enough to need "more" button
-    const needsExpansion = (story.what_happened?.length > 200 || story.why_it_matters?.length > 150);
+    // Get the description text
+    const descriptionText = story.what_happened || story.summary || '';
+    
+    // Check if content needs expansion (more than ~120 chars will typically overflow 3 lines)
+    // Lowered threshold since content is already truncated from backend
+    const needsExpansion = descriptionText.length > 120;
 
     return (
         <article
             className="group bg-white rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-100 flex flex-col"
             style={{ alignSelf: 'flex-start' }}
         >
-            {/* Header - Fixed height */}
+            {/* Header */}
             <div className="flex items-start justify-between gap-4 mb-4 flex-shrink-0">
                 <Badge 
                     variant="outline" 
@@ -35,42 +39,48 @@ export default function NewsCard({ story, index }) {
                 >
                     {story.category || 'News'}
                 </Badge>
-                <span className="text-xs text-slate-400 font-medium whitespace-nowrap">{story.source}</span>
+                {story.outlet && (
+                    <span className="text-xs text-slate-400 font-medium whitespace-nowrap">{story.outlet}</span>
+                )}
             </div>
 
             {/* Title - Fixed to 2 lines with ellipsis */}
-            <h3 className="text-lg font-semibold text-slate-900 mb-2 leading-tight group-hover:text-amber-600 transition-colors line-clamp-2 flex-shrink-0">
+            <h3 className="text-lg font-semibold text-slate-900 mb-3 leading-tight group-hover:text-amber-600 transition-colors line-clamp-2 flex-shrink-0">
                 {story.title}
             </h3>
 
-            {/* Description - Expandable with inline more button */}
+            {/* Description - Expandable */}
             <div className="flex-shrink-0 mb-4">
                 <p className="text-slate-600 text-sm leading-relaxed">
-                    <span className={!isExpanded ? 'line-clamp-3' : ''}>
-                        {story.what_happened || story.summary}
-                    </span>
-                    {needsExpansion && !isExpanded && '...'}
-                    {needsExpansion && (
-                        <button
-                            onClick={() => setIsExpanded(!isExpanded)}
-                            className="text-xs font-bold underline text-slate-500 hover:text-amber-500 transition-colors"
-                        >
-                            {isExpanded ? 'less' : 'more'}
-                        </button>
+                    {needsExpansion ? (
+                        <>
+                            <span className={!isExpanded ? 'line-clamp-3' : ''}>
+                                {descriptionText}
+                            </span>
+                            {!isExpanded && (
+                                <span className="text-slate-400">... </span>
+                            )}
+                            <button
+                                onClick={() => setIsExpanded(!isExpanded)}
+                                className="text-xs font-semibold text-amber-500 hover:text-amber-600 transition-colors ml-1"
+                            >
+                                {isExpanded ? 'show less' : 'read more'}
+                            </button>
+                        </>
+                    ) : (
+                        descriptionText
                     )}
                 </p>
             </div>
 
-            {/* Impact - Expandable, pushes to bottom */}
+            {/* Impact/Why it matters - Always show full text (no truncation) */}
             {(story.relevance_reason || story.why_it_matters) && (
                 <div className="pt-4 border-t border-slate-100 mt-auto">
                     <div className="flex items-start gap-2">
-                        <div className="w-1 h-1 bg-amber-400 rounded-full mt-1.5 flex-shrink-0" />
-                        <div className="flex-1">
-                            <p className={`text-xs text-slate-500 italic ${!isExpanded ? 'line-clamp-2' : ''}`}>
-                                {story.why_it_matters || story.relevance_reason}
-                            </p>
-                        </div>
+                        <div className="w-1.5 h-1.5 bg-amber-400 rounded-full mt-1.5 flex-shrink-0" />
+                        <p className="text-xs text-slate-500 italic leading-relaxed">
+                            {story.why_it_matters || story.relevance_reason}
+                        </p>
                     </div>
                 </div>
             )}
