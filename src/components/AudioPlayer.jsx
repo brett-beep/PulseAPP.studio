@@ -1,4 +1,4 @@
-// UPDATED AudioPlayer.jsx - Add countdown timer and disabled state
+// UPDATED AudioPlayer.jsx - With countdown timer and disabled state
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, RotateCcw, Clock, Loader2, Headphones } from 'lucide-react';
