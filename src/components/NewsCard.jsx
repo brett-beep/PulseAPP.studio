@@ -22,7 +22,7 @@ export default function NewsCard({ story, index }) {
     const descriptionText = story.what_happened || story.summary || '';
     const whyItMattersText = story.why_it_matters || story.relevance_reason || '';
     
-    const needsExpansion = descriptionText.length > 150 || whyItMattersText.length > 100;
+    const needsExpansion = descriptionText.length > 150;
 
     return (
         <article
@@ -45,45 +45,34 @@ export default function NewsCard({ story, index }) {
                 {story.title}
             </h3>
 
-            {/* Description (What Happened) */}
-            <div className="flex-shrink-0 mb-4">
+            {/* Description (What Happened) - TRUNCATED until expanded */}
+            <div className="mb-4">
                 {isExpanded ? (
-                    <p className="text-slate-600 text-sm leading-relaxed">
-                        {descriptionText}
-                    </p>
+                    <p className="text-slate-600 text-sm leading-relaxed">{descriptionText}</p>
                 ) : (
-                    <p className="text-slate-600 text-sm leading-relaxed line-clamp-3">
-                        {descriptionText}
-                    </p>
+                    <p className="text-slate-600 text-sm leading-relaxed line-clamp-3">{descriptionText}</p>
+                )}
+                
+                {needsExpansion && (
+                    <button
+                        onClick={() => setIsExpanded(!isExpanded)}
+                        className="text-xs font-medium text-amber-600 hover:text-amber-700 transition-colors mt-2"
+                    >
+                        {isExpanded ? '← Show less' : 'Read more →'}
+                    </button>
                 )}
             </div>
 
-            {/* Why It Matters */}
+            {/* Why It Matters - NEVER TRUNCATED */}
             {whyItMattersText && (
                 <div className="pt-4 border-t border-slate-100 mt-auto">
                     <div className="flex items-start gap-2">
                         <div className="w-1 h-1 bg-amber-400 rounded-full mt-2 flex-shrink-0" />
-                        {isExpanded ? (
-                            <p className="text-xs text-slate-500 italic leading-relaxed">
-                                {whyItMattersText}
-                            </p>
-                        ) : (
-                            <p className="text-xs text-slate-500 italic leading-relaxed line-clamp-2">
-                                {whyItMattersText}
-                            </p>
-                        )}
+                        <p className="text-xs text-slate-500 italic leading-relaxed">
+                            {whyItMattersText}
+                        </p>
                     </div>
                 </div>
-            )}
-
-            {/* Expand/Collapse Button */}
-            {needsExpansion && (
-                <button
-                    onClick={() => setIsExpanded(!isExpanded)}
-                    className="text-xs font-medium text-amber-600 hover:text-amber-700 transition-colors mt-3 text-left"
-                >
-                    {isExpanded ? '← Show less' : 'Read more →'}
-                </button>
             )}
         </article>
     );
