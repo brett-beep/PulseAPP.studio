@@ -38,8 +38,9 @@ export default function NewsCard({ story, index }) {
         return categoryColors[cat] || categoryColors.default;
     };
 
-    const descriptionText = story.what_happened || story.summary || '';
-    const whyItMattersText = story.why_it_matters || story.relevance_reason || '';
+ const descriptionText = stripLinksAndUrls(story.what_happened || story.summary || '');
+const whyItMattersText = stripLinksAndUrls(story.why_it_matters || story.relevance_reason || '');
+
     
     const needsExpansion = descriptionText.length > 150;
 
