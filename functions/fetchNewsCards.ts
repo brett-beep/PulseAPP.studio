@@ -72,15 +72,15 @@ ${prefProfile.interests && Array.isArray(prefProfile.interests) && prefProfile.i
   ? `\nPRIORITY INTERESTS: ${prefProfile.interests.join(', ')}. Prioritize stories in these areas.`
   : ''}
 
-STRICT LENGTH REQUIREMENTS (for equal-sized UI cards):
+LENGTH REQUIREMENTS:
 - headline: 60-80 characters max (be punchy and direct)
-- what_happened: 150-200 characters max (2 short sentences, facts only)
-- portfolio_impact: 120-150 characters max (1-2 sentences, investor relevance)
+- what_happened: 3-5 full sentences with complete context, details, and facts. Do NOT truncate or cut off mid-sentence.
+- portfolio_impact: 2-3 full sentences explaining why this matters to investors. Do NOT truncate or cut off mid-sentence.
 
 For each story return:
 - headline: attention-grabbing title (60-80 chars)
-- what_happened: 2 sentences of facts (150-200 chars)
-- portfolio_impact: 1-2 sentences why it matters (120-150 chars)
+- what_happened: 3-5 complete sentences of facts and context
+- portfolio_impact: 2-3 complete sentences on investor relevance
 - source: outlet name (Reuters, Bloomberg, WSJ, CNBC, etc.)
 - category: [markets, economy, technology, crypto, real estate, commodities, default]
 
@@ -101,8 +101,8 @@ Return JSON with array of ${count} stories.
             properties: {
               id: { type: "string" },
               headline: { type: "string", maxLength: 80 },
-              what_happened: { type: "string", maxLength: 200 },
-              portfolio_impact: { type: "string", maxLength: 150 },
+              what_happened: { type: "string" },
+              portfolio_impact: { type: "string" },
               source: { type: "string" },
               category: { type: "string" },
               href: { type: "string" },
@@ -122,8 +122,8 @@ Return JSON with array of ${count} stories.
 
     const allowedCats = new Set(["markets", "crypto", "economy", "technology", "real estate", "commodities", "default"]);
 
-    // Helper function for truncation - ensures equal card sizes
-    const truncate = (text, maxLen) => {
+    // Only truncate headline, keep everything else full length
+    const truncateHeadline = (text, maxLen) => {
       const clean = safeText(text, "");
       if (clean.length <= maxLen) return clean;
       return clean.substring(0, maxLen - 3) + "...";
@@ -137,11 +137,11 @@ Return JSON with array of ${count} stories.
         id: safeText(story?.id, randomId()),
         href: safeText(story?.href, "#"),
         imageUrl: categoryImageUrl(category),
-        title: truncate(story?.headline, 80),
-        what_happened: truncate(story?.what_happened, 200),
-        why_it_matters: truncate(story?.portfolio_impact, 150),
+        title: truncateHeadline(story?.headline, 80),
+        what_happened: safeText(story?.what_happened, ""),
+        why_it_matters: safeText(story?.portfolio_impact, ""),
         both_sides: {
-          side_a: truncate(story?.portfolio_impact, 150),
+          side_a: safeText(story?.portfolio_impact, ""),
           side_b: ""
         },
         outlet: safeText(story?.source, "Unknown"),
