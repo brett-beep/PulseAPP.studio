@@ -403,11 +403,12 @@ Return JSON only.`;
   imageUrl: article.image || categoryImageUrl(category),
   title: safeText(article.headline, ""),
   what_happened: whatHappened,
-  why_it_matters: cappedWhyItMatters,
-  both_sides: {
-    side_a: cappedWhyItMatters,
-    side_b: "",
-  },
+  why_it_matters: whyItMatters,
+both_sides: {
+  side_a: whyItMatters,
+  side_b: "",
+},
+
   outlet: safeText(article.source, "Unknown"),
   category,
   datetime: article.datetime,
