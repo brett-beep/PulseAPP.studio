@@ -45,19 +45,19 @@ export default function NewsCard({ story, index }) {
             </h3>
 
             {/* Description (What Happened) */}
-            <div className="flex-shrink-0 mb-4">
-                <p className={`text-slate-600 text-sm leading-relaxed ${!isExpanded && needsExpansion ? 'line-clamp-3' : ''}`}>
-                    {descriptionText}
-                </p>
-                {needsExpansion && (
-                    <button
-                        onClick={() => setIsExpanded(!isExpanded)}
-                        className="text-xs font-medium text-amber-600 hover:text-amber-700 transition-colors mt-1"
-                    >
-                        {isExpanded ? '← Show less' : 'Read more →'}
-                    </button>
-                )}
-            </div>
+<div className="flex-shrink-0 mb-4">
+    <p className={`text-slate-600 text-sm leading-relaxed ${!isExpanded && needsExpansion ? 'line-clamp-3' : ''}`}>
+        {descriptionText}
+    </p>
+    {needsExpansion && (
+        <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="text-xs font-medium text-amber-600 hover:text-amber-700 transition-colors mt-1"
+        >
+            {isExpanded ? '← Show less' : 'Read more →'}
+        </button>
+    )}
+</div>
 
             {/* Why It Matters - Always fully visible */}
             {(story.relevance_reason || story.why_it_matters) && (
