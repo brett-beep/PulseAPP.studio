@@ -58,9 +58,14 @@ Deno.serve(async (req) => {
     const count = body?.count || 5;
     const preferences = body?.preferences || {};
 
+    // ========== DEBUG: Log incoming preferences ==========
+    console.log("📥 [fetchNewsCards] Received body:", JSON.stringify(body, null, 2));
+    console.log("📥 [fetchNewsCards] Preferences object:", JSON.stringify(preferences, null, 2));
+
     // Get Finnhub API key from environment
     const finnhubApiKey = Deno.env.get("FINNHUB_API_KEY");
     if (!finnhubApiKey) {
+      console.error("❌ FINNHUB_API_KEY not configured in environment");
       return Response.json({ error: "FINNHUB_API_KEY not configured" }, { status: 500 });
     }
 
@@ -73,7 +78,7 @@ Deno.serve(async (req) => {
 
     if (!finnhubResponse.ok) {
       const errorText = await finnhubResponse.text();
-      console.error("Finnhub API error:", errorText);
+      console.error("❌ Finnhub API error:", errorText);
       return Response.json({ error: "Failed to fetch news from Finnhub" }, { status: 500 });
     }
 
@@ -81,33 +86,50 @@ Deno.serve(async (req) => {
     console.log(`📰 Received ${finnhubNews.length} articles from Finnhub`);
 
     if (!Array.isArray(finnhubNews) || finnhubNews.length === 0) {
+      console.error("❌ No news available from Finnhub");
       return Response.json({ error: "No news available from Finnhub" }, { status: 500 });
     }
 
-    // Get user's interests for relevance scoring
+    // ========== DEBUG: Log extracted user preferences ==========
     const userInterests = preferences?.investment_interests || preferences?.interests || [];
     const userHoldings = preferences?.portfolio_holdings || preferences?.holdings || [];
+    
+    console.log("🎯 [fetchNewsCards] Extracted user interests:", JSON.stringify(userInterests));
+    console.log("📊 [fetchNewsCards] Extracted user holdings:", JSON.stringify(userHoldings));
+    console.log("🎯 [fetchNewsCards] Interests is array?", Array.isArray(userInterests));
+    console.log("📊 [fetchNewsCards] Holdings is array?", Array.isArray(userHoldings));
 
     // Score and sort news by relevance to user preferences
     const scoredNews = finnhubNews.map(article => {
       let relevanceScore = 0;
       const textToSearch = `${article.headline} ${article.summary}`.toLowerCase();
+      const matchReasons = []; // DEBUG: Track why articles scored
 
       // Boost score for articles matching user interests
-      if (Array.isArray(userInterests)) {
+      if (Array.isArray(userInterests) && userInterests.length > 0) {
         userInterests.forEach(interest => {
-          if (textToSearch.includes(interest.toLowerCase())) {
+          const interestLower = interest.toLowerCase();
+          if (textToSearch.includes(interestLower)) {
             relevanceScore += 10;
+            matchReasons.push(`Interest match: ${interest}`);
           }
         });
       }
 
       // Boost score for articles mentioning user's holdings
-      if (Array.isArray(userHoldings)) {
+      if (Array.isArray(userHoldings) && userHoldings.length > 0) {
         userHoldings.forEach(holding => {
           const symbol = typeof holding === 'string' ? holding : holding?.symbol;
+          const name = typeof holding === 'string' ? null : holding?.name;
+          
           if (symbol && textToSearch.includes(symbol.toLowerCase())) {
             relevanceScore += 15;
+            matchReasons.push(`Holding symbol match: ${symbol}`);
+          }
+          // Also check company name if available
+          if (name && textToSearch.includes(name.toLowerCase())) {
+            relevanceScore += 12;
+            matchReasons.push(`Holding name match: ${name}`);
           }
         });
       }
@@ -115,11 +137,18 @@ Deno.serve(async (req) => {
       // Recency bonus (newer = higher score)
       const articleAge = Date.now() / 1000 - article.datetime;
       const hoursOld = articleAge / 3600;
-      if (hoursOld < 1) relevanceScore += 5;
-      else if (hoursOld < 6) relevanceScore += 3;
-      else if (hoursOld < 24) relevanceScore += 1;
+      if (hoursOld < 1) {
+        relevanceScore += 5;
+        matchReasons.push("Recency: <1hr old");
+      } else if (hoursOld < 6) {
+        relevanceScore += 3;
+        matchReasons.push("Recency: <6hrs old");
+      } else if (hoursOld < 24) {
+        relevanceScore += 1;
+        matchReasons.push("Recency: <24hrs old");
+      }
 
-      return { ...article, relevanceScore };
+      return { ...article, relevanceScore, matchReasons };
     });
 
     // Sort by relevance score (highest first), then by recency
@@ -128,6 +157,12 @@ Deno.serve(async (req) => {
         return b.relevanceScore - a.relevanceScore;
       }
       return b.datetime - a.datetime;
+    });
+
+    // ========== DEBUG: Log top scored articles ==========
+    console.log("🏆 [fetchNewsCards] Top 10 scored articles:");
+    scoredNews.slice(0, 10).forEach((article, i) => {
+      console.log(`  ${i + 1}. Score: ${article.relevanceScore} | "${article.headline.slice(0, 60)}..." | Reasons: ${article.matchReasons.join(', ') || 'None'}`);
     });
 
     // Take top N stories
@@ -154,18 +189,29 @@ Deno.serve(async (req) => {
         outlet: safeText(article.source, "Unknown"),
         category,
         datetime: article.datetime,
+        // DEBUG: Include score info (can remove later)
+        _debug_score: article.relevanceScore,
+        _debug_reasons: article.matchReasons,
       };
     });
+
+    console.log(`✅ [fetchNewsCards] Returning ${stories.length} stories`);
 
     return Response.json({
       success: true,
       stories,
       count: stories.length,
-      source: "finnhub"
+      source: "finnhub",
+      // DEBUG: Include preference info in response (can remove later)
+      _debug: {
+        receivedInterests: userInterests,
+        receivedHoldings: userHoldings,
+        totalArticlesFetched: finnhubNews.length,
+      }
     });
 
   } catch (error) {
-    console.error("Error in fetchNewsCards:", error);
+    console.error("❌ Error in fetchNewsCards:", error);
     return Response.json({ 
       error: error?.message || String(error), 
       stack: error?.stack 
