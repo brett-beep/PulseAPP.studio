@@ -45,31 +45,32 @@ function detectCategory(headline, summary) {
   if (text.match(/fed|inflation|gdp|unemployment|interest rate|economy|economic|recession|jobs report/)) return "economy";
   if (text.match(/stock|market|s&p|nasdaq|dow|earnings|ipo|merger|acquisition/)) return "markets";
   
-  return "markets"; // Default to markets for financial news
+  return "markets";
 }
 
 Deno.serve(async (req) => {
   try {
+    console.log("🚀 [fetchNewsCards] Function started");
+    
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
-    if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+    
+    if (!user) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     const body = await req.json().catch(() => ({}));
     const count = body?.count || 5;
     const preferences = body?.preferences || {};
 
-    // ========== DEBUG: Log incoming preferences ==========
-    console.log("📥 [fetchNewsCards] Received body:", JSON.stringify(body, null, 2));
-    console.log("📥 [fetchNewsCards] Preferences object:", JSON.stringify(preferences, null, 2));
-
-    // Get Finnhub API key from environment
-    const finnhubApiKey = Deno.env.get("FINNHUB_API_KEY");
+    // Get Finnhub API key
+    const finnhubApiKey = Deno.env.get("FINNHUB_API_KEY") || Deno.env.get("VITE_FINNHUB_API_KEY");
+    
     if (!finnhubApiKey) {
-      console.error("❌ FINNHUB_API_KEY not configured in environment");
       return Response.json({ error: "FINNHUB_API_KEY not configured" }, { status: 500 });
     }
 
-    console.log("📡 Fetching news from Finnhub API...");
+    console.log("📡 [fetchNewsCards] Fetching news from Finnhub...");
 
     // Fetch general market news from Finnhub
     const finnhubResponse = await fetch(
@@ -83,104 +84,137 @@ Deno.serve(async (req) => {
     }
 
     const finnhubNews = await finnhubResponse.json();
-    console.log(`📰 Received ${finnhubNews.length} articles from Finnhub`);
+    console.log(`📰 [fetchNewsCards] Received ${finnhubNews?.length || 0} articles`);
 
     if (!Array.isArray(finnhubNews) || finnhubNews.length === 0) {
-      console.error("❌ No news available from Finnhub");
-      return Response.json({ error: "No news available from Finnhub" }, { status: 500 });
+      return Response.json({ error: "No news available" }, { status: 500 });
     }
 
-    // ========== DEBUG: Log extracted user preferences ==========
+    // Get user preferences for relevance scoring
     const userInterests = preferences?.investment_interests || preferences?.interests || [];
     const userHoldings = preferences?.portfolio_holdings || preferences?.holdings || [];
-    
-    console.log("🎯 [fetchNewsCards] Extracted user interests:", JSON.stringify(userInterests));
-    console.log("📊 [fetchNewsCards] Extracted user holdings:", JSON.stringify(userHoldings));
-    console.log("🎯 [fetchNewsCards] Interests is array?", Array.isArray(userInterests));
-    console.log("📊 [fetchNewsCards] Holdings is array?", Array.isArray(userHoldings));
 
-    // Score and sort news by relevance to user preferences
+    // Score and sort news by relevance
     const scoredNews = finnhubNews.map(article => {
       let relevanceScore = 0;
-      const textToSearch = `${article.headline} ${article.summary}`.toLowerCase();
-      const matchReasons = []; // DEBUG: Track why articles scored
+      const textToSearch = `${article.headline || ''} ${article.summary || ''}`.toLowerCase();
 
-      // Boost score for articles matching user interests
-      if (Array.isArray(userInterests) && userInterests.length > 0) {
+      // Boost for matching interests
+      if (Array.isArray(userInterests)) {
         userInterests.forEach(interest => {
-          const interestLower = interest.toLowerCase();
-          if (textToSearch.includes(interestLower)) {
+          if (interest && textToSearch.includes(interest.toLowerCase())) {
             relevanceScore += 10;
-            matchReasons.push(`Interest match: ${interest}`);
           }
         });
       }
 
-      // Boost score for articles mentioning user's holdings
-      if (Array.isArray(userHoldings) && userHoldings.length > 0) {
+      // Boost for matching holdings
+      if (Array.isArray(userHoldings)) {
         userHoldings.forEach(holding => {
           const symbol = typeof holding === 'string' ? holding : holding?.symbol;
-          const name = typeof holding === 'string' ? null : holding?.name;
-          
           if (symbol && textToSearch.includes(symbol.toLowerCase())) {
             relevanceScore += 15;
-            matchReasons.push(`Holding symbol match: ${symbol}`);
-          }
-          // Also check company name if available
-          if (name && textToSearch.includes(name.toLowerCase())) {
-            relevanceScore += 12;
-            matchReasons.push(`Holding name match: ${name}`);
           }
         });
       }
 
-      // Recency bonus (newer = higher score)
-      const articleAge = Date.now() / 1000 - article.datetime;
-      const hoursOld = articleAge / 3600;
-      if (hoursOld < 1) {
-        relevanceScore += 5;
-        matchReasons.push("Recency: <1hr old");
-      } else if (hoursOld < 6) {
-        relevanceScore += 3;
-        matchReasons.push("Recency: <6hrs old");
-      } else if (hoursOld < 24) {
-        relevanceScore += 1;
-        matchReasons.push("Recency: <24hrs old");
-      }
+      // Recency bonus
+      const hoursOld = (Date.now() / 1000 - (article.datetime || 0)) / 3600;
+      if (hoursOld < 1) relevanceScore += 5;
+      else if (hoursOld < 6) relevanceScore += 3;
+      else if (hoursOld < 24) relevanceScore += 1;
 
-      return { ...article, relevanceScore, matchReasons };
+      return { ...article, relevanceScore };
     });
 
-    // Sort by relevance score (highest first), then by recency
+    // Sort by relevance, then recency
     scoredNews.sort((a, b) => {
-      if (b.relevanceScore !== a.relevanceScore) {
-        return b.relevanceScore - a.relevanceScore;
-      }
-      return b.datetime - a.datetime;
-    });
-
-    // ========== DEBUG: Log top scored articles ==========
-    console.log("🏆 [fetchNewsCards] Top 10 scored articles:");
-    scoredNews.slice(0, 10).forEach((article, i) => {
-      console.log(`  ${i + 1}. Score: ${article.relevanceScore} | "${article.headline.slice(0, 60)}..." | Reasons: ${article.matchReasons.join(', ') || 'None'}`);
+      if (b.relevanceScore !== a.relevanceScore) return b.relevanceScore - a.relevanceScore;
+      return (b.datetime || 0) - (a.datetime || 0);
     });
 
     // Take top N stories
     const topNews = scoredNews.slice(0, count);
 
-    // Transform Finnhub format to your app's format
-    const stories = topNews.map((article) => {
-      const category = detectCategory(article.headline, article.summary);
+    console.log("🤖 [fetchNewsCards] Enhancing stories with LLM...");
+
+    // Use LLM to enhance each story with better summaries
+    const enhancementPrompt = `You are a financial news analyst. Enhance these ${topNews.length} news stories for retail investors.
+
+For each story, provide:
+1. "what_happened" - A clear, specific 2-3 sentence summary with actual numbers, percentages, or key facts. Be specific (e.g., "Mortgage rates rose to 7.2%, up 0.3% this week" not "Mortgage rates jumped higher").
+2. "why_it_matters" - A concise 1-2 sentence explanation of the direct investment implications. Be actionable and specific to investor portfolios.
+
+USER'S INVESTMENT PROFILE:
+- Interests: ${userInterests.length > 0 ? userInterests.join(', ') : 'General markets'}
+- Holdings: ${userHoldings.length > 0 ? userHoldings.map(h => typeof h === 'string' ? h : h?.symbol).join(', ') : 'Not specified'}
+
+NEWS STORIES TO ENHANCE:
+${topNews.map((article, i) => `
+STORY ${i + 1}:
+Headline: ${article.headline || 'No headline'}
+Source: ${article.source || 'Unknown'}
+Raw Summary: ${article.summary || 'No summary available'}
+URL: ${article.url || ''}
+`).join('\n')}
+
+IMPORTANT:
+- Use real numbers and data when available in the source
+- If the source lacks specifics, provide informed context (e.g., typical ranges, historical comparisons)
+- Tailor "why_it_matters" to the user's interests/holdings when relevant
+- Keep what_happened to 2-3 sentences max
+- Keep why_it_matters to 1-2 sentences max
+`;
+
+    const enhancementSchema = {
+      type: "object",
+      properties: {
+        enhanced_stories: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              story_index: { type: "number" },
+              what_happened: { type: "string" },
+              why_it_matters: { type: "string" }
+            },
+            required: ["story_index", "what_happened", "why_it_matters"]
+          }
+        }
+      },
+      required: ["enhanced_stories"]
+    };
+
+    let enhancedData = null;
+    try {
+      enhancedData = await base44.integrations.Core.InvokeLLM({
+        prompt: enhancementPrompt,
+        add_context_from_internet: true, // Allow LLM to fetch additional context
+        response_json_schema: enhancementSchema,
+      });
+      console.log("✅ [fetchNewsCards] LLM enhancement complete");
+    } catch (llmError) {
+      console.error("⚠️ [fetchNewsCards] LLM enhancement failed, using raw summaries:", llmError);
+    }
+
+    // Build the final stories array
+    const stories = topNews.map((article, index) => {
+      const category = detectCategory(article.headline || '', article.summary || '');
       
-      // Generate a "why it matters" based on category
-      const whyItMatters = generateWhyItMatters(article.headline, article.summary, category, userInterests);
+      // Find enhanced content for this story
+      const enhanced = enhancedData?.enhanced_stories?.find(e => e.story_index === index + 1) || 
+                       enhancedData?.enhanced_stories?.[index];
+      
+      // Use enhanced content if available, otherwise fall back to raw
+      const whatHappened = enhanced?.what_happened || safeText(article.summary, "Details pending.");
+      const whyItMatters = enhanced?.why_it_matters || generateFallbackWhyItMatters(category);
 
       return {
         id: safeText(article.id?.toString(), randomId()),
         href: safeText(article.url, "#"),
         imageUrl: article.image || categoryImageUrl(category),
         title: safeText(article.headline, ""),
-        what_happened: safeText(article.summary, ""),
+        what_happened: whatHappened,
         why_it_matters: whyItMatters,
         both_sides: {
           side_a: whyItMatters,
@@ -189,63 +223,36 @@ Deno.serve(async (req) => {
         outlet: safeText(article.source, "Unknown"),
         category,
         datetime: article.datetime,
-        // DEBUG: Include score info (can remove later)
-        _debug_score: article.relevanceScore,
-        _debug_reasons: article.matchReasons,
       };
     });
 
-    console.log(`✅ [fetchNewsCards] Returning ${stories.length} stories`);
+    console.log(`✅ [fetchNewsCards] Returning ${stories.length} enhanced stories`);
 
     return Response.json({
       success: true,
       stories,
       count: stories.length,
       source: "finnhub",
-      // DEBUG: Include preference info in response (can remove later)
-      _debug: {
-        receivedInterests: userInterests,
-        receivedHoldings: userHoldings,
-        totalArticlesFetched: finnhubNews.length,
-      }
+      enhanced: !!enhancedData
     });
 
   } catch (error) {
-    console.error("❌ Error in fetchNewsCards:", error);
+    console.error("❌ [fetchNewsCards] Error:", error);
     return Response.json({ 
-      error: error?.message || String(error), 
-      stack: error?.stack 
+      error: error?.message || String(error)
     }, { status: 500 });
   }
 });
 
-// Generate investor-relevant "why it matters" summary
-function generateWhyItMatters(headline, summary, category, userInterests) {
-  const text = `${headline} ${summary}`.toLowerCase();
-  
-  // Category-specific relevance statements
-  const categoryStatements = {
-    crypto: "Cryptocurrency investors should monitor this development for potential market volatility.",
-    "real estate": "This could impact real estate investments and housing market dynamics.",
-    commodities: "Commodity traders may see price movements based on this news.",
-    technology: "Tech sector investors should consider how this affects growth stocks.",
-    economy: "This macroeconomic development could influence broader market sentiment.",
-    markets: "Market participants should factor this into their investment decisions.",
+// Fallback if LLM fails
+function generateFallbackWhyItMatters(category) {
+  const statements = {
+    crypto: "Monitor for potential volatility in crypto holdings.",
+    "real estate": "May affect REITs and housing-related investments.",
+    commodities: "Could impact commodity ETFs and related positions.",
+    technology: "Consider implications for tech sector holdings.",
+    economy: "May influence broader market sentiment and Fed policy expectations.",
+    markets: "Factor into overall portfolio strategy.",
   };
-
-  // Check for specific themes
-  if (text.includes("earnings") || text.includes("profit") || text.includes("revenue")) {
-    return "Earnings results can significantly impact stock valuations and sector sentiment.";
-  }
-  if (text.includes("fed") || text.includes("interest rate") || text.includes("inflation")) {
-    return "Fed policy and inflation data directly affect market valuations and investment strategies.";
-  }
-  if (text.includes("merger") || text.includes("acquisition") || text.includes("deal")) {
-    return "M&A activity often signals sector consolidation and can create investment opportunities.";
-  }
-  if (text.includes("layoff") || text.includes("job cut") || text.includes("restructur")) {
-    return "Corporate restructuring may indicate challenges but could improve long-term profitability.";
-  }
-
-  return categoryStatements[category] || categoryStatements.markets;
+  return statements[category] || statements.markets;
 }
