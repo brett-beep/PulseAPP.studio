@@ -10,7 +10,7 @@ import RealTimeMarketTicker from "@/components/RealTimeMarketTicker";
 import KeyHighlights from "@/components/KeyHighlights";
 import OnboardingWizard from "@/components/OnboardingWizard";
 
-import { Settings, Headphones, Loader2, Clock } from "lucide-react";
+import { Settings, Headphones, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "react-router-dom";
@@ -21,10 +21,6 @@ export default function Home() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [newsCards, setNewsCards] = useState([]);
   const [isLoadingNews, setIsLoadingNews] = useState(true);
-  
-  // NEW: Countdown timer state for briefing limits
-  const [timeUntilNextBriefing, setTimeUntilNextBriefing] = useState(null);
-  const [canGenerateNew, setCanGenerateNew] = useState(true);
 
   // Fetch current user
   const { data: user, isLoading: userLoading } = useQuery({
@@ -72,93 +68,8 @@ export default function Home() {
   const todayBriefing = briefings?.[0] || null;
   console.log("🔍 [Briefing State] todayBriefing (first item):", todayBriefing);
   console.log("🔍 [Briefing State] audio_url:", todayBriefing?.audio_url);
-
   // =========================================================
-  // NEW: Countdown timer logic for 3-per-day limit with 3-hour gap
-  // =========================================================
-  useEffect(() => {
-    if (!briefings || !Array.isArray(briefings)) {
-      setCanGenerateNew(true);
-      setTimeUntilNextBriefing(null);
-      return;
-    }
-
-    const checkEligibility = () => {
-      const now = new Date();
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
-
-      // Filter briefings from today only (using created_at timestamp)
-      const briefingsToday = briefings.filter(b => {
-        const createdAt = new Date(b.created_at);
-        return createdAt >= todayStart;
-      });
-
-      const briefingCount = briefingsToday.length;
-      console.log("📊 [Countdown] Briefings today:", briefingCount);
-
-      // Check daily limit (3 max)
-      if (briefingCount >= 3) {
-        setCanGenerateNew(false);
-        setTimeUntilNextBriefing("Daily limit reached");
-        return;
-      }
-
-      // If no briefings today, can generate immediately
-      if (briefingCount === 0) {
-        setCanGenerateNew(true);
-        setTimeUntilNextBriefing(null);
-        return;
-      }
-
-      // Check 3-hour cooldown from last briefing
-      const lastBriefing = briefingsToday.sort((a, b) => 
-        new Date(b.created_at) - new Date(a.created_at)
-      )[0];
-      
-      const lastCreatedAt = new Date(lastBriefing.created_at);
-      const threeHoursLater = new Date(lastCreatedAt.getTime() + 3 * 60 * 60 * 1000);
-      const msRemaining = threeHoursLater - now;
-
-      if (msRemaining <= 0) {
-        setCanGenerateNew(true);
-        setTimeUntilNextBriefing(null);
-      } else {
-        setCanGenerateNew(false);
-        
-        // Format remaining time
-        const hours = Math.floor(msRemaining / (1000 * 60 * 60));
-        const minutes = Math.floor((msRemaining % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((msRemaining % (1000 * 60)) / 1000);
-        
-        if (hours > 0) {
-          setTimeUntilNextBriefing(`${hours}h ${minutes}m ${seconds}s`);
-        } else if (minutes > 0) {
-          setTimeUntilNextBriefing(`${minutes}m ${seconds}s`);
-        } else {
-          setTimeUntilNextBriefing(`${seconds}s`);
-        }
-      }
-    };
-
-    // Check immediately
-    checkEligibility();
-
-    // Update every second for countdown
-    const interval = setInterval(checkEligibility, 1000);
-    return () => clearInterval(interval);
-  }, [briefings]);
-
-  // NEW: Get briefing count for today
-  const getBriefingCount = () => {
-    if (!briefings || !Array.isArray(briefings)) return 0;
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    return briefings.filter(b => new Date(b.created_at) >= todayStart).length;
-  };
-
-  // =========================================================
-  // Fetch news cards immediately on page load (with caching)
+  // NEW: Fetch news cards immediately on page load (with caching)
   // Auto-refresh every 30 minutes
   // =========================================================
   useEffect(() => {
@@ -262,8 +173,7 @@ export default function Home() {
   // Generate FULL briefing (script + audio automatically)
   // =========================================================
   const generateFullBriefing = async () => {
-    // NEW: Check if generation is allowed
-    if (isGenerating || !canGenerateNew) return;
+    if (isGenerating) return;
 
     setIsGenerating(true);
     try {
@@ -294,6 +204,8 @@ export default function Home() {
       } else {
         console.log("✅ Briefing generated successfully");
         await refetchBriefing();
+        // Optional: refresh news cards after briefing is generated
+        // setNewsCards(response.data.briefing.news_stories || newsCards);
       }
     } catch (error) {
       console.error("❌ Error generating briefing:", error);
@@ -409,10 +321,6 @@ export default function Home() {
             onGenerate={generateFullBriefing}
             isGenerating={isGenerating}
             status={status}
-            // NEW: Pass countdown props to AudioPlayer
-            canGenerateNew={canGenerateNew}
-            timeUntilNextBriefing={timeUntilNextBriefing}
-            briefingCount={getBriefingCount()}
           />
 
           <div className="mt-6">
