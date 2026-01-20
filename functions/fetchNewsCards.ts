@@ -16,7 +16,10 @@ function stripLinksAndUrls(s) {
   t = t.replace(/https?:\/\/\S+/gi, "");
 
   // Remove leftover "(domain.com)" style mentions often produced as citations
-  t = t.replace(/\(\s*[a-z0-9-]+\.(com|net|org|io|co|ca|ai|app)(?:\/[^)]*)?\s*\)/gi, "");
+  t = t.replace(
+    /\(\s*[a-z0-9-]+\.(com|net|org|io|co|ca|ai|app)(?:\/[^)]*)?\s*\)/gi,
+    ""
+  );
 
   // Remove utm fragments that sometimes leak without full URLs
   t = t.replace(/\butm_[a-z0-9_]+\b/gi, "");
@@ -27,6 +30,91 @@ function stripLinksAndUrls(s) {
   t = t.replace(/\n{3,}/g, "\n\n");
 
   return t.trim();
+}
+
+function normalizeHeadline(s) {
+  return String(s || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tokenSet(s) {
+  const stop = new Set([
+    "the","a","an","and","or","but","to","of","in","on","for","with","as","at","by",
+    "from","is","are","was","were","be","been","it","this","that","these","those",
+    "after","before","over","under","into","about","amid","says","say","report","reports",
+    "news","update","latest","today","week","year"
+  ]);
+
+  return new Set(
+    normalizeHeadline(s)
+      .split(" ")
+      .filter((w) => w && w.length > 2 && !stop.has(w))
+  );
+}
+
+function jaccard(aSet, bSet) {
+  if (!aSet.size || !bSet.size) return 0;
+  let inter = 0;
+  for (const x of aSet) if (bSet.has(x)) inter++;
+  const union = aSet.size + bSet.size - inter;
+  return union ? inter / union : 0;
+}
+
+function isNearDuplicate(a, b) {
+  const aText = `${a?.headline || a?.title || ""} ${a?.summary || ""}`;
+  const bText = `${b?.headline || b?.title || ""} ${b?.summary || ""}`;
+
+  const aTokens = tokenSet(aText);
+  const bTokens = tokenSet(bText);
+
+  const sim = jaccard(aTokens, bTokens);
+
+  // If categories differ, we tolerate more similarity (spillover stories)
+  const aCat = detectCategory(a?.headline || "", a?.summary || "");
+  const bCat = detectCategory(b?.headline || "", b?.summary || "");
+  const differentCategory = aCat !== bCat;
+
+  // Heuristic: if overlap is mostly a couple of named entities, don't treat as duplicate
+  // (e.g., only "powell", "fed" overlap but everything else differs)
+  const common = [];
+  for (const t of aTokens) if (bTokens.has(t)) common.push(t);
+
+  const entityish = new Set(["fed","federal","reserve","powell","doj","trump","court","supreme"]);
+  const commonEntityishCount = common.filter(t => entityish.has(t)).length;
+  const commonNonEntityishCount = common.length - commonEntityishCount;
+
+  // Decision rule:
+  // - Same category: dedupe if very similar
+  // - Different category: dedupe only if extremely similar
+  // - If overlap is mostly entityish and low non-entity overlap, do NOT dedupe
+  if (commonNonEntityishCount <= 2 && commonEntityishCount >= 2) return false;
+
+  if (!differentCategory) return sim >= 0.58;
+  return sim >= 0.72;
+}
+
+
+function pickDiverseTopK(sortedArticles, k) {
+  const picked = [];
+  for (const art of sortedArticles) {
+    if (!art?.headline && !art?.title) continue;
+
+    let dup = false;
+    for (const p of picked) {
+      if (isNearDuplicate(art, p)) {
+        dup = true;
+        break;
+      }
+    }
+    if (dup) continue;
+
+    picked.push(art);
+    if (picked.length >= k) break;
+  }
+  return picked;
 }
 
 function randomId() {
@@ -61,24 +149,37 @@ function categoryImageUrl(categoryRaw) {
 // Detect category from headline/summary keywords
 function detectCategory(headline, summary) {
   const text = `${headline} ${summary}`.toLowerCase();
-  
+
   if (text.match(/crypto|bitcoin|ethereum|btc|eth|blockchain|defi|nft/)) return "crypto";
   if (text.match(/real estate|housing|mortgage|property|rent|home price/)) return "real estate";
   if (text.match(/oil|gold|silver|commodity|commodities|wheat|corn|natural gas/)) return "commodities";
   if (text.match(/tech|software|ai|artificial intelligence|chip|semiconductor|apple|google|microsoft|meta|amazon|nvidia/)) return "technology";
   if (text.match(/fed|inflation|gdp|unemployment|interest rate|economy|economic|recession|jobs report/)) return "economy";
   if (text.match(/stock|market|s&p|nasdaq|dow|earnings|ipo|merger|acquisition/)) return "markets";
-  
+
   return "markets";
+}
+
+// Fallback if LLM fails
+function generateFallbackWhyItMatters(category) {
+  const statements = {
+    crypto: "Monitor for potential volatility in crypto holdings.",
+    "real estate": "May affect REITs and housing-related investments.",
+    commodities: "Could impact commodity ETFs and related positions.",
+    technology: "Consider implications for tech sector holdings.",
+    economy: "May influence broader market sentiment and Fed policy expectations.",
+    markets: "Factor into overall portfolio strategy.",
+  };
+  return statements[category] || statements.markets;
 }
 
 Deno.serve(async (req) => {
   try {
     console.log("🚀 [fetchNewsCards] Function started");
-    
+
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
-    
+
     if (!user) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -88,8 +189,9 @@ Deno.serve(async (req) => {
     const preferences = body?.preferences || {};
 
     // Get Finnhub API key
-    const finnhubApiKey = Deno.env.get("FINNHUB_API_KEY") || Deno.env.get("VITE_FINNHUB_API_KEY");
-    
+    const finnhubApiKey =
+      Deno.env.get("FINNHUB_API_KEY") || Deno.env.get("VITE_FINNHUB_API_KEY");
+
     if (!finnhubApiKey) {
       return Response.json({ error: "FINNHUB_API_KEY not configured" }, { status: 500 });
     }
@@ -119,14 +221,14 @@ Deno.serve(async (req) => {
     const userHoldings = preferences?.portfolio_holdings || preferences?.holdings || [];
 
     // Score and sort news by relevance
-    const scoredNews = finnhubNews.map(article => {
+    const scoredNews = finnhubNews.map((article) => {
       let relevanceScore = 0;
-      const textToSearch = `${article.headline || ''} ${article.summary || ''}`.toLowerCase();
+      const textToSearch = `${article.headline || ""} ${article.summary || ""}`.toLowerCase();
 
       // Boost for matching interests
       if (Array.isArray(userInterests)) {
-        userInterests.forEach(interest => {
-          if (interest && textToSearch.includes(interest.toLowerCase())) {
+        userInterests.forEach((interest) => {
+          if (interest && textToSearch.includes(String(interest).toLowerCase())) {
             relevanceScore += 10;
           }
         });
@@ -134,9 +236,9 @@ Deno.serve(async (req) => {
 
       // Boost for matching holdings
       if (Array.isArray(userHoldings)) {
-        userHoldings.forEach(holding => {
-          const symbol = typeof holding === 'string' ? holding : holding?.symbol;
-          if (symbol && textToSearch.includes(symbol.toLowerCase())) {
+        userHoldings.forEach((holding) => {
+          const symbol = typeof holding === "string" ? holding : holding?.symbol;
+          if (symbol && textToSearch.includes(String(symbol).toLowerCase())) {
             relevanceScore += 15;
           }
         });
@@ -157,8 +259,24 @@ Deno.serve(async (req) => {
       return (b.datetime || 0) - (a.datetime || 0);
     });
 
-    // Take top N stories
-    const topNews = scoredNews.slice(0, count);
+    // ✅ NEW: diversify so we don't return 5 versions of the same story
+    const CANDIDATE_POOL = Math.max(40, count * 8);
+    const candidates = scoredNews.slice(0, CANDIDATE_POOL);
+    const topNews = pickDiverseTopK(candidates, count);
+
+    // If diversification filtered too aggressively, backfill with the next best
+    if (topNews.length < count) {
+      const already = new Set(topNews.map((a) => a?.id ?? a?.url ?? a?.headline));
+      for (const art of candidates) {
+        const key = art?.id ?? art?.url ?? art?.headline;
+        if (already.has(key)) continue;
+        topNews.push(art);
+        already.add(key);
+        if (topNews.length >= count) break;
+      }
+    }
+
+    console.log(`🧠 [fetchNewsCards] Selected ${topNews.length} diversified stories`);
 
     console.log("🤖 [fetchNewsCards] Enhancing stories with LLM...");
 
@@ -181,17 +299,21 @@ For each story, return:
    - DO NOT include URLs, markdown links, citations, or “(source.com)”.
 
 USER PROFILE:
-- Interests: ${userInterests.length > 0 ? userInterests.join(', ') : 'General markets'}
-- Holdings: ${userHoldings.length > 0 ? userHoldings.map(h => typeof h === 'string' ? h : h?.symbol).join(', ') : 'Not specified'}
+- Interests: ${Array.isArray(userInterests) && userInterests.length > 0 ? userInterests.join(", ") : "General markets"}
+- Holdings: ${Array.isArray(userHoldings) && userHoldings.length > 0 ? userHoldings.map((h) => (typeof h === "string" ? h : h?.symbol)).join(", ") : "Not specified"}
 
 NEWS STORIES:
-${topNews.map((article, i) => `
+${topNews
+  .map(
+    (article, i) => `
 STORY ${i + 1}:
-Headline: ${article.headline || 'No headline'}
-Source: ${article.source || 'Unknown'}
-Raw Summary: ${article.summary || 'No summary available'}
-URL: ${article.url || ''}
-`).join('\n')}
+Headline: ${article.headline || "No headline"}
+Source: ${article.source || "Unknown"}
+Raw Summary: ${article.summary || "No summary available"}
+URL: ${article.url || ""}
+`
+  )
+  .join("\n")}
 
 IMPORTANT:
 - Use real numbers and data when available in the source
@@ -199,7 +321,8 @@ IMPORTANT:
 - Tailor "why_it_matters" to the user's interests/holdings when relevant
 - Keep what_happened to 2-3 sentences max
 - Keep why_it_matters to 1-2 sentences max
-`;
+
+Return JSON only.`;
 
     const enhancementSchema = {
       type: "object",
@@ -211,20 +334,20 @@ IMPORTANT:
             properties: {
               story_index: { type: "number" },
               what_happened: { type: "string" },
-              why_it_matters: { type: "string" }
+              why_it_matters: { type: "string" },
             },
-            required: ["story_index", "what_happened", "why_it_matters"]
-          }
-        }
+            required: ["story_index", "what_happened", "why_it_matters"],
+          },
+        },
       },
-      required: ["enhanced_stories"]
+      required: ["enhanced_stories"],
     };
 
     let enhancedData = null;
     try {
       enhancedData = await base44.integrations.Core.InvokeLLM({
         prompt: enhancementPrompt,
-        add_context_from_internet: true, // Allow LLM to fetch additional context
+        add_context_from_internet: true,
         response_json_schema: enhancementSchema,
       });
       console.log("✅ [fetchNewsCards] LLM enhancement complete");
@@ -234,21 +357,20 @@ IMPORTANT:
 
     // Build the final stories array
     const stories = topNews.map((article, index) => {
-      const category = detectCategory(article.headline || '', article.summary || '');
-      
-      // Find enhanced content for this story
-      const enhanced = enhancedData?.enhanced_stories?.find(e => e.story_index === index + 1) || 
-                       enhancedData?.enhanced_stories?.[index];
-      
-      // Use enhanced content if available, otherwise fall back to raw
-     const whatHappenedRaw =
-  enhanced?.what_happened || safeText(article.summary, "Details pending.");
-const whyItMattersRaw =
-  enhanced?.why_it_matters || generateFallbackWhyItMatters(category);
+      const category = detectCategory(article.headline || "", article.summary || "");
 
-const whatHappened = stripLinksAndUrls(whatHappenedRaw);
-const whyItMatters = stripLinksAndUrls(whyItMattersRaw);
+      const enhanced =
+        enhancedData?.enhanced_stories?.find((e) => e.story_index === index + 1) ||
+        enhancedData?.enhanced_stories?.[index];
 
+      const whatHappenedRaw =
+        enhanced?.what_happened || safeText(article.summary, "Details pending.");
+
+      const whyItMattersRaw =
+        enhanced?.why_it_matters || generateFallbackWhyItMatters(category);
+
+      const whatHappened = stripLinksAndUrls(whatHappenedRaw);
+      const whyItMatters = stripLinksAndUrls(whyItMattersRaw);
 
       return {
         id: safeText(article.id?.toString(), randomId()),
@@ -259,7 +381,7 @@ const whyItMatters = stripLinksAndUrls(whyItMattersRaw);
         why_it_matters: whyItMatters,
         both_sides: {
           side_a: whyItMatters,
-          side_b: ""
+          side_b: "",
         },
         outlet: safeText(article.source, "Unknown"),
         category,
@@ -274,26 +396,16 @@ const whyItMatters = stripLinksAndUrls(whyItMattersRaw);
       stories,
       count: stories.length,
       source: "finnhub",
-      enhanced: !!enhancedData
+      enhanced: !!enhancedData,
+      diversified: true,
     });
-
   } catch (error) {
     console.error("❌ [fetchNewsCards] Error:", error);
-    return Response.json({ 
-      error: error?.message || String(error)
-    }, { status: 500 });
+    return Response.json(
+      {
+        error: error?.message || String(error),
+      },
+      { status: 500 }
+    );
   }
 });
-
-// Fallback if LLM fails
-function generateFallbackWhyItMatters(category) {
-  const statements = {
-    crypto: "Monitor for potential volatility in crypto holdings.",
-    "real estate": "May affect REITs and housing-related investments.",
-    commodities: "Could impact commodity ETFs and related positions.",
-    technology: "Consider implications for tech sector holdings.",
-    economy: "May influence broader market sentiment and Fed policy expectations.",
-    markets: "Factor into overall portfolio strategy.",
-  };
-  return statements[category] || statements.markets;
-}
