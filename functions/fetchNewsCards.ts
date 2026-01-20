@@ -49,46 +49,42 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
-    const preferences = body?.preferences ?? {};
-    const count = body?.count || 5; // default 5 stories
+    const count = body?.count || 5;
+    const preferences = body?.preferences || {};
 
     const prefProfile = {
-      risk_tolerance: preferences?.risk_tolerance ?? preferences?.riskLevel ?? null,
-      time_horizon: preferences?.time_horizon ?? preferences?.horizon ?? null,
-      goals: preferences?.goals ?? null,
-      sectors: preferences?.sectors ?? null,
-      regions: preferences?.regions ?? null,
-      watchlist: preferences?.watchlist ?? preferences?.tickers ?? null,
-      holdings: preferences?.holdings ?? null,
-      interests: preferences?.interests ?? null,
-      constraints: preferences?.constraints ?? null,
+      interests: preferences?.interests ?? preferences?.investment_interests ?? null,
+      holdings: preferences?.holdings ?? preferences?.portfolio_holdings ?? null,
+      goals: preferences?.goals ?? preferences?.investment_goals ?? null,
     };
 
-    // =========================================================
-    // Fetch Breaking News Cards (fast, no audio generation)
-    // =========================================================
+    console.log("📡 Fetching news cards with preferences:", prefProfile);
+
     const newsPrompt = `
-You are curating breaking financial news cards for an investor dashboard.
+You are curating ${count} TOP NEWS STORIES for an investor news feed.
 
-Fetch the TOP ${count} most important financial/market stories from the LAST 24 HOURS.
+CRITICAL: These must be REAL, CURRENT financial/market news from the last 24 hours.
 
-USER PROFILE (prioritize relevance):
+USER PROFILE (use to PRIORITIZE relevant stories):
 ${JSON.stringify(prefProfile, null, 2)}
 
-Selection criteria:
-1. RECENCY: Last 24 hours only
-2. MARKET IMPACT: Stories that move markets
-3. RELEVANCE: Match user's holdings/sectors/interests
+${prefProfile.interests && Array.isArray(prefProfile.interests) && prefProfile.interests.length > 0 
+  ? `\nPRIORITY INTERESTS: ${prefProfile.interests.join(', ')}. Prioritize stories in these areas.`
+  : ''}
 
-For each story provide:
-- headline: Clear, engaging title (8-12 words)
-- summary: 2-3 sentences explaining what happened
-- portfolio_insight: 1-2 sentences on what this means for investors (personalized to user profile)
-- source: Outlet name (Reuters, Bloomberg, WSJ, etc.)
-- category: [markets, crypto, economy, technology, real estate, commodities, default]
-- url: Link to original article if available
+STRICT LENGTH REQUIREMENTS (for equal-sized UI cards):
+- headline: 60-80 characters max (be punchy and direct)
+- what_happened: 150-200 characters max (2 short sentences, facts only)
+- portfolio_impact: 120-150 characters max (1-2 sentences, investor relevance)
 
-Return JSON only.
+For each story return:
+- headline: attention-grabbing title (60-80 chars)
+- what_happened: 2 sentences of facts (150-200 chars)
+- portfolio_impact: 1-2 sentences why it matters (120-150 chars)
+- source: outlet name (Reuters, Bloomberg, WSJ, CNBC, etc.)
+- category: [markets, economy, technology, crypto, real estate, commodities, default]
+
+Return JSON with array of ${count} stories.
 `;
 
     const newsSchema = {
@@ -104,14 +100,14 @@ Return JSON only.
             additionalProperties: true,
             properties: {
               id: { type: "string" },
-              headline: { type: "string" },
-              summary: { type: "string" },
-              portfolio_insight: { type: "string" },
+              headline: { type: "string", maxLength: 80 },
+              what_happened: { type: "string", maxLength: 200 },
+              portfolio_impact: { type: "string", maxLength: 150 },
               source: { type: "string" },
               category: { type: "string" },
-              url: { type: "string" },
+              href: { type: "string" },
             },
-            required: ["headline", "summary", "portfolio_insight", "source", "category"],
+            required: ["headline", "what_happened", "portfolio_impact", "source", "category"],
           },
         },
       },
@@ -124,42 +120,39 @@ Return JSON only.
       return Response.json({ error: "Failed to fetch news stories" }, { status: 500 });
     }
 
-    const allowedCats = new Set([
-      "markets",
-      "crypto",
-      "economy",
-      "technology",
-      "real estate",
-      "commodities",
-      "default",
-    ]);
+    const allowedCats = new Set(["markets", "crypto", "economy", "technology", "real estate", "commodities", "default"]);
 
-    const newsCards = newsData.stories.map((story) => {
+    const stories = newsData.stories.map((story) => {
       const rawCat = safeText(story?.category, "default").toLowerCase();
       const category = allowedCats.has(rawCat) ? rawCat : "default";
 
       return {
         id: safeText(story?.id, randomId()),
-        headline: safeText(story?.headline, "Breaking News"),
-        summary: safeText(story?.summary, ""),
-        portfolioInsight: safeText(story?.portfolio_insight, ""),
-        source: safeText(story?.source, "Unknown"),
-        category,
+        href: safeText(story?.href, "#"),
         imageUrl: categoryImageUrl(category),
-        url: safeText(story?.url, "#"),
+        title: safeText(story?.headline, "Breaking News"),
+        what_happened: safeText(story?.what_happened, ""),
+        why_it_matters: safeText(story?.portfolio_impact, ""),
+        both_sides: {
+          side_a: safeText(story?.portfolio_impact, ""),
+          side_b: ""
+        },
+        outlet: safeText(story?.source, "Unknown"),
+        category,
       };
     });
 
     return Response.json({
       success: true,
-      stories: newsCards,
-      count: newsCards.length,
+      stories,
+      count: stories.length,
     });
+
   } catch (error) {
     console.error("Error in fetchNewsCards:", error);
-    return Response.json(
-      { error: error?.message || String(error), stack: error?.stack },
-      { status: 500 }
-    );
+    return Response.json({ 
+      error: error?.message || String(error), 
+      stack: error?.stack 
+    }, { status: 500 });
   }
 });
