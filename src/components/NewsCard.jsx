@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ExternalLink, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
 
 const categoryColors = {
@@ -26,9 +25,13 @@ export default function NewsCard({ story, index }) {
 
     return (
         <motion.article
+            layout
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1 }}
+            transition={{ 
+                delay: index * 0.1,
+                layout: { duration: 0.3, ease: [0.4, 0, 0.2, 1] }
+            }}
             whileHover={{ y: -4 }}
             className="group bg-white rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-100 flex flex-col"
             style={{ alignSelf: 'flex-start' }}
@@ -45,38 +48,63 @@ export default function NewsCard({ story, index }) {
             </div>
 
             {/* Title - Fixed to 2 lines with ellipsis */}
-            <h3 className="text-lg font-semibold text-slate-900 mb-2 leading-tight group-hover:text-amber-600 transition-colors line-clamp-2 flex-shrink-0">
+            <motion.h3 
+                layout
+                className="text-lg font-semibold text-slate-900 mb-2 leading-tight group-hover:text-amber-600 transition-colors line-clamp-2 flex-shrink-0"
+            >
                 {story.title}
-            </h3>
+            </motion.h3>
 
-            {/* Description - Expandable with inline more button - SIMPLIFIED */}
-            <div className="flex-shrink-0 mb-4">
-                <p className={`text-slate-600 text-sm leading-relaxed ${!isExpanded ? 'line-clamp-3' : ''}`}>
-                    {story.what_happened || story.summary}
-                    {needsExpansion && !isExpanded && '... '}
+            {/* Description - Expandable with inline more button */}
+            <motion.div 
+                layout
+                className="flex-shrink-0 mb-4 overflow-hidden"
+            >
+                <motion.p 
+                    layout="position"
+                    className="text-slate-600 text-sm leading-relaxed"
+                >
+                    <motion.span
+                        layout="position"
+                        animate={{ opacity: 1 }}
+                        className={!isExpanded ? 'line-clamp-3' : ''}
+                    >
+                        {story.what_happened || story.summary}
+                    </motion.span>
+                    {needsExpansion && !isExpanded && '...'}
                     {needsExpansion && (
                         <button
                             onClick={() => setIsExpanded(!isExpanded)}
-                            className="inline text-xs font-bold underline text-slate-500 hover:text-amber-500 transition-colors ml-0"
+                            className="text-xs font-bold underline text-slate-500 hover:text-amber-500 transition-colors"
                         >
                             {isExpanded ? 'less' : 'more'}
                         </button>
                     )}
-                </p>
-            </div>
+                </motion.p>
+            </motion.div>
 
-            {/* Impact - Expandable, pushes to bottom - SIMPLIFIED */}
+            {/* Impact - Expandable, pushes to bottom */}
             {(story.relevance_reason || story.why_it_matters) && (
-                <div className="pt-4 border-t border-slate-100 mt-auto">
+                <motion.div 
+                    layout
+                    className="pt-4 border-t border-slate-100 mt-auto"
+                >
                     <div className="flex items-start gap-2">
                         <div className="w-1 h-1 bg-amber-400 rounded-full mt-1.5 flex-shrink-0" />
-                        <div className="flex-1">
-                            <p className={`text-xs text-slate-500 italic ${!isExpanded ? 'line-clamp-2' : ''}`}>
+                        <motion.div 
+                            layout="position"
+                            className="flex-1 overflow-hidden"
+                        >
+                            <motion.p 
+                                layout="position"
+                                animate={{ opacity: 1 }}
+                                className={`text-xs text-slate-500 italic ${!isExpanded ? 'line-clamp-2' : ''}`}
+                            >
                                 {story.why_it_matters || story.relevance_reason}
-                            </p>
-                        </div>
+                            </motion.p>
+                        </motion.div>
                     </div>
-                </div>
+                </motion.div>
             )}
         </motion.article>
     );
