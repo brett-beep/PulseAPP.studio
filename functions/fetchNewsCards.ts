@@ -122,6 +122,13 @@ Return JSON with array of ${count} stories.
 
     const allowedCats = new Set(["markets", "crypto", "economy", "technology", "real estate", "commodities", "default"]);
 
+    // Helper function for truncation - ensures equal card sizes
+    const truncate = (text, maxLen) => {
+      const clean = safeText(text, "");
+      if (clean.length <= maxLen) return clean;
+      return clean.substring(0, maxLen - 3) + "...";
+    };
+
     const stories = newsData.stories.map((story) => {
       const rawCat = safeText(story?.category, "default").toLowerCase();
       const category = allowedCats.has(rawCat) ? rawCat : "default";
@@ -130,11 +137,11 @@ Return JSON with array of ${count} stories.
         id: safeText(story?.id, randomId()),
         href: safeText(story?.href, "#"),
         imageUrl: categoryImageUrl(category),
-        title: safeText(story?.headline, "Breaking News"),
-        what_happened: safeText(story?.what_happened, ""),
-        why_it_matters: safeText(story?.portfolio_impact, ""),
+        title: truncate(story?.headline, 80),
+        what_happened: truncate(story?.what_happened, 200),
+        why_it_matters: truncate(story?.portfolio_impact, 150),
         both_sides: {
-          side_a: safeText(story?.portfolio_impact, ""),
+          side_a: truncate(story?.portfolio_impact, 150),
           side_b: ""
         },
         outlet: safeText(story?.source, "Unknown"),
