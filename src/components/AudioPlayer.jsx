@@ -1,7 +1,7 @@
 // UPDATED AudioPlayer.jsx - Add countdown timer and disabled state
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, RotateCcw, Clock } from 'lucide-react';
+import { Play, Pause, RotateCcw, Clock, Loader2, Headphones } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 
@@ -25,26 +25,15 @@ export default function AudioPlayer({
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
   const audioRef = useRef(null);
 
-  // Log component state
-  console.log('🎵 [AudioPlayer Component] Rendered with audioUrl:', audioUrl);
-  console.log('🎵 [AudioPlayer Component] isGenerating:', isGenerating);
-  console.log('🎵 [AudioPlayer Component] status:', status);
-  console.log('🎵 [AudioPlayer Component] canGenerateNew:', canGenerateNew);
-  console.log('🎵 [AudioPlayer Component] timeUntilNextBriefing:', timeUntilNextBriefing);
-  console.log('🎵 [AudioPlayer Component] briefingCount:', briefingCount);
-
   // Setup audio element
   useEffect(() => {
     if (!audioRef.current) {
-      console.log('🎵 [Audio Element] No audio ref');
       return;
     }
 
     const audio = audioRef.current;
-    console.log('🎵 [Audio Element] Setting up event listeners for:', audioUrl);
 
     const handleLoadedMetadata = () => {
-      console.log('🎵 [Audio Element] Metadata loaded, duration:', audio.duration);
       setAudioDuration(audio.duration);
     };
 
@@ -53,25 +42,18 @@ export default function AudioPlayer({
     };
 
     const handleEnded = () => {
-      console.log('🎵 [Audio Element] Playback ended');
       setIsPlaying(false);
       setCurrentTime(0);
-    };
-
-    const handleCanPlay = () => {
-      console.log('🎵 [Audio Element] Can play');
     };
 
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('ended', handleEnded);
-    audio.addEventListener('canplay', handleCanPlay);
 
     return () => {
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('ended', handleEnded);
-      audio.removeEventListener('canplay', handleCanPlay);
     };
   }, [audioUrl]);
 
