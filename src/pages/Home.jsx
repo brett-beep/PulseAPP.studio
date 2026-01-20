@@ -70,6 +70,7 @@ export default function Home() {
   console.log("🔍 [Briefing State] audio_url:", todayBriefing?.audio_url);
   // =========================================================
   // NEW: Fetch news cards immediately on page load (with caching)
+  // Auto-refresh every 30 minutes
   // =========================================================
   useEffect(() => {
     async function loadNewsCards() {
@@ -86,7 +87,17 @@ export default function Home() {
         console.log("✅ Using cached news cards");
         setNewsCards(JSON.parse(cachedNews));
         setIsLoadingNews(false);
-        return;
+        
+        // Set up auto-refresh after remaining cache time
+        const timeUntilRefresh = thirtyMinutes - (now - parseInt(cacheTimestamp));
+        const refreshTimer = setTimeout(() => {
+          console.log("🔄 Auto-refreshing news cards...");
+          sessionStorage.removeItem('newsCards');
+          sessionStorage.removeItem('newsCardsTimestamp');
+          loadNewsCards();
+        }, timeUntilRefresh);
+        
+        return () => clearTimeout(refreshTimer);
       }
 
       try {
@@ -103,7 +114,17 @@ export default function Home() {
           // Cache the results
           sessionStorage.setItem('newsCards', JSON.stringify(response.data.stories));
           sessionStorage.setItem('newsCardsTimestamp', now.toString());
-          console.log("✅ News cards cached");
+          console.log("✅ News cards cached - will refresh in 30 minutes");
+          
+          // Set up auto-refresh in 30 minutes
+          const refreshTimer = setTimeout(() => {
+            console.log("🔄 Auto-refreshing news cards...");
+            sessionStorage.removeItem('newsCards');
+            sessionStorage.removeItem('newsCardsTimestamp');
+            loadNewsCards();
+          }, thirtyMinutes);
+          
+          return () => clearTimeout(refreshTimer);
         } else {
           console.error("Failed to load news cards:", response?.data?.error);
         }
@@ -221,8 +242,7 @@ export default function Home() {
   // Show onboarding if not completed
   if (!preferences?.onboarding_completed) {
     return <OnboardingWizard onComplete={handleOnboardingComplete} />;
-}
-
+  }
 
   const firstName = user?.full_name?.split(" ")?.[0] || "there";
   const audioUrl = todayBriefing?.audio_url || null;
