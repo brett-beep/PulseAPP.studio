@@ -273,11 +273,12 @@ if (resp?.data?.success) {
     loadNewsCards();
     
     const refreshInterval = setInterval(() => {
-      console.log("🔄 Auto-refreshing news cards...");
-      localStorage.removeItem('newsCards');
-      localStorage.removeItem('newsCardsTimestamp');
-      loadNewsCards();
-    }, 15 * 60 * 1000);
+  console.log("🔄 Auto-refreshing news cards...");
+  localStorage.removeItem(CACHE_KEY);
+  localStorage.removeItem(TIMESTAMP_KEY);
+  loadNewsCards();
+}, 15 * 60 * 1000);
+
 
     return () => clearInterval(refreshInterval);
   }, [user, preferences?.onboarding_completed]);
@@ -288,6 +289,9 @@ if (resp?.data?.success) {
   const refreshNewsCards = async () => {
     if (!user || !preferences?.onboarding_completed) return;
     
+    const CACHE_KEY = `newsCards:${user.email}`;
+    const TIMESTAMP_KEY = `newsCardsTimestamp:${user.email}`;
+
     setIsLoadingNews(true);
     console.log("🔄 Manual refresh triggered - FORCING CACHE REGENERATION...");
     
@@ -310,8 +314,9 @@ if (resp?.data?.success) {
       setLastRefreshTime(new Date());
     }
 
-    localStorage.setItem("newsCards", JSON.stringify(stories));
-    localStorage.setItem("newsCardsTimestamp", Date.now().toString());
+    localStorage.setItem(CACHE_KEY, JSON.stringify(stories));
+    localStorage.setItem(TIMESTAMP_KEY, Date.now().toString());
+
 
     console.log(`✅ Manual refresh loaded ${stories.length} stories (source=${resp.data.source})`);
   } else {
