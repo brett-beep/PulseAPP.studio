@@ -570,7 +570,7 @@ const newsCardStories = newsCards.slice(0, 5);
                 Refresh
               </button>
               <span className="text-sm text-slate-400">
-                {displayStories.length} {displayStories.length === 1 ? "story" : "stories"}
+                  {newsCardStories.length} {newsCardStories.length === 1 ? "story" : "stories"}
               </span>
             </div>
           </div>
@@ -585,7 +585,7 @@ const newsCardStories = newsCards.slice(0, 5);
                 </div>
               ))}
             </div>
-          ) : displayStories.length === 0 ? (
+          ) : newsCardStories.length === 0 ? (
             <div className="bg-white/70 rounded-2xl p-6 border border-slate-100 text-center">
               <p className="text-slate-600">
                 No news available. Please try refreshing the page or click{" "}
