@@ -195,10 +195,15 @@ const getBriefingCount = () => {
     async function loadNewsCards() {
       if (!user || !preferences?.onboarding_completed) return;
 
-      const CACHE_KEY = 'newsCards';
-      const TIMESTAMP_KEY = 'newsCardsTimestamp';
-      const SESSION_FLAG = 'newsCardsSessionInit';
+      const CACHE_KEY = `newsCards:${user.email}`;
+      const TIMESTAMP_KEY = `newsCardsTimestamp:${user.email}`;
+      const SESSION_FLAG = `newsCardsSessionInit:${user.email}`;
       const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes
+
+      // one-time cleanup of old global keys (pre-user-scoped)
+      localStorage.removeItem("newsCards");
+      localStorage.removeItem("newsCardsTimestamp");
+      sessionStorage.removeItem("newsCardsSessionInit");
 
       const now = Date.now();
       const cachedNews = localStorage.getItem(CACHE_KEY);
@@ -222,41 +227,37 @@ const getBriefingCount = () => {
 
       try {
         setIsLoadingNews(true);
-        console.log("📡 Refreshing news cache...");
-        
-        const refreshResponse = await base44.functions.invoke("refreshNewsCache", {
-          count: 5,
-          preferences: preferences,
-        });
+        console.log("📦 Reading news cards from cache via fetchNewsCards...");
 
-        if (refreshResponse?.data?.success) {
-          console.log("✅ Cache refreshed, now reading from NewsCache entity...");
-          
-          const cacheEntries = await base44.entities.NewsCache.filter({});
-          
-          if (cacheEntries && cacheEntries.length > 0) {
-            const latestCache = cacheEntries.sort((a, b) => 
-              new Date(b.refreshed_at) - new Date(a.refreshed_at)
-            )[0];
-            
-            const stories = JSON.parse(latestCache.stories);
-            
-            setNewsCards(stories);
-            setLastRefreshTime(new Date(latestCache.refreshed_at));
-            
-            localStorage.setItem(CACHE_KEY, JSON.stringify(stories));
-            localStorage.setItem(TIMESTAMP_KEY, now.toString());
-            console.log(`✅ Loaded ${stories.length} stories from NewsCache`);
-          } else {
-            console.error("No cache entries found");
-          }
-        } else {
-          console.error("Failed to refresh cache:", refreshResponse?.data?.error);
-          if (cachedNews) {
-            console.log("⚠️ Using stale localStorage cache as fallback");
-            setNewsCards(JSON.parse(cachedNews));
-          }
-        }
+const resp = await base44.functions.invoke("fetchNewsCards", {
+  count: 10, // pull more than 5 so you have inventory; you still slice in UI
+  preferences: preferences,
+});
+
+if (resp?.data?.success) {
+  const stories = Array.isArray(resp.data.stories) ? resp.data.stories : [];
+
+  setNewsCards(stories);
+
+  // fetchNewsCards returns cache_age = refreshed_at timestamp from NewsCache
+  if (resp.data.cache_age) {
+    setLastRefreshTime(new Date(resp.data.cache_age));
+  } else {
+    setLastRefreshTime(new Date());
+  }
+
+  localStorage.setItem(CACHE_KEY, JSON.stringify(stories));
+  localStorage.setItem(TIMESTAMP_KEY, now.toString());
+
+  console.log(`✅ Loaded ${stories.length} stories via fetchNewsCards (source=${resp.data.source})`);
+} else {
+  console.error("Failed to load stories:", resp?.data?.error);
+  if (cachedNews) {
+    console.log("⚠️ Using stale localStorage cache as fallback");
+    setNewsCards(JSON.parse(cachedNews));
+  }
+}
+
       } catch (error) {
         console.error("Error loading news cards:", error);
         
@@ -290,38 +291,37 @@ const getBriefingCount = () => {
     setIsLoadingNews(true);
     console.log("🔄 Manual refresh triggered - FORCING CACHE REGENERATION...");
     
-    localStorage.removeItem('newsCards');
-    localStorage.removeItem('newsCardsTimestamp');
-    
     try {
-      console.log("📡 Calling refreshNewsCache to regenerate with LLM...");
-      const refreshResponse = await base44.functions.invoke("refreshNewsCache", {});
+  console.log("🔄 Manual refresh - bypassing localStorage, reading via fetchNewsCards...");
 
-      if (refreshResponse?.data?.success) {
-        console.log("✅ Cache regenerated with LLM analysis!");
-        console.log(`📊 LLM analyzed ${refreshResponse.data.llm_analyzed_count} stories`);
-        
-        const cacheEntries = await base44.entities.NewsCache.filter({});
-        
-        if (cacheEntries && cacheEntries.length > 0) {
-          const latestCache = cacheEntries.sort((a, b) => 
-            new Date(b.refreshed_at) - new Date(a.refreshed_at)
-          )[0];
-          
-          const stories = JSON.parse(latestCache.stories);
-          
-          setNewsCards(stories);
-          setLastRefreshTime(new Date(latestCache.refreshed_at));
-          localStorage.setItem('newsCards', JSON.stringify(stories));
-          localStorage.setItem('newsCardsTimestamp', Date.now().toString());
-          console.log(`✅ Loaded ${stories.length} stories with fresh LLM analysis`);
-        }
-      }
-    } catch (error) {
-      console.error("Error refreshing news cards:", error);
-    } finally {
-      setIsLoadingNews(false);
+  const resp = await base44.functions.invoke("fetchNewsCards", {
+    count: 10,
+    preferences: preferences,
+  });
+
+  if (resp?.data?.success) {
+    const stories = Array.isArray(resp.data.stories) ? resp.data.stories : [];
+
+    setNewsCards(stories);
+
+    if (resp.data.cache_age) {
+      setLastRefreshTime(new Date(resp.data.cache_age));
+    } else {
+      setLastRefreshTime(new Date());
     }
+
+    localStorage.setItem("newsCards", JSON.stringify(stories));
+    localStorage.setItem("newsCardsTimestamp", Date.now().toString());
+
+    console.log(`✅ Manual refresh loaded ${stories.length} stories (source=${resp.data.source})`);
+  } else {
+    console.error("Manual refresh failed:", resp?.data?.error);
+  }
+} catch (error) {
+  console.error("Error refreshing news cards:", error);
+} finally {
+  setIsLoadingNews(false);
+}
   };
 
   // Save preferences mutation
