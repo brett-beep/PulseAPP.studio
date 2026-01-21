@@ -603,45 +603,79 @@ Return JSON: { "script": "..." }
     };
 
     // Always create new briefing (supports 3-per-day feature)
-    const saved = await base44.asServiceRole.entities.DailyBriefing.create(baseRecord);
+const saved = await base44.asServiceRole.entities.DailyBriefing.create(baseRecord);
 
-    if (skipAudio) {
-      return Response.json({
-        success: true,
-        briefing: saved,
-        wordCount: wc,
-        estimatedMinutes,
-        status: "script_ready",
-      });
-    }
+if (skipAudio) {
+  return Response.json({
+    success: true,
+    briefing: saved,
+    wordCount: wc,
+    estimatedMinutes,
+    status: "script_ready",
+  });
+}
 
-    // =========================================================
-    // STEP 6: Generate Audio
-    // =========================================================
-    const audioFile = await generateAudioFile(script, date, elevenLabsApiKey);
+// =========================================================
+// CRITICAL FIX: Return immediately, generate audio async
+// =========================================================
+console.log("✅ Briefing created with status 'generating', starting async audio generation...");
 
-    const { file_uri } = await base44.asServiceRole.integrations.Core.UploadPrivateFile({
-      file: audioFile,
-    });
-    const { signed_url } = await base44.asServiceRole.integrations.Core.CreateFileSignedUrl({
-      file_uri,
-      expires_in: 60 * 60 * 24 * 7,
-    });
+// Spawn audio generation in background (don't await!)
+generateAudioAsync(base44, saved.id, script, date, elevenLabsApiKey).catch((error) => {
+  console.error("❌ Async audio generation failed:", error);
+  // Update status to failed
+  base44.asServiceRole.entities.DailyBriefing.update(saved.id, {
+    status: "failed",
+  }).catch(console.error);
+});
 
-    const updated = await base44.asServiceRole.entities.DailyBriefing.update(saved.id, {
-      audio_url: signed_url,
-      status: "ready",
-    });
-
-    return Response.json({
-      success: true,
-      briefing: updated,
-      wordCount: wc,
-      estimatedMinutes,
-      status: "ready",
-    });
+// Return immediately with "generating" status
+return Response.json({
+  success: true,
+  briefing: saved,  // ← Returns briefing with status: "generating"
+  wordCount: wc,
+  estimatedMinutes,
+  status: "generating",
+  message: "Briefing created, audio generation in progress"
+});
   } catch (error) {
     console.error("Error in generateBriefing:", error);
     return Response.json({ error: error?.message || String(error), stack: error?.stack }, { status: 500 });
   }
 });
+// =========================================================
+// NEW: Async audio generation function
+// =========================================================
+async function generateAudioAsync(base44Client, briefingId, script, date, elevenLabsApiKey) {
+  console.log(`🎵 [Async Audio] Starting generation for briefing ${briefingId}...`);
+  
+  try {
+    // Generate audio file
+    const audioFile = await generateAudioFile(script, date, elevenLabsApiKey);
+    console.log(`✅ [Async Audio] Audio file generated`);
+
+    // Upload to storage
+    const { file_uri } = await base44Client.asServiceRole.integrations.Core.UploadPrivateFile({
+      file: audioFile,
+    });
+    console.log(`✅ [Async Audio] File uploaded: ${file_uri}`);
+
+    // Create signed URL (7 days expiry)
+    const { signed_url } = await base44Client.asServiceRole.integrations.Core.CreateFileSignedUrl({
+      file_uri,
+      expires_in: 60 * 60 * 24 * 7,
+    });
+    console.log(`✅ [Async Audio] Signed URL created`);
+
+    // Update briefing with audio URL and "ready" status
+    await base44Client.asServiceRole.entities.DailyBriefing.update(briefingId, {
+      audio_url: signed_url,
+      status: "ready",
+    });
+    
+    console.log(`🎉 [Async Audio] Briefing ${briefingId} is now READY with audio!`);
+  } catch (error) {
+    console.error(`❌ [Async Audio] Failed for briefing ${briefingId}:`, error);
+    throw error; // Will be caught by the .catch() in main handler
+  }
+}
