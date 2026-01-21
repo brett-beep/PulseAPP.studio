@@ -1,8 +1,7 @@
 // ============================================================
-// refreshNewsCache.js - Base44 Function (v3 - STRICTER DEDUP)
+// refreshNewsCache.js - Base44 Function (v4 - LLM ANALYSIS)
 // Runs every 15 minutes
-// Now with MUCH stricter duplicate detection to prevent
-// multiple stories about the same topic
+// Now with LLM-powered "why it matters" analysis for top 5 stories
 // ============================================================
 
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
@@ -46,6 +45,43 @@ function jaccard(aSet, bSet) {
   for (const x of aSet) if (bSet.has(x)) inter++;
   const union = aSet.size + bSet.size - inter;
   return union ? inter / union : 0;
+}
+
+// ============================================================
+// NEW: Helper function for LLM invocation
+// ============================================================
+async function invokeLLM(base44Client, prompt, useStreaming = false, context = null) {
+  try {
+    const response = await base44Client.functions.invoke("invokeLLM", {
+      prompt,
+      useStreaming,
+      context,
+    });
+    
+    if (response?.data?.success && response?.data?.response) {
+      return response.data.response;
+    }
+    
+    throw new Error(response?.data?.error || "LLM invocation failed");
+  } catch (error) {
+    console.error("❌ LLM Error:", error.message);
+    throw error;
+  }
+}
+
+// ============================================================
+// NEW: Category-based fallback messages
+// ============================================================
+function getCategoryMessage(category) {
+  const messages = {
+    markets: "Could impact portfolio performance and market sentiment.",
+    crypto: "May signal shifts in digital asset valuations and regulatory landscape.",
+    economy: "Affects broader market conditions and investment strategies.",
+    technology: "Could influence tech sector valuations and growth opportunities.",
+    "real estate": "May impact real estate investments and housing market trends.",
+    commodities: "Could affect commodity prices and inflation hedging strategies."
+  };
+  return messages[category] || "Worth monitoring for potential portfolio implications.";
 }
 
 // ============================================================
@@ -488,7 +524,7 @@ Deno.serve(async (req) => {
   
   try {
     console.log("\n" + "=".repeat(60));
-    console.log("🔄 [refreshNewsCache] Starting v3 (stricter dedup)...");
+    console.log("🔄 [refreshNewsCache] Starting v4 (LLM analysis)...");
     console.log(`⏰ Time: ${new Date().toISOString()}`);
     console.log("=".repeat(60));
     
@@ -562,12 +598,58 @@ Deno.serve(async (req) => {
     // Pick diverse articles with strict dedup
     const topArticles = pickTopDiverseArticles(allArticles, 30);
     
+    // ============================================================
+    // NEW: Enhance top 5 with LLM analysis
+    // ============================================================
+    console.log("\n🤖 Analyzing top 5 stories with LLM...");
+    const top5ForAnalysis = topArticles.slice(0, 5);
+    
+    const analyzedTop5 = await Promise.all(
+      top5ForAnalysis.map(async (article, index) => {
+        try {
+          const prompt = `You are a financial advisor. Analyze this news and explain in ONE clear sentence why it matters to investors.
+
+Headline: ${article.headline}
+Summary: ${article.summary || "No summary available"}
+
+Focus on: portfolio impact, market implications, or investment opportunities. Be specific and actionable. Maximum 25 words.`;
+
+          const llmResponse = await invokeLLM(base44, prompt, false, null);
+          const whyItMatters = safeText(llmResponse, "Potential investment implications - read full story for details.");
+          
+          console.log(`✅ Analyzed #${index + 1}: ${article.headline?.slice(0, 40)}...`);
+          console.log(`   → ${whyItMatters}`);
+          
+          return {
+            ...article,
+            why_it_matters: whyItMatters
+          };
+        } catch (error) {
+          console.error(`❌ LLM analysis failed for story ${index + 1}:`, error.message);
+          // Fallback to category-based message
+          return {
+            ...article,
+            why_it_matters: getCategoryMessage(article.category)
+          };
+        }
+      })
+    );
+    
+    // Merge analyzed top 5 with remaining stories (with category fallbacks)
+    const remainingStories = topArticles.slice(5).map(article => ({
+      ...article,
+      why_it_matters: getCategoryMessage(article.category)
+    }));
+    
+    const allStoriesWithAnalysis = [...analyzedTop5, ...remainingStories];
+    
     // Format for storage
-    const formattedStories = topArticles.map((article, index) => ({
+    const formattedStories = allStoriesWithAnalysis.map((article, index) => ({
       id: randomId(),
       title: safeText(article.headline, "Breaking News"),
       what_happened: safeText(article.summary, "Details emerging..."),
-      why_it_matters: "",
+      why_it_matters: article.why_it_matters,
+      both_sides: { side_a: "", side_b: "" },
       href: safeText(article.url, "#"),
       imageUrl: article.image || categoryImageUrl(article.category),
       outlet: safeText(article.source, "Unknown"),
@@ -603,17 +685,18 @@ Deno.serve(async (req) => {
     
     console.log("\n" + "=".repeat(60));
     console.log(`✅ COMPLETE in ${elapsed}ms`);
-    console.log(`📰 Cached ${formattedStories.length} diverse stories`);
+    console.log(`📰 Cached ${formattedStories.length} diverse stories (top 5 LLM-analyzed)`);
     console.log("=".repeat(60) + "\n");
     
     return Response.json({
       success: true,
-      message: "News cache refreshed (v3 - strict dedup)",
+      message: "News cache refreshed (v4 - LLM analysis)",
       stories_cached: formattedStories.length,
       total_fetched: allArticles.length,
       sources_used: successfulSources,
       refreshed_at: cacheEntry.refreshed_at,
       elapsed_ms: elapsed,
+      llm_analyzed_count: 5,
       category_breakdown: formattedStories.reduce((acc, s) => {
         acc[s.category] = (acc[s.category] || 0) + 1;
         return acc;
