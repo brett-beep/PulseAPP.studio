@@ -331,7 +331,7 @@ For each story, return:
    - Explain the *mechanism*: WHY markets care.
    - DO NOT include URLs, markdown links, or citations.
 
-2) why_it_matters (CRITICAL: Maximum 75 words, roughly 2 sentences):
+2) why_it_matters (CRITICAL: Maximum 35-45 words, roughly 2 sentences):
    - State specific investment impact only
    - Mention relevant sector/asset/ticker if user holds it
    - NO hedging words (could/may/might)
