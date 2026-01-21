@@ -60,13 +60,21 @@ export default function Home() {
       console.log("📍 [Briefing Query] Raw result:", b);
       console.log("📍 [Briefing Query] Is array?", Array.isArray(b));
       console.log("📍 [Briefing Query] Length:", b?.length);
+      
+      // Log the status of most recent briefing
+      if (b && b.length > 0) {
+        const mostRecent = [...b].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+        console.log("📍 [Briefing Query] Most recent status:", mostRecent.status);
+        console.log("📍 [Briefing Query] Has audio_url:", !!mostRecent.audio_url);
+      }
+      
       return b;
     },
     enabled: !!user && !!preferences?.onboarding_completed,
     staleTime: 0,
     refetchOnMount: true,
-    // FIXED: Poll every 3 seconds when generating to catch status changes
-    refetchInterval: isGenerating ? 3000 : false,
+    // FIXED: Poll every 2 seconds when generating (faster updates!)
+    refetchInterval: isGenerating ? 2000 : false,
   });
 
   console.log("📍 [Briefing State] isLoading:", briefingLoading);
@@ -94,6 +102,7 @@ export default function Home() {
   // =========================================================
   useEffect(() => {
     if (!briefings || !Array.isArray(briefings)) {
+      console.log("⏱️ [Countdown] No briefings array, allowing generation");
       setCanGenerateNew(true);
       setTimeUntilNextBriefing(null);
       return;
@@ -112,9 +121,12 @@ export default function Home() {
 
       const briefingCount = briefingsToday.length;
       console.log("⏱️ [Countdown] Briefings today:", briefingCount);
+      console.log("⏱️ [Countdown] All briefings:", briefings);
+      console.log("⏱️ [Countdown] Today's briefings:", briefingsToday);
 
       // Check daily limit (3 max)
       if (briefingCount >= 3) {
+        console.log("⏱️ [Countdown] Daily limit reached (3/3)");
         setCanGenerateNew(false);
         setTimeUntilNextBriefing("Daily limit reached");
         return;
@@ -122,6 +134,7 @@ export default function Home() {
 
       // If no briefings today, can generate immediately
       if (briefingCount === 0) {
+        console.log("⏱️ [Countdown] No briefings today, can generate");
         setCanGenerateNew(true);
         setTimeUntilNextBriefing(null);
         return;
@@ -136,10 +149,16 @@ export default function Home() {
       const threeHoursLater = new Date(lastCreatedAt.getTime() + 3 * 60 * 60 * 1000);
       const msRemaining = threeHoursLater - now;
 
+      console.log("⏱️ [Countdown] Last briefing created:", lastCreatedAt.toISOString());
+      console.log("⏱️ [Countdown] Three hours later:", threeHoursLater.toISOString());
+      console.log("⏱️ [Countdown] Time remaining (ms):", msRemaining);
+
       if (msRemaining <= 0) {
+        console.log("⏱️ [Countdown] Cooldown complete, can generate");
         setCanGenerateNew(true);
         setTimeUntilNextBriefing(null);
       } else {
+        console.log("⏱️ [Countdown] Cooldown active, cannot generate");
         setCanGenerateNew(false);
         
         // Format remaining time
@@ -371,8 +390,17 @@ export default function Home() {
         setIsGenerating(false);
       } else {
         console.log("✅ Briefing generation started!");
-        // FIXED: Immediately refetch to get the "generating" status briefing
+        console.log("📊 Response data:", response.data);
+        
+        // CRITICAL FIX: Force multiple refetches to ensure briefings array updates
         await refetchBriefing();
+        
+        // Force a second refetch after a short delay to ensure data is fresh
+        setTimeout(async () => {
+          await refetchBriefing();
+          console.log("🔄 Second refetch completed for countdown timer");
+        }, 500);
+        
         // NOTE: isGenerating will be set to false automatically by useEffect
         // when status becomes "ready" (polling happens via refetchInterval)
       }
