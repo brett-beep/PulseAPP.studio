@@ -277,35 +277,28 @@ export default function Home() {
   // =========================================================
   // NEW: Manual refresh function for news cards
   // =========================================================
-  const refreshNewsCards = async () => {
-    if (!user || !preferences?.onboarding_completed) return;
+if (response?.data?.success) {  // ← Just check for success
+  console.log("✅ Cache refreshed, now reading from NewsCache entity...");
+  
+  // Read from NewsCache entity
+  const cacheEntries = await base44.entities.NewsCache.filter({});
+  
+  if (cacheEntries && cacheEntries.length > 0) {
+    // Get most recent cache entry
+    const latestCache = cacheEntries.sort((a, b) => 
+      new Date(b.refreshed_at) - new Date(a.refreshed_at)
+    )[0];
     
-    setIsLoadingNews(true);
-    console.log("🔄 Manual refresh triggered...");
+    // Parse stories from JSON string
+    const stories = JSON.parse(latestCache.stories);
     
-    // Clear cache
-    localStorage.removeItem('newsCards');
-    localStorage.removeItem('newsCardsTimestamp');
-    
-    try {
-      const response = await base44.functions.invoke("refreshNewsCache", {
-        count: 5,
-        preferences: preferences,
-      });
-
-      if (response?.data?.success && response?.data?.stories) {
-        setNewsCards(response.data.stories);
-        setLastRefreshTime(new Date());
-        localStorage.setItem('newsCards', JSON.stringify(response.data.stories));
-        localStorage.setItem('newsCardsTimestamp', Date.now().toString());
-        console.log("✅ News cards refreshed successfully");
-      }
-    } catch (error) {
-      console.error("Error refreshing news cards:", error);
-    } finally {
-      setIsLoadingNews(false);
-    }
-  };
+    setNewsCards(stories);
+    setLastRefreshTime(new Date(latestCache.refreshed_at));
+    localStorage.setItem('newsCards', JSON.stringify(stories));
+    localStorage.setItem('newsCardsTimestamp', Date.now().toString());
+    console.log(`✅ News cards refreshed - ${stories.length} stories`);
+  }
+}
 
   // Save preferences mutation
   const savePreferencesMutation = useMutation({
