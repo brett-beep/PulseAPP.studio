@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 
 import AudioPlayer from "@/components/AudioPlayer";
 import NewsCard from "@/components/NewsCard";
@@ -10,7 +10,7 @@ import RealTimeMarketTicker from "@/components/RealTimeMarketTicker";
 import KeyHighlights from "@/components/KeyHighlights";
 import OnboardingWizard from "@/components/OnboardingWizard";
 
-import { Settings, Headphones, Loader2 } from "lucide-react";
+import { Settings, Headphones, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "react-router-dom";
@@ -21,6 +21,9 @@ export default function Home() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [newsCards, setNewsCards] = useState([]);
   const [isLoadingNews, setIsLoadingNews] = useState(true);
+  
+  // NEW: Track when news was last refreshed
+  const [lastRefreshTime, setLastRefreshTime] = useState(null);
   
   // NEW: Countdown timer state for briefing limits (3 per day, 3-hour cooldown)
   const [timeUntilNextBriefing, setTimeUntilNextBriefing] = useState(null);
@@ -44,20 +47,20 @@ export default function Home() {
 
   // Fetch today's briefing
   const today = format(new Date(), "yyyy-MM-dd");
-  console.log("🔍 [Briefing Query] Date filter:", today);
-  console.log("🔍 [Briefing Query] User email:", user?.email);
-  console.log("🔍 [Briefing Query] Onboarding completed:", preferences?.onboarding_completed);
+  console.log("📍 [Briefing Query] Date filter:", today);
+  console.log("📍 [Briefing Query] User email:", user?.email);
+  console.log("📍 [Briefing Query] Onboarding completed:", preferences?.onboarding_completed);
   
   const { data: briefings, isLoading: briefingLoading, error: briefingError, refetch: refetchBriefing } = useQuery({
     queryKey: ["todayBriefing", today],
     queryFn: async () => {
-      console.log("🔍 [Briefing Query] Executing query...");
+      console.log("📍 [Briefing Query] Executing query...");
       const b = await base44.entities.DailyBriefing.filter({
         date: today,
       });
-      console.log("🔍 [Briefing Query] Raw result:", b);
-      console.log("🔍 [Briefing Query] Is array?", Array.isArray(b));
-      console.log("🔍 [Briefing Query] Length:", b?.length);
+      console.log("📍 [Briefing Query] Raw result:", b);
+      console.log("📍 [Briefing Query] Is array?", Array.isArray(b));
+      console.log("📍 [Briefing Query] Length:", b?.length);
       return b;
     },
     enabled: !!user && !!preferences?.onboarding_completed,
@@ -65,16 +68,16 @@ export default function Home() {
     refetchOnMount: true,
   });
 
-  console.log("🔍 [Briefing State] isLoading:", briefingLoading);
-  console.log("🔍 [Briefing State] error:", briefingError);
-  console.log("🔍 [Briefing State] briefings data:", briefings);
+  console.log("📍 [Briefing State] isLoading:", briefingLoading);
+  console.log("📍 [Briefing State] error:", briefingError);
+  console.log("📍 [Briefing State] briefings data:", briefings);
 
   // Get the most recent briefing (sorted by created_at descending)
   const todayBriefing = briefings && briefings.length > 0 
     ? [...briefings].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0] 
     : null;
-  console.log("🔍 [Briefing State] todayBriefing (most recent):", todayBriefing);
-  console.log("🔍 [Briefing State] audio_url:", todayBriefing?.audio_url);
+  console.log("📍 [Briefing State] todayBriefing (most recent):", todayBriefing);
+  console.log("📍 [Briefing State] audio_url:", todayBriefing?.audio_url);
 
   // =========================================================
   // NEW: Countdown timer logic for 3-per-day limit with 3-hour gap
@@ -98,7 +101,7 @@ export default function Home() {
       });
 
       const briefingCount = briefingsToday.length;
-      console.log("📊 [Countdown] Briefings today:", briefingCount);
+      console.log("⏱️ [Countdown] Briefings today:", briefingCount);
 
       // Check daily limit (3 max)
       if (briefingCount >= 3) {
@@ -161,35 +164,45 @@ export default function Home() {
   };
 
   // =========================================================
-  // Fetch news cards immediately on page load (with caching)
-  // Auto-refresh every 30 minutes
+  // UPDATED: Fetch news cards with better refresh logic
+  // - 15 minute cache (reduced from 30)
+  // - Force refresh on new browser session
+  // - Auto-refresh every 15 minutes
   // =========================================================
   useEffect(() => {
     async function loadNewsCards() {
       // Only load if user is authenticated and onboarding is complete
       if (!user || !preferences?.onboarding_completed) return;
 
-      // Check if we already have cached news cards (within last 30 minutes)
-      const cachedNews = sessionStorage.getItem('newsCards');
-      const cacheTimestamp = sessionStorage.getItem('newsCardsTimestamp');
-      const now = Date.now();
-      const thirtyMinutes = 30 * 60 * 1000;
+      const CACHE_KEY = 'newsCards';
+      const TIMESTAMP_KEY = 'newsCardsTimestamp';
+      const SESSION_FLAG = 'newsCardsSessionInit';
+      const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes
 
-      if (cachedNews && cacheTimestamp && (now - parseInt(cacheTimestamp)) < thirtyMinutes) {
-        console.log("✅ Using cached news cards");
+      const now = Date.now();
+      const cachedNews = localStorage.getItem(CACHE_KEY);
+      const cacheTimestamp = localStorage.getItem(TIMESTAMP_KEY);
+      const isNewSession = !sessionStorage.getItem(SESSION_FLAG);
+      
+      // Mark this session as initialized
+      sessionStorage.setItem(SESSION_FLAG, 'true');
+
+      // Determine if we should use cache
+      const cacheAge = cacheTimestamp ? (now - parseInt(cacheTimestamp)) : Infinity;
+      const cacheValid = cacheAge < CACHE_DURATION;
+      
+      // Force refresh if:
+      // 1. Cache is expired
+      // 2. This is a new browser session (tab was closed and reopened)
+      // 3. No cache exists
+      const shouldRefresh = !cacheValid || isNewSession || !cachedNews;
+
+      if (!shouldRefresh && cachedNews) {
+        console.log("✅ Using cached news cards (age:", Math.round(cacheAge / 60000), "minutes)");
         setNewsCards(JSON.parse(cachedNews));
+        setLastRefreshTime(new Date(parseInt(cacheTimestamp)));
         setIsLoadingNews(false);
-        
-        // Set up auto-refresh after remaining cache time
-        const timeUntilRefresh = thirtyMinutes - (now - parseInt(cacheTimestamp));
-        const refreshTimer = setTimeout(() => {
-          console.log("🔄 Auto-refreshing news cards...");
-          sessionStorage.removeItem('newsCards');
-          sessionStorage.removeItem('newsCardsTimestamp');
-          loadNewsCards();
-        }, timeUntilRefresh);
-        
-        return () => clearTimeout(refreshTimer);
+        return;
       }
 
       try {
@@ -203,29 +216,26 @@ export default function Home() {
 
         if (response?.data?.success && response?.data?.stories) {
           setNewsCards(response.data.stories);
+          setLastRefreshTime(new Date());
+          
           // Cache the results
-          sessionStorage.setItem('newsCards', JSON.stringify(response.data.stories));
-          sessionStorage.setItem('newsCardsTimestamp', now.toString());
-          console.log("✅ News cards cached - will refresh in 30 minutes");
-          
-          // Set up auto-refresh in 30 minutes
-          const refreshTimer = setTimeout(() => {
-            console.log("🔄 Auto-refreshing news cards...");
-            sessionStorage.removeItem('newsCards');
-            sessionStorage.removeItem('newsCardsTimestamp');
-            loadNewsCards();
-          }, thirtyMinutes);
-          
-          return () => clearTimeout(refreshTimer);
+          localStorage.setItem(CACHE_KEY, JSON.stringify(response.data.stories));
+          localStorage.setItem(TIMESTAMP_KEY, now.toString());
+          console.log("✅ News cards cached - will refresh in 15 minutes or on new session");
         } else {
           console.error("Failed to load news cards:", response?.data?.error);
+          // Fall back to stale cache if available
+          if (cachedNews) {
+            console.log("⚠️ Using stale cache as fallback");
+            setNewsCards(JSON.parse(cachedNews));
+          }
         }
       } catch (error) {
         console.error("Error loading news cards:", error);
         
-        // If rate limited and we have old cache, use it
+        // If we have old cache, use it
         if (cachedNews) {
-          console.log("⚠️ Rate limited - using stale cache");
+          console.log("⚠️ Error occurred - using stale cache");
           setNewsCards(JSON.parse(cachedNews));
         }
       } finally {
@@ -234,7 +244,50 @@ export default function Home() {
     }
 
     loadNewsCards();
+    
+    // Auto-refresh every 15 minutes while the page is open
+    const refreshInterval = setInterval(() => {
+      console.log("🔄 Auto-refreshing news cards...");
+      localStorage.removeItem('newsCards');
+      localStorage.removeItem('newsCardsTimestamp');
+      loadNewsCards();
+    }, 15 * 60 * 1000);
+
+    return () => clearInterval(refreshInterval);
   }, [user, preferences?.onboarding_completed]);
+
+  // =========================================================
+  // NEW: Manual refresh function for news cards
+  // =========================================================
+  const refreshNewsCards = async () => {
+    if (!user || !preferences?.onboarding_completed) return;
+    
+    setIsLoadingNews(true);
+    console.log("🔄 Manual refresh triggered...");
+    
+    // Clear cache
+    localStorage.removeItem('newsCards');
+    localStorage.removeItem('newsCardsTimestamp');
+    
+    try {
+      const response = await base44.functions.invoke("fetchNewsCards", {
+        count: 5,
+        preferences: preferences,
+      });
+
+      if (response?.data?.success && response?.data?.stories) {
+        setNewsCards(response.data.stories);
+        setLastRefreshTime(new Date());
+        localStorage.setItem('newsCards', JSON.stringify(response.data.stories));
+        localStorage.setItem('newsCardsTimestamp', Date.now().toString());
+        console.log("✅ News cards refreshed successfully");
+      }
+    } catch (error) {
+      console.error("Error refreshing news cards:", error);
+    } finally {
+      setIsLoadingNews(false);
+    }
+  };
 
   // Save preferences mutation
   const savePreferencesMutation = useMutation({
@@ -363,7 +416,7 @@ export default function Home() {
   const displayStories = briefingStories.length > 0 ? briefingStories : newsCards;
 
   const statusLabel = briefingLoading
-    ? "Loading briefing…"
+    ? "Loading briefing..."
     : audioUrl
     ? "Status: Ready to Play"
     : isGenerating
@@ -447,13 +500,33 @@ export default function Home() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
         >
+          {/* UPDATED: News section header with refresh button */}
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-semibold text-slate-900">
               {briefingStories.length > 0 ? "From Your Briefing" : "Breaking News"}
             </h2>
-            <span className="text-sm text-slate-400">
-              {displayStories.length} {displayStories.length === 1 ? "story" : "stories"}
-            </span>
+            <div className="flex items-center gap-4">
+              {lastRefreshTime && (
+                <span className="text-xs text-slate-400">
+                  Updated {formatDistanceToNow(lastRefreshTime, { addSuffix: true })}
+                </span>
+              )}
+              <button
+                onClick={refreshNewsCards}
+                disabled={isLoadingNews}
+                className="text-sm text-amber-600 hover:text-amber-700 transition-colors disabled:opacity-50 flex items-center gap-1"
+              >
+                {isLoadingNews ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4" />
+                )}
+                Refresh
+              </button>
+              <span className="text-sm text-slate-400">
+                {displayStories.length} {displayStories.length === 1 ? "story" : "stories"}
+              </span>
+            </div>
           </div>
 
           {isLoadingNews ? (
