@@ -133,10 +133,9 @@ Deno.serve(async (req) => {
     // AUDIO-ONLY MODE: convert existing script -> audio_url
     // =========================================================
     if (audioOnly) {
-      const existing = await base44.asServiceRole.entities.DailyBriefing.filter({
-        date,
-        created_by: userEmail,
-      });
+      const existing = await base44.asServiceRole.data.DailyBriefing.findMany({
+  where: { date, created_by: userEmail }
+});
 
       if (!Array.isArray(existing) || existing.length === 0) {
         return Response.json(
@@ -154,10 +153,10 @@ Deno.serve(async (req) => {
         );
       }
 
-      await base44.asServiceRole.entities.DailyBriefing.update(briefing.id, {
-        status: "generating",
-      });
-
+      await base44.asServiceRole.data.DailyBriefing.update({
+  where: { id: briefing.id },
+  data: { status: "generating" }
+});
       const audioFile = await generateAudioFile(script, date, elevenLabsApiKey);
 
       const { file_uri } = await base44.asServiceRole.integrations.Core.UploadPrivateFile({
@@ -168,10 +167,10 @@ Deno.serve(async (req) => {
         expires_in: 60 * 60 * 24 * 7,
       });
 
-      const updated = await base44.asServiceRole.entities.DailyBriefing.update(briefing.id, {
-        audio_url: signed_url,
-        status: "ready",
-      });
+      const updated = await base44.asServiceRole.data.DailyBriefing.update({
+  where: { id: briefing.id },
+  data: { audio_url: signed_url, status: "ready" }
+});
 
       return Response.json({ success: true, briefing: updated });
     }
@@ -603,7 +602,9 @@ Return JSON: { "script": "..." }
     };
 
     // Always create new briefing (supports 3-per-day feature)
-    const saved = await base44.asServiceRole.entities.DailyBriefing.create(baseRecord);
+const saved = await base44.asServiceRole.data.DailyBriefing.create({
+  data: baseRecord
+});
 
     if (skipAudio) {
       return Response.json({
@@ -628,10 +629,10 @@ Return JSON: { "script": "..." }
       expires_in: 60 * 60 * 24 * 7,
     });
 
-    const updated = await base44.asServiceRole.entities.DailyBriefing.update(saved.id, {
-      audio_url: signed_url,
-      status: "ready",
-    });
+    const updated = await base44.asServiceRole.data.DailyBriefing.update({
+  where: { id: saved.id },
+  data: { audio_url: signed_url, status: "ready" }
+});
 
     return Response.json({
       success: true,
