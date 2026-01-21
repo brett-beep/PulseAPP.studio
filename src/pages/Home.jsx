@@ -51,11 +51,12 @@ export default function Home() {
   console.log("📍 [Briefing Query] Onboarding completed:", preferences?.onboarding_completed);
   
   const { data: briefings, isLoading: briefingLoading, error: briefingError, refetch: refetchBriefing } = useQuery({
-    queryKey: ["todayBriefing", today],
+    queryKey: ["todayBriefing", today, user?.email],
     queryFn: async () => {
       console.log("📍 [Briefing Query] Executing query...");
       const b = await base44.entities.DailyBriefing.filter({
         date: today,
+        created_by: user?.email,
       });
       console.log("📍 [Briefing Query] Raw result:", b);
       console.log("📍 [Briefing Query] Is array?", Array.isArray(b));
