@@ -97,92 +97,88 @@ export default function Home() {
     }
   }, [isGenerating, todayBriefing?.status]);
 
-  // =========================================================
-  // FIXED: Countdown timer logic for 3-per-day limit with 3-hour gap
-  // =========================================================
-  useEffect(() => {
-    if (!briefings || !Array.isArray(briefings)) {
-      console.log("⏱️ [Countdown] No briefings array, allowing generation");
+ // =========================================================
+// FIXED: Countdown timer logic for 3-per-day limit with 3-hour gap
+// =========================================================
+useEffect(() => {
+  if (!briefings || !Array.isArray(briefings)) {
+    console.log("⏱️ [Countdown] No briefings array, allowing generation");
+    setCanGenerateNew(true);
+    setTimeUntilNextBriefing(null);
+    return;
+  }
+
+  const checkEligibility = () => {
+    const now = new Date();
+    
+    // CRITICAL FIX: Use the 'date' field, not created_at timestamps
+    // Since we're already filtering by date in the query, all briefings in the array
+    // are from today. Just count them!
+    const briefingCount = briefings.length;
+    
+    console.log("⏱️ [Countdown] Briefings today:", briefingCount);
+    console.log("⏱️ [Countdown] All briefings:", briefings);
+    console.log("⏱️ [Countdown] Today's briefings:", briefings);
+
+    // Check daily limit (3 max)
+    if (briefingCount >= 3) {
+      console.log("⏱️ [Countdown] Daily limit reached (3/3)");
+      setCanGenerateNew(false);
+      setTimeUntilNextBriefing("Daily limit reached");
+      return;
+    }
+
+    // If no briefings today, can generate immediately
+    if (briefingCount === 0) {
+      console.log("⏱️ [Countdown] No briefings today, can generate");
       setCanGenerateNew(true);
       setTimeUntilNextBriefing(null);
       return;
     }
 
-    const checkEligibility = () => {
-      const now = new Date();
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
+    // Check 3-hour cooldown from last briefing
+    const lastBriefing = [...briefings].sort((a, b) => 
+      new Date(b.created_at) - new Date(a.created_at)
+    )[0];
+    
+    const lastCreatedAt = new Date(lastBriefing.created_at);
+    const threeHoursLater = new Date(lastCreatedAt.getTime() + 3 * 60 * 60 * 1000);
+    const msRemaining = threeHoursLater - now;
 
-      // Filter briefings from today only (using created_at timestamp)
-      const briefingsToday = briefings.filter(b => {
-        const createdAt = new Date(b.created_at);
-        return createdAt >= todayStart;
-      });
+    console.log("⏱️ [Countdown] Last briefing created:", lastCreatedAt.toISOString());
+    console.log("⏱️ [Countdown] Three hours later:", threeHoursLater.toISOString());
+    console.log("⏱️ [Countdown] Time remaining (ms):", msRemaining);
 
-      const briefingCount = briefingsToday.length;
-      console.log("⏱️ [Countdown] Briefings today:", briefingCount);
-      console.log("⏱️ [Countdown] All briefings:", briefings);
-      console.log("⏱️ [Countdown] Today's briefings:", briefingsToday);
-
-      // Check daily limit (3 max)
-      if (briefingCount >= 3) {
-        console.log("⏱️ [Countdown] Daily limit reached (3/3)");
-        setCanGenerateNew(false);
-        setTimeUntilNextBriefing("Daily limit reached");
-        return;
-      }
-
-      // If no briefings today, can generate immediately
-      if (briefingCount === 0) {
-        console.log("⏱️ [Countdown] No briefings today, can generate");
-        setCanGenerateNew(true);
-        setTimeUntilNextBriefing(null);
-        return;
-      }
-
-      // Check 3-hour cooldown from last briefing
-      const lastBriefing = briefingsToday.sort((a, b) => 
-        new Date(b.created_at) - new Date(a.created_at)
-      )[0];
+    if (msRemaining <= 0) {
+      console.log("⏱️ [Countdown] Cooldown complete, can generate");
+      setCanGenerateNew(true);
+      setTimeUntilNextBriefing(null);
+    } else {
+      console.log("⏱️ [Countdown] Cooldown active, cannot generate");
+      setCanGenerateNew(false);
       
-      const lastCreatedAt = new Date(lastBriefing.created_at);
-      const threeHoursLater = new Date(lastCreatedAt.getTime() + 3 * 60 * 60 * 1000);
-      const msRemaining = threeHoursLater - now;
-
-      console.log("⏱️ [Countdown] Last briefing created:", lastCreatedAt.toISOString());
-      console.log("⏱️ [Countdown] Three hours later:", threeHoursLater.toISOString());
-      console.log("⏱️ [Countdown] Time remaining (ms):", msRemaining);
-
-      if (msRemaining <= 0) {
-        console.log("⏱️ [Countdown] Cooldown complete, can generate");
-        setCanGenerateNew(true);
-        setTimeUntilNextBriefing(null);
+      // Format remaining time
+      const hours = Math.floor(msRemaining / (1000 * 60 * 60));
+      const minutes = Math.floor((msRemaining % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((msRemaining % (1000 * 60)) / 1000);
+      
+      if (hours > 0) {
+        setTimeUntilNextBriefing(`${hours}h ${minutes}m ${seconds}s`);
+      } else if (minutes > 0) {
+        setTimeUntilNextBriefing(`${minutes}m ${seconds}s`);
       } else {
-        console.log("⏱️ [Countdown] Cooldown active, cannot generate");
-        setCanGenerateNew(false);
-        
-        // Format remaining time
-        const hours = Math.floor(msRemaining / (1000 * 60 * 60));
-        const minutes = Math.floor((msRemaining % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((msRemaining % (1000 * 60)) / 1000);
-        
-        if (hours > 0) {
-          setTimeUntilNextBriefing(`${hours}h ${minutes}m ${seconds}s`);
-        } else if (minutes > 0) {
-          setTimeUntilNextBriefing(`${minutes}m ${seconds}s`);
-        } else {
-          setTimeUntilNextBriefing(`${seconds}s`);
-        }
+        setTimeUntilNextBriefing(`${seconds}s`);
       }
-    };
+    }
+  };
 
-    // Check immediately
-    checkEligibility();
+  // Check immediately
+  checkEligibility();
 
-    // Update every second for live countdown
-    const interval = setInterval(checkEligibility, 1000);
-    return () => clearInterval(interval);
-  }, [briefings]);
+  // Update every second for live countdown
+  const interval = setInterval(checkEligibility, 1000);
+  return () => clearInterval(interval);
+}, [briefings]);
 
   // FIXED: Get briefing count for today (for display)
   const getBriefingCount = () => {
