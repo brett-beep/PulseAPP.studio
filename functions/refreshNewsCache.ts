@@ -580,11 +580,11 @@ Deno.serve(async (req) => {
     }));
     
     // Clear old cache
-    try {
-      const oldCache = await base44.entities.NewsCache.filter({});
-      for (const entry of oldCache) {
-        await base44.entities.NewsCache.delete(entry.id);
-      }
+try {
+  const oldCache = await base44.data.NewsCache.findMany({});
+  for (const entry of oldCache) {
+    await base44.data.NewsCache.delete({ where: { id: entry.id } });
+  }
       console.log(`🗑️ Cleared ${oldCache.length} old cache entries`);
     } catch (e) {
       console.log("Cache clear note:", e.message);
