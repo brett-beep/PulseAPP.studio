@@ -22,10 +22,9 @@ export default function Home() {
   const [newsCards, setNewsCards] = useState([]);
   const [isLoadingNews, setIsLoadingNews] = useState(true);
   
-  // NEW: Track when news was last refreshed
   const [lastRefreshTime, setLastRefreshTime] = useState(null);
   
-  // NEW: Countdown timer state for briefing limits (3 per day, 3-hour cooldown)
+  // Countdown timer state for briefing limits (3 per day, 3-hour cooldown)
   const [timeUntilNextBriefing, setTimeUntilNextBriefing] = useState(null);
   const [canGenerateNew, setCanGenerateNew] = useState(true);
 
@@ -66,6 +65,8 @@ export default function Home() {
     enabled: !!user && !!preferences?.onboarding_completed,
     staleTime: 0,
     refetchOnMount: true,
+    // FIXED: Poll every 3 seconds when generating to catch status changes
+    refetchInterval: isGenerating ? 3000 : false,
   });
 
   console.log("📍 [Briefing State] isLoading:", briefingLoading);
@@ -78,9 +79,18 @@ export default function Home() {
     : null;
   console.log("📍 [Briefing State] todayBriefing (most recent):", todayBriefing);
   console.log("📍 [Briefing State] audio_url:", todayBriefing?.audio_url);
+  console.log("📍 [Briefing State] status:", todayBriefing?.status);
+
+  // FIXED: Auto-stop isGenerating when briefing is ready
+  useEffect(() => {
+    if (isGenerating && todayBriefing?.status === "ready") {
+      console.log("✅ Briefing is ready! Stopping generation state.");
+      setIsGenerating(false);
+    }
+  }, [isGenerating, todayBriefing?.status]);
 
   // =========================================================
-  // NEW: Countdown timer logic for 3-per-day limit with 3-hour gap
+  // FIXED: Countdown timer logic for 3-per-day limit with 3-hour gap
   // =========================================================
   useEffect(() => {
     if (!briefings || !Array.isArray(briefings)) {
@@ -155,7 +165,7 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [briefings]);
 
-  // NEW: Get briefing count for today (for display)
+  // FIXED: Get briefing count for today (for display)
   const getBriefingCount = () => {
     if (!briefings || !Array.isArray(briefings)) return 0;
     const todayStart = new Date();
@@ -164,14 +174,10 @@ export default function Home() {
   };
 
   // =========================================================
-  // UPDATED: Fetch news cards with better refresh logic
-  // - 15 minute cache (reduced from 30)
-  // - Force refresh on new browser session
-  // - Auto-refresh every 15 minutes
+  // Fetch news cards with better refresh logic
   // =========================================================
   useEffect(() => {
     async function loadNewsCards() {
-      // Only load if user is authenticated and onboarding is complete
       if (!user || !preferences?.onboarding_completed) return;
 
       const CACHE_KEY = 'newsCards';
@@ -184,17 +190,11 @@ export default function Home() {
       const cacheTimestamp = localStorage.getItem(TIMESTAMP_KEY);
       const isNewSession = !sessionStorage.getItem(SESSION_FLAG);
       
-      // Mark this session as initialized
       sessionStorage.setItem(SESSION_FLAG, 'true');
 
-      // Determine if we should use cache
       const cacheAge = cacheTimestamp ? (now - parseInt(cacheTimestamp)) : Infinity;
       const cacheValid = cacheAge < CACHE_DURATION;
       
-      // Force refresh if:
-      // 1. Cache is expired
-      // 2. This is a new browser session (tab was closed and reopened)
-      // 3. No cache exists
       const shouldRefresh = !cacheValid || isNewSession || !cachedNews;
 
       if (!shouldRefresh && cachedNews) {
@@ -206,52 +206,45 @@ export default function Home() {
       }
 
       try {
-  setIsLoadingNews(true);
-  console.log("📡 Refreshing news cache...");
-  
-  // Trigger cache refresh
-  const refreshResponse = await base44.functions.invoke("refreshNewsCache", {
-    count: 5,
-    preferences: preferences,
-  });
+        setIsLoadingNews(true);
+        console.log("📡 Refreshing news cache...");
+        
+        const refreshResponse = await base44.functions.invoke("refreshNewsCache", {
+          count: 5,
+          preferences: preferences,
+        });
 
-  if (refreshResponse?.data?.success) {
-    console.log("✅ Cache refreshed, now reading from NewsCache entity...");
-    
-    // Read from NewsCache entity
-    const cacheEntries = await base44.entities.NewsCache.filter({});
-    
-    if (cacheEntries && cacheEntries.length > 0) {
-      // Get most recent cache entry
-      const latestCache = cacheEntries.sort((a, b) => 
-        new Date(b.refreshed_at) - new Date(a.refreshed_at)
-      )[0];
-      
-      // Parse stories from JSON string
-      const stories = JSON.parse(latestCache.stories);
-      
-      setNewsCards(stories);
-      setLastRefreshTime(new Date(latestCache.refreshed_at));
-      
-      // Cache in localStorage
-      localStorage.setItem(CACHE_KEY, JSON.stringify(stories));
-      localStorage.setItem(TIMESTAMP_KEY, now.toString());
-      console.log(`✅ Loaded ${stories.length} stories from NewsCache`);
-    } else {
-      console.error("No cache entries found");
-    }
-  } else {
-    console.error("Failed to refresh cache:", refreshResponse?.data?.error);
-    // Fall back to stale cache if available
-    if (cachedNews) {
-      console.log("⚠️ Using stale localStorage cache as fallback");
-      setNewsCards(JSON.parse(cachedNews));
-    }
-  }
+        if (refreshResponse?.data?.success) {
+          console.log("✅ Cache refreshed, now reading from NewsCache entity...");
+          
+          const cacheEntries = await base44.entities.NewsCache.filter({});
+          
+          if (cacheEntries && cacheEntries.length > 0) {
+            const latestCache = cacheEntries.sort((a, b) => 
+              new Date(b.refreshed_at) - new Date(a.refreshed_at)
+            )[0];
+            
+            const stories = JSON.parse(latestCache.stories);
+            
+            setNewsCards(stories);
+            setLastRefreshTime(new Date(latestCache.refreshed_at));
+            
+            localStorage.setItem(CACHE_KEY, JSON.stringify(stories));
+            localStorage.setItem(TIMESTAMP_KEY, now.toString());
+            console.log(`✅ Loaded ${stories.length} stories from NewsCache`);
+          } else {
+            console.error("No cache entries found");
+          }
+        } else {
+          console.error("Failed to refresh cache:", refreshResponse?.data?.error);
+          if (cachedNews) {
+            console.log("⚠️ Using stale localStorage cache as fallback");
+            setNewsCards(JSON.parse(cachedNews));
+          }
+        }
       } catch (error) {
         console.error("Error loading news cards:", error);
         
-        // If we have old cache, use it
         if (cachedNews) {
           console.log("⚠️ Error occurred - using stale cache");
           setNewsCards(JSON.parse(cachedNews));
@@ -263,7 +256,6 @@ export default function Home() {
 
     loadNewsCards();
     
-    // Auto-refresh every 15 minutes while the page is open
     const refreshInterval = setInterval(() => {
       console.log("🔄 Auto-refreshing news cards...");
       localStorage.removeItem('newsCards');
@@ -275,50 +267,47 @@ export default function Home() {
   }, [user, preferences?.onboarding_completed]);
 
   // =========================================================
-  // NEW: Manual refresh function for news cards
+  // Manual refresh function for news cards
   // =========================================================
-const refreshNewsCards = async () => {
-  if (!user || !preferences?.onboarding_completed) return;
-  
-  setIsLoadingNews(true);
-  console.log("🔄 Manual refresh triggered - FORCING CACHE REGENERATION...");
-  
-  // Clear local cache
-  localStorage.removeItem('newsCards');
-  localStorage.removeItem('newsCardsTimestamp');
-  
-  try {
-    // FORCE refresh the cache (this will trigger LLM analysis)
-    console.log("📡 Calling refreshNewsCache to regenerate with LLM...");
-    const refreshResponse = await base44.functions.invoke("refreshNewsCache", {});
+  const refreshNewsCards = async () => {
+    if (!user || !preferences?.onboarding_completed) return;
+    
+    setIsLoadingNews(true);
+    console.log("🔄 Manual refresh triggered - FORCING CACHE REGENERATION...");
+    
+    localStorage.removeItem('newsCards');
+    localStorage.removeItem('newsCardsTimestamp');
+    
+    try {
+      console.log("📡 Calling refreshNewsCache to regenerate with LLM...");
+      const refreshResponse = await base44.functions.invoke("refreshNewsCache", {});
 
-    if (refreshResponse?.data?.success) {
-      console.log("✅ Cache regenerated with LLM analysis!");
-      console.log(`📊 LLM analyzed ${refreshResponse.data.llm_analyzed_count} stories`);
-      
-      // Now read the fresh cache
-      const cacheEntries = await base44.entities.NewsCache.filter({});
-      
-      if (cacheEntries && cacheEntries.length > 0) {
-        const latestCache = cacheEntries.sort((a, b) => 
-          new Date(b.refreshed_at) - new Date(a.refreshed_at)
-        )[0];
+      if (refreshResponse?.data?.success) {
+        console.log("✅ Cache regenerated with LLM analysis!");
+        console.log(`📊 LLM analyzed ${refreshResponse.data.llm_analyzed_count} stories`);
         
-        const stories = JSON.parse(latestCache.stories);
+        const cacheEntries = await base44.entities.NewsCache.filter({});
         
-        setNewsCards(stories);
-        setLastRefreshTime(new Date(latestCache.refreshed_at));
-        localStorage.setItem('newsCards', JSON.stringify(stories));
-        localStorage.setItem('newsCardsTimestamp', Date.now().toString());
-        console.log(`✅ Loaded ${stories.length} stories with fresh LLM analysis`);
+        if (cacheEntries && cacheEntries.length > 0) {
+          const latestCache = cacheEntries.sort((a, b) => 
+            new Date(b.refreshed_at) - new Date(a.refreshed_at)
+          )[0];
+          
+          const stories = JSON.parse(latestCache.stories);
+          
+          setNewsCards(stories);
+          setLastRefreshTime(new Date(latestCache.refreshed_at));
+          localStorage.setItem('newsCards', JSON.stringify(stories));
+          localStorage.setItem('newsCardsTimestamp', Date.now().toString());
+          console.log(`✅ Loaded ${stories.length} stories with fresh LLM analysis`);
+        }
       }
+    } catch (error) {
+      console.error("Error refreshing news cards:", error);
+    } finally {
+      setIsLoadingNews(false);
     }
-  } catch (error) {
-    console.error("Error refreshing news cards:", error);
-  } finally {
-    setIsLoadingNews(false);
-  }
-};
+  };
 
   // Save preferences mutation
   const savePreferencesMutation = useMutation({
@@ -331,7 +320,7 @@ const refreshNewsCards = async () => {
     },
   });
 
-  // Safe parser for Base44 array fields (can be array OR JSON-string)
+  // Safe parser for Base44 array fields
   const parseJsonArray = (value) => {
     if (Array.isArray(value)) return value;
     if (typeof value === "string") {
@@ -346,19 +335,20 @@ const refreshNewsCards = async () => {
   };
 
   // =========================================================
-  // Generate FULL briefing (script + audio automatically)
+  // FIXED: Generate FULL briefing with proper status checking
   // =========================================================
   const generateFullBriefing = async () => {
-    // Check if generation is allowed (not already generating AND cooldown passed)
-    if (isGenerating || !canGenerateNew) return;
+    // Check if generation is allowed
+    if (isGenerating || !canGenerateNew) {
+      console.log("⚠️ Generation blocked:", { isGenerating, canGenerateNew });
+      return;
+    }
 
     setIsGenerating(true);
+    console.log("🎬 Starting briefing generation...");
+    
     try {
-      // Log preferences being sent to verify investment_interests are included
       console.log("📤 [Generate Briefing] Sending preferences:", preferences);
-      console.log("📤 [Generate Briefing] Investment interests:", preferences?.investment_interests);
-      console.log("📤 [Generate Briefing] Portfolio holdings:", preferences?.portfolio_holdings);
-      console.log("📤 [Generate Briefing] Investment goals:", preferences?.investment_goals);
       
       const response = await base44.functions.invoke("generateBriefing", {
         preferences: {
@@ -378,14 +368,17 @@ const refreshNewsCards = async () => {
       if (response?.data?.error) {
         console.error("❌ Briefing generation error:", response.data.error);
         alert("Failed to generate briefing: " + response.data.error);
+        setIsGenerating(false);
       } else {
-        console.log("✅ Briefing generated successfully");
+        console.log("✅ Briefing generation started!");
+        // FIXED: Immediately refetch to get the "generating" status briefing
         await refetchBriefing();
+        // NOTE: isGenerating will be set to false automatically by useEffect
+        // when status becomes "ready" (polling happens via refetchInterval)
       }
     } catch (error) {
       console.error("❌ Error generating briefing:", error);
       alert("Failed to generate briefing. Please try again.");
-    } finally {
       setIsGenerating(false);
     }
   };
@@ -427,12 +420,10 @@ const refreshNewsCards = async () => {
 
   const highlights = parseJsonArray(todayBriefing?.key_highlights);
   
-  // Get user's watchlist for real-time ticker (from portfolio_holdings)
   const userWatchlist = parseJsonArray(preferences?.portfolio_holdings || []);
   console.log("userWatchlist:", userWatchlist);
   console.log("userWatchlist length:", userWatchlist.length);
   
-  // Guard sentiment type (new schema uses object)
   const sentiment =
     todayBriefing?.market_sentiment && typeof todayBriefing.market_sentiment === "object"
       ? todayBriefing.market_sentiment
@@ -440,21 +431,19 @@ const refreshNewsCards = async () => {
 
   const status = todayBriefing?.status || null;
 
-  // Determine which stories to show: 
-  // 1. If briefing exists with stories, show those
-  // 2. Otherwise show the instant news cards
-const briefingStories = parseJsonArray(todayBriefing?.news_stories);
-const displayStories = briefingStories.length > 0 
-  ? briefingStories.slice(0, 5)  // Only show top 5 from briefing
-  : newsCards.slice(0, 5);        // Only show top 5 from news cards
+  const briefingStories = parseJsonArray(todayBriefing?.news_stories);
+  const displayStories = briefingStories.length > 0 
+    ? briefingStories.slice(0, 5)  // Only show top 5 from briefing
+    : newsCards.slice(0, 5);        // Only show top 5 from news cards
 
-  const statusLabel = briefingLoading
-    ? "Loading briefing..."
-    : audioUrl
-    ? "Status: Ready to Play"
-    : isGenerating
-    ? "Status: Generating..."
-    : "Status: Ready to Generate";
+  // FIXED: Show proper status based on briefing state
+  const getStatusLabel = () => {
+    if (briefingLoading) return "Loading briefing...";
+    if (isGenerating) return "Status: Generating...";
+    if (status === "generating") return "Status: Generating audio...";
+    if (audioUrl) return "Status: Ready to Play";
+    return "Status: Ready to Generate";
+  };
 
   return (
     <div
@@ -468,15 +457,14 @@ const displayStories = briefingStories.length > 0
       <header className="border-b border-slate-100 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
         
-<div className="flex items-center gap-3">
-  <img 
-    src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/696a8e65ef692fa1b775cb03/810cc2a22_output-onlinepngtools.png"
-    alt="PulseApp.Studio" 
-    className="w-10 h-10"
-  />
-  <span className="font-semibold text-slate-900 tracking-tight">PulseApp.Studio</span>
-</div>
-
+          <div className="flex items-center gap-3">
+            <img 
+              src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/696a8e65ef692fa1b775cb03/810cc2a22_output-onlinepngtools.png"
+              alt="PulseApp.Studio" 
+              className="w-10 h-10"
+            />
+            <span className="font-semibold text-slate-900 tracking-tight">PulseApp.Studio</span>
+          </div>
 
           <Link to={createPageUrl("Settings")}>
             <Button variant="ghost" size="icon" className="text-slate-400 hover:text-slate-600">
@@ -503,7 +491,7 @@ const displayStories = briefingStories.length > 0
             onGenerate={generateFullBriefing}
             isGenerating={isGenerating}
             status={status}
-            // NEW: Pass countdown props to AudioPlayer
+            // FIXED: Pass countdown props to AudioPlayer
             canGenerateNew={canGenerateNew}
             timeUntilNextBriefing={timeUntilNextBriefing}
             briefingCount={getBriefingCount()}
@@ -514,7 +502,7 @@ const displayStories = briefingStories.length > 0
           </div>
         </motion.section>
 
-        {/* Summary & Highlights (only show if briefing exists) */}
+        {/* Summary & Highlights */}
         {(todayBriefing?.summary || highlights.length > 0) && (
           <motion.section
             initial={{ opacity: 0, y: 20 }}
@@ -532,13 +520,12 @@ const displayStories = briefingStories.length > 0
           </motion.section>
         )}
 
-        {/* NEWS CARDS - Shows immediately on page load */}
+        {/* NEWS CARDS */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
         >
-          {/* UPDATED: News section header with refresh button */}
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-semibold text-slate-900">
               {briefingStories.length > 0 ? "From Your Briefing" : "Breaking News"}
