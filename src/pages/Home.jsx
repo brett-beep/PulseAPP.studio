@@ -206,30 +206,48 @@ export default function Home() {
       }
 
       try {
-        setIsLoadingNews(true);
-        console.log("📡 Fetching fresh news cards...");
-        
-        const response = await base44.functions.invoke("refreshNewsCache", {
-          count: 5,
-          preferences: preferences,
-        });
+  setIsLoadingNews(true);
+  console.log("📡 Refreshing news cache...");
+  
+  // Trigger cache refresh
+  const refreshResponse = await base44.functions.invoke("refreshNewsCache", {
+    count: 5,
+    preferences: preferences,
+  });
 
-        if (response?.data?.success && response?.data?.stories) {
-          setNewsCards(response.data.stories);
-          setLastRefreshTime(new Date());
-          
-          // Cache the results
-          localStorage.setItem(CACHE_KEY, JSON.stringify(response.data.stories));
-          localStorage.setItem(TIMESTAMP_KEY, now.toString());
-          console.log("✅ News cards cached - will refresh in 15 minutes or on new session");
-        } else {
-          console.error("Failed to load news cards:", response?.data?.error);
-          // Fall back to stale cache if available
-          if (cachedNews) {
-            console.log("⚠️ Using stale cache as fallback");
-            setNewsCards(JSON.parse(cachedNews));
-          }
-        }
+  if (refreshResponse?.data?.success) {
+    console.log("✅ Cache refreshed, now reading from NewsCache entity...");
+    
+    // Read from NewsCache entity
+    const cacheEntries = await base44.entities.NewsCache.filter({});
+    
+    if (cacheEntries && cacheEntries.length > 0) {
+      // Get most recent cache entry
+      const latestCache = cacheEntries.sort((a, b) => 
+        new Date(b.refreshed_at) - new Date(a.refreshed_at)
+      )[0];
+      
+      // Parse stories from JSON string
+      const stories = JSON.parse(latestCache.stories);
+      
+      setNewsCards(stories);
+      setLastRefreshTime(new Date(latestCache.refreshed_at));
+      
+      // Cache in localStorage
+      localStorage.setItem(CACHE_KEY, JSON.stringify(stories));
+      localStorage.setItem(TIMESTAMP_KEY, now.toString());
+      console.log(`✅ Loaded ${stories.length} stories from NewsCache`);
+    } else {
+      console.error("No cache entries found");
+    }
+  } else {
+    console.error("Failed to refresh cache:", refreshResponse?.data?.error);
+    // Fall back to stale cache if available
+    if (cachedNews) {
+      console.log("⚠️ Using stale localStorage cache as fallback");
+      setNewsCards(JSON.parse(cachedNews));
+    }
+  }
       } catch (error) {
         console.error("Error loading news cards:", error);
         
