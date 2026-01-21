@@ -209,7 +209,7 @@ export default function Home() {
         setIsLoadingNews(true);
         console.log("📡 Fetching fresh news cards...");
         
-        const response = await base44.functions.invoke("fetchNewsCards", {
+        const response = await base44.functions.invoke("refreshNewsCache", {
           count: 5,
           preferences: preferences,
         });
@@ -270,7 +270,7 @@ export default function Home() {
     localStorage.removeItem('newsCardsTimestamp');
     
     try {
-      const response = await base44.functions.invoke("fetchNewsCards", {
+      const response = await base44.functions.invoke("refreshNewsCache", {
         count: 5,
         preferences: preferences,
       });
