@@ -192,13 +192,14 @@ const getBriefingCount = () => {
   // Fetch news cards with better refresh logic
   // =========================================================
   useEffect(() => {
-    async function loadNewsCards() {
-      if (!user || !preferences?.onboarding_completed) return;
+  if (!user || !preferences?.onboarding_completed) return;
 
-      const CACHE_KEY = `newsCards:${user.email}`;
-      const TIMESTAMP_KEY = `newsCardsTimestamp:${user.email}`;
-      const SESSION_FLAG = `newsCardsSessionInit:${user.email}`;
-      const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes
+  const CACHE_KEY = `newsCards:${user.email}`;
+  const TIMESTAMP_KEY = `newsCardsTimestamp:${user.email}`;
+  const SESSION_FLAG = `newsCardsSessionInit:${user.email}`;
+  const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes
+
+  async function loadNewsCards() {
 
       // one-time cleanup of old global keys (pre-user-scoped)
       localStorage.removeItem("newsCards");
