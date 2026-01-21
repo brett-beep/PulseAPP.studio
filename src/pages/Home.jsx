@@ -542,64 +542,64 @@ const newsCardStories = newsCards.slice(0, 5);
         )}
 
         {/* NEWS CARDS */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-        >
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold text-slate-900">
-              Breaking News
-            </h2>
-            <div className="flex items-center gap-4">
-              {lastRefreshTime && (
-                <span className="text-xs text-slate-400">
-                  Updated {formatDistanceToNow(lastRefreshTime, { addSuffix: true })}
-                </span>
-              )}
-              <button
-                onClick={refreshNewsCards}
-                disabled={isLoadingNews}
-                className="text-sm text-amber-600 hover:text-amber-700 transition-colors disabled:opacity-50 flex items-center gap-1"
-              >
-                {isLoadingNews ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="w-4 h-4" />
-                )}
-                Refresh
-              </button>
-              <span className="text-sm text-slate-400">
-                  {newsCardStories.length} {newsCardStories.length === 1 ? "story" : "stories"}
-              </span>
-            </div>
-          </div>
+<motion.section
+  initial={{ opacity: 0, y: 20 }}
+  animate={{ opacity: 1, y: 0 }}
+  transition={{ delay: 0.3 }}
+>
+  <div className="flex items-center justify-between mb-6">
+    <h2 className="text-xl font-semibold text-slate-900">
+      Breaking News
+    </h2>
+    <div className="flex items-center gap-4">
+      {lastRefreshTime && (
+        <span className="text-xs text-slate-400">
+          Updated {formatDistanceToNow(lastRefreshTime, { addSuffix: true })}
+        </span>
+      )}
+      <button
+        onClick={refreshNewsCards}
+        disabled={isLoadingNews}
+        className="text-sm text-amber-600 hover:text-amber-700 transition-colors disabled:opacity-50 flex items-center gap-1"
+      >
+        {isLoadingNews ? (
+          <Loader2 className="w-4 h-4 animate-spin" />
+        ) : (
+          <RefreshCw className="w-4 h-4" />
+        )}
+        Refresh
+      </button>
+      <span className="text-sm text-slate-400">
+        {newsCardStories.length} {newsCardStories.length === 1 ? "story" : "stories"}
+      </span>
+    </div>
+  </div>
 
-          {isLoadingNews ? (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="bg-white/70 rounded-2xl p-6 border border-slate-100">
-                  <Skeleton className="h-4 w-3/4 mb-3" />
-                  <Skeleton className="h-3 w-full mb-2" />
-                  <Skeleton className="h-3 w-5/6" />
-                </div>
-              ))}
-            </div>
-          ) : newsCardStories.length === 0 ? (
-            <div className="bg-white/70 rounded-2xl p-6 border border-slate-100 text-center">
-              <p className="text-slate-600">
-                No news available. Please try refreshing the page or click{" "}
-                <span className="font-semibold">Generate</span> to create your briefing.
-              </p>
-            </div>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
-{newsCardStories.map((story, index) => (
-  <NewsCard key={index} story={story} />
-))}
-            </div>
-          )}
-        </motion.section>
+  {isLoadingNews ? (
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
+      {[1, 2, 3, 4].map((i) => (
+        <div key={i} className="bg-white/70 rounded-2xl p-6 border border-slate-100">
+          <Skeleton className="h-4 w-3/4 mb-3" />
+          <Skeleton className="h-3 w-full mb-2" />
+          <Skeleton className="h-3 w-5/6" />
+        </div>
+      ))}
+    </div>
+  ) : newsCardStories.length === 0 ? (
+    <div className="bg-white/70 rounded-2xl p-6 border border-slate-100 text-center">
+      <p className="text-slate-600">
+        No news available. Please try refreshing the page or click{" "}
+        <span className="font-semibold">Generate</span> to create your briefing.
+      </p>
+    </div>
+  ) : (
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
+      {newsCardStories.map((story, index) => (
+        <NewsCard key={index} story={story} />
+      ))}
+    </div>
+  )}
+</motion.section>
       </main>
     </div>
   );
