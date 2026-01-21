@@ -434,12 +434,14 @@ export default function Home() {
       {/* Header */}
       <header className="border-b border-slate-100 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-amber-600 rounded-xl flex items-center justify-center">
-              <Headphones className="h-5 w-5 text-white" />
-            </div>
-            <span className="font-semibold text-slate-900 tracking-tight">Briefing</span>
-          </div>
+<div className="flex items-center gap-3">
+  <img 
+    src="/assets/logo.png" 
+    alt="PulseApp.Studio" 
+    className="w-10 h-10"
+  />
+  <span className="font-semibold text-slate-900 tracking-tight">PulseApp.Studio</span>
+</div>
           <Link to={createPageUrl("Settings")}>
             <Button variant="ghost" size="icon" className="text-slate-400 hover:text-slate-600">
               <Settings className="h-5 w-5" />
