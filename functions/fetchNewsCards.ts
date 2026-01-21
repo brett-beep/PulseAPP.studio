@@ -331,10 +331,11 @@ For each story, return:
    - Explain the *mechanism*: WHY markets care.
    - DO NOT include URLs, markdown links, or citations.
 
-2) why_it_matters (1-2 sentences, actionable investor framing):
-   - Call out what could move next: the specific asset class/sector/ticker sensitivity.
-   - If relevant, tie directly to the user's interests/holdings.
-   - No filler, no hedging, no general advice.
+2) why_it_matters (CRITICAL: Maximum 150 characters, roughly 2 sentences):
+   - State specific investment impact only
+   - Mention relevant sector/asset/ticker if user holds it
+   - NO hedging words (could/may/might)
+   - Be concise
 
 USER PROFILE:
 - Interests: ${Array.isArray(userInterests) && userInterests.length > 0 ? userInterests.join(", ") : "General markets"}
