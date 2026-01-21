@@ -437,14 +437,13 @@ export default function Home() {
         
 <div className="flex items-center gap-3">
   <img 
-    src="https://cdn.base44.app/696a8e65ef692fa1b775cb03/logo.png"
+    src="/logo.png"
     alt="PulseApp.Studio" 
     className="w-10 h-10"
   />
   <span className="font-semibold text-slate-900 tracking-tight">PulseApp.Studio</span>
 </div>
 
-https://cdn.base44.app/696a8e65ef692fa1b775cb03/logo.png
 
           <Link to={createPageUrl("Settings")}>
             <Button variant="ghost" size="icon" className="text-slate-400 hover:text-slate-600">
