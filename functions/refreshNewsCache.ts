@@ -590,14 +590,16 @@ Deno.serve(async (req) => {
       console.log("Cache clear note:", e.message);
     }
     
-    // Save new cache
-    const cacheEntry = await base44.entities.NewsCache.create({
-      stories: JSON.stringify(formattedStories),
-      refreshed_at: new Date().toISOString(),
-      sources_used: successfulSources.join(","),
-      total_fetched: allArticles.length,
-      articles_selected: formattedStories.length
-    });
+  // Save new cache
+const cacheEntry = await base44.data.NewsCache.create({
+  data: {
+    stories: JSON.stringify(formattedStories),
+    refreshed_at: new Date().toISOString(),
+    sources_used: successfulSources.join(","),
+    total_fetched: allArticles.length,
+    articles_selected: formattedStories.length
+  }
+});
     
     const elapsed = Date.now() - startTime;
     
