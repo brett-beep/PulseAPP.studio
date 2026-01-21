@@ -607,29 +607,39 @@ Deno.serve(async (req) => {
     const analyzedTop10 = await Promise.all(
       top10ForAnalysis.map(async (article, index) => {
         try {
-          // More specific, personalized prompt
-          const prompt = `Analyze this financial news story and explain in ONE sentence why it matters specifically to investors.
+          // More specific, personalized prompt - STRICT BREVITY
+          const prompt = `Analyze this financial news story and explain why it matters to investors in 1-2 SHORT sentences MAXIMUM.
 
 Headline: "${article.headline}"
 Summary: "${article.summary || "No summary available"}"
 Category: ${article.category}
 
-Your response should:
-- Focus on tangible portfolio/investment impact
-- Mention specific sectors, assets, or market segments affected
-- Be actionable and concrete (not generic)
-- Maximum 20 words
-- Start directly with the impact (no "This could..." or "This may...")
+CRITICAL REQUIREMENTS:
+- Maximum 15 words total
+- Be extremely concise and direct
+- Focus on specific investment impact only
+- No fluff or generic statements
 
-Example good responses:
-- "Tech stocks may rally as AI chip demand signals strong Q1 earnings potential."
-- "Rising gold prices suggest investors hedging against inflation uncertainty."
-- "Federal rate policy shift could trigger bond portfolio rebalancing opportunities."
+Example responses (notice brevity):
+- "AI chip demand could boost tech stocks."
+- "Fed rate changes may affect bond portfolios."
+- "Gold rally signals inflation hedge demand."
 
-Respond with ONLY the one-sentence analysis:`;
+Respond with ONLY the brief analysis (15 words max):`;
 
           const llmResponse = await invokeLLM(base44, prompt, false, null);
           let whyItMatters = safeText(llmResponse, getCategoryMessage(article.category)).trim();
+          
+          // Truncate to 2 sentences max if needed
+          const sentences = whyItMatters.match(/[^.!?]+[.!?]+/g) || [whyItMatters];
+          if (sentences.length > 2) {
+            whyItMatters = sentences.slice(0, 2).join(' ').trim();
+          }
+          
+          // Hard limit: 120 characters max
+          if (whyItMatters.length > 120) {
+            whyItMatters = whyItMatters.substring(0, 117) + '...';
+          }
           
           // Clean up common prefixes that LLMs add
           whyItMatters = whyItMatters
