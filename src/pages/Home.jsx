@@ -437,7 +437,7 @@ export default function Home() {
         
 <div className="flex items-center gap-3">
   <img 
-    src="/logo.png"
+    src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/696a8e65ef692fa1b775cb03/810cc2a22_output-onlinepngtools.png"
     alt="PulseApp.Studio" 
     className="w-10 h-10"
   />
