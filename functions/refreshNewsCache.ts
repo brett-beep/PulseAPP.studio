@@ -104,7 +104,7 @@ function isNearDuplicate(a, b) {
   }
   
   // If 3+ key entities match, these are about the same topic
-  if (entityOverlap >= 2) {
+  if (entityOverlap >= 3) {
     console.log(`🔄 DUPE (${entityOverlap} entities: ${sharedEntities.join(", ")})`);
     console.log(`   A: "${aHeadline.slice(0,50)}..."`);
     console.log(`   B: "${bHeadline.slice(0,50)}..."`);
@@ -148,7 +148,7 @@ function isNearDuplicate(a, b) {
   
   const overlapRatio = wordOverlap / Math.min(aWords.size, bWords.size);
   
-  if (overlapRatio > 0.5 && wordOverlap >= 2) {
+  if (overlapRatio > 0.5 && wordOverlap >= 3) {
     console.log(`🔄 DUPE (headline overlap: ${wordOverlap} words, ${(overlapRatio*100).toFixed(0)}%)`);
     return true;
   }
@@ -158,7 +158,7 @@ function isNearDuplicate(a, b) {
   const bText = `${bHeadline} ${bSummary}`;
   const sim = jaccard(tokenSet(aText), tokenSet(bText));
   
-  if (sim >= 0.30) {
+  if (sim >= 0.40) {
     console.log(`🔄 DUPE (jaccard=${sim.toFixed(2)})`);
     return true;
   }
@@ -580,26 +580,24 @@ Deno.serve(async (req) => {
     }));
     
     // Clear old cache
-try {
-  const oldCache = await base44.data.NewsCache.findMany({});
-  for (const entry of oldCache) {
-    await base44.data.NewsCache.delete({ where: { id: entry.id } });
-  }
+    try {
+      const oldCache = await base44.entities.NewsCache.filter({});
+      for (const entry of oldCache) {
+        await base44.entities.NewsCache.delete(entry.id);
+      }
       console.log(`🗑️ Cleared ${oldCache.length} old cache entries`);
     } catch (e) {
       console.log("Cache clear note:", e.message);
     }
     
-  // Save new cache
-const cacheEntry = await base44.data.NewsCache.create({
-  data: {
-    stories: JSON.stringify(formattedStories),
-    refreshed_at: new Date().toISOString(),
-    sources_used: successfulSources.join(","),
-    total_fetched: allArticles.length,
-    articles_selected: formattedStories.length
-  }
-});
+    // Save new cache
+    const cacheEntry = await base44.entities.NewsCache.create({
+      stories: JSON.stringify(formattedStories),
+      refreshed_at: new Date().toISOString(),
+      sources_used: successfulSources.join(","),
+      total_fetched: allArticles.length,
+      articles_selected: formattedStories.length
+    });
     
     const elapsed = Date.now() - startTime;
     
@@ -611,7 +609,6 @@ const cacheEntry = await base44.data.NewsCache.create({
     return Response.json({
       success: true,
       message: "News cache refreshed (v3 - strict dedup)",
-      stories: formattedStories,  // 🔥 ADD THIS LINE
       stories_cached: formattedStories.length,
       total_fetched: allArticles.length,
       sources_used: successfulSources,
@@ -620,9 +617,9 @@ const cacheEntry = await base44.data.NewsCache.create({
       category_breakdown: formattedStories.reduce((acc, s) => {
         acc[s.category] = (acc[s.category] || 0) + 1;
         return acc;
- }, {}),
-  top_5_headlines: formattedStories.slice(0, 5).map(s => `[${s.category}] ${s.title}`)
-});
+      }, {}),
+      top_5_headlines: formattedStories.slice(0, 5).map(s => `[${s.category}] ${s.title}`)
+    });
     
   } catch (error) {
     console.error("❌ [refreshNewsCache] Error:", error);
