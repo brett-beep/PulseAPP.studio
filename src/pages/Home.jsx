@@ -181,12 +181,11 @@ useEffect(() => {
 }, [briefings]);
 
   // FIXED: Get briefing count for today (for display)
-  const getBriefingCount = () => {
-    if (!briefings || !Array.isArray(briefings)) return 0;
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    return briefings.filter(b => new Date(b.created_at) >= todayStart).length;
-  };
+const getBriefingCount = () => {
+  // Since briefings query already filters by today's date,
+  // just return the length of the array!
+  return briefings?.length || 0;
+};
 
   // =========================================================
   // Fetch news cards with better refresh logic
