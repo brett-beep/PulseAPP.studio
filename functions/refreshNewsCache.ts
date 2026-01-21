@@ -615,10 +615,11 @@ Summary: "${article.summary || "No summary available"}"
 Category: ${article.category}
 
 CRITICAL REQUIREMENTS:
-- Maximum 15 words total
-- Be extremely concise and direct
-- Focus on specific investment impact only
-- No fluff or generic statements
+- 2 sentences
+- MAXIMUM 30-45 words total
+- Concrete investment mechanism (rates/earnings/credit/oil/USD/regulation)
+- Mention a ticker/asset/sector if obvious
+- No fluff, no generic lines
 
 Example responses (notice brevity):
 - "AI chip demand could boost tech stocks."
