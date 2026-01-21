@@ -455,7 +455,7 @@ const getBriefingCount = () => {
   const status = todayBriefing?.status || null;
 
 const briefingStories = parseJsonArray(todayBriefing?.news_stories);
-const newsCardStories = newsCards.slice(0, 5);
+const newsCardsToShow = newsCards.slice(0, 5);
 
   // FIXED: Show proper status based on briefing state
   const getStatusLabel = () => {
