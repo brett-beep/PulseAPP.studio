@@ -455,7 +455,7 @@ const getBriefingCount = () => {
   const status = todayBriefing?.status || null;
 
 const briefingStories = parseJsonArray(todayBriefing?.news_stories);
-const newsCardsToShow = newsCards.slice(0, 5);
+const newsCardStories = newsCards.slice(0, 5);
 
   // FIXED: Show proper status based on briefing state
   const getStatusLabel = () => {
@@ -549,7 +549,7 @@ const newsCardsToShow = newsCards.slice(0, 5);
         >
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-semibold text-slate-900">
-              {briefingStories.length > 0 ? "From Your Briefing" : "Breaking News"}
+              Breaking News
             </h2>
             <div className="flex items-center gap-4">
               {lastRefreshTime && (
@@ -594,13 +594,9 @@ const newsCardsToShow = newsCards.slice(0, 5);
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
-              {displayStories.map((story, index) => (
-                <NewsCard 
-                  key={story?.id || index} 
-                  story={story}
-                  index={index}
-                />
-              ))}
+{newsCardStories.map((story, index) => (
+  <NewsCard key={index} story={story} />
+))}
             </div>
           )}
         </motion.section>
