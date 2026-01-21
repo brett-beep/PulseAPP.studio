@@ -83,205 +83,85 @@ export default function Home() {
   // NEW: Countdown timer logic for 3-per-day limit with 3-hour gap
   // =========================================================
   useEffect(() => {
-    if (!briefings || !Array.isArray(briefings)) {
+    if (!briefings) return;
+    
+    // Count briefings created today
+    const briefingCount = briefings.length;
+    console.log("⏱️ [Countdown] Briefings today:", briefingCount);
+
+    // If we have 3 briefings already, check if we need cooldown
+    if (briefingCount >= 3) {
+      const sortedBriefings = [...briefings].sort(
+        (a, b) => new Date(b.created_at) - new Date(a.created_at)
+      );
+      const latestBriefing = sortedBriefings[0];
+      const latestTime = new Date(latestBriefing.created_at);
+      const now = new Date();
+      const threeHoursInMs = 3 * 60 * 60 * 1000;
+      const timeSinceLatest = now - latestTime;
+
+      if (timeSinceLatest < threeHoursInMs) {
+        // Still in cooldown
+        setCanGenerateNew(false);
+        const nextAvailableTime = new Date(latestTime.getTime() + threeHoursInMs);
+        setTimeUntilNextBriefing(nextAvailableTime);
+      } else {
+        // Cooldown over
+        setCanGenerateNew(true);
+        setTimeUntilNextBriefing(null);
+      }
+    } else {
+      // Less than 3 briefings today, can generate anytime
       setCanGenerateNew(true);
       setTimeUntilNextBriefing(null);
-      return;
     }
-
-    const checkEligibility = () => {
-      const now = new Date();
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
-
-      // Filter briefings from today only (using created_at timestamp)
-      const briefingsToday = briefings.filter(b => {
-        const createdAt = new Date(b.created_at);
-        return createdAt >= todayStart;
-      });
-
-      const briefingCount = briefingsToday.length;
-      console.log("⏱️ [Countdown] Briefings today:", briefingCount);
-
-      // Check daily limit (3 max)
-      if (briefingCount >= 3) {
-        setCanGenerateNew(false);
-        setTimeUntilNextBriefing("Daily limit reached");
-        return;
-      }
-
-      // If no briefings today, can generate immediately
-      if (briefingCount === 0) {
-        setCanGenerateNew(true);
-        setTimeUntilNextBriefing(null);
-        return;
-      }
-
-      // Check 3-hour cooldown from last briefing
-      const lastBriefing = briefingsToday.sort((a, b) => 
-        new Date(b.created_at) - new Date(a.created_at)
-      )[0];
-      
-      const lastCreatedAt = new Date(lastBriefing.created_at);
-      const threeHoursLater = new Date(lastCreatedAt.getTime() + 3 * 60 * 60 * 1000);
-      const msRemaining = threeHoursLater - now;
-
-      if (msRemaining <= 0) {
-        setCanGenerateNew(true);
-        setTimeUntilNextBriefing(null);
-      } else {
-        setCanGenerateNew(false);
-        
-        // Format remaining time
-        const hours = Math.floor(msRemaining / (1000 * 60 * 60));
-        const minutes = Math.floor((msRemaining % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((msRemaining % (1000 * 60)) / 1000);
-        
-        if (hours > 0) {
-          setTimeUntilNextBriefing(`${hours}h ${minutes}m ${seconds}s`);
-        } else if (minutes > 0) {
-          setTimeUntilNextBriefing(`${minutes}m ${seconds}s`);
-        } else {
-          setTimeUntilNextBriefing(`${seconds}s`);
-        }
-      }
-    };
-
-    // Check immediately
-    checkEligibility();
-
-    // Update every second for live countdown
-    const interval = setInterval(checkEligibility, 1000);
-    return () => clearInterval(interval);
   }, [briefings]);
 
-  // NEW: Get briefing count for today (for display)
+  // Get briefing count helper
   const getBriefingCount = () => {
-    if (!briefings || !Array.isArray(briefings)) return 0;
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    return briefings.filter(b => new Date(b.created_at) >= todayStart).length;
+    return briefings?.length || 0;
   };
 
   // =========================================================
-  // UPDATED: Fetch news cards with better refresh logic
-  // - 15 minute cache (reduced from 30)
-  // - Force refresh on new browser session
-  // - Auto-refresh every 15 minutes
+  // Get user's watchlist from preferences
+  // =========================================================
+  const userWatchlist = preferences?.investment_interests || [];
+
+  // =========================================================
+  // Fetch news cards (from Backend with Caching)
   // =========================================================
   useEffect(() => {
-    async function loadNewsCards() {
-      // Only load if user is authenticated and onboarding is complete
-      if (!user || !preferences?.onboarding_completed) return;
+    if (!user) return;
 
-      const CACHE_KEY = 'newsCards';
-      const TIMESTAMP_KEY = 'newsCardsTimestamp';
-      const SESSION_FLAG = 'newsCardsSessionInit';
-      const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes
-
-      const now = Date.now();
-      const cachedNews = localStorage.getItem(CACHE_KEY);
-      const cacheTimestamp = localStorage.getItem(TIMESTAMP_KEY);
-      const isNewSession = !sessionStorage.getItem(SESSION_FLAG);
-      
-      // Mark this session as initialized
-      sessionStorage.setItem(SESSION_FLAG, 'true');
-
-      // Determine if we should use cache
-      const cacheAge = cacheTimestamp ? (now - parseInt(cacheTimestamp)) : Infinity;
-      const cacheValid = cacheAge < CACHE_DURATION;
-      
-      // Force refresh if:
-      // 1. Cache is expired
-      // 2. This is a new browser session (tab was closed and reopened)
-      // 3. No cache exists
-      const shouldRefresh = !cacheValid || isNewSession || !cachedNews;
-
-      if (!shouldRefresh && cachedNews) {
-        console.log("✅ Using cached news cards (age:", Math.round(cacheAge / 60000), "minutes)");
-        setNewsCards(JSON.parse(cachedNews));
-        setLastRefreshTime(new Date(parseInt(cacheTimestamp)));
-        setIsLoadingNews(false);
-        return;
-      }
-
+    const loadNews = async () => {
       try {
         setIsLoadingNews(true);
-        console.log("📡 Fetching fresh news cards...");
-        
-        const response = await base44.functions.invoke("fetchNewsCards", {
-          count: 5,
-          preferences: preferences,
-        });
-
-        if (response?.data?.success && response?.data?.stories) {
-          setNewsCards(response.data.stories);
-          setLastRefreshTime(new Date());
-          
-          // Cache the results
-          localStorage.setItem(CACHE_KEY, JSON.stringify(response.data.stories));
-          localStorage.setItem(TIMESTAMP_KEY, now.toString());
-          console.log("✅ News cards cached - will refresh in 15 minutes or on new session");
-        } else {
-          console.error("Failed to load news cards:", response?.data?.error);
-          // Fall back to stale cache if available
-          if (cachedNews) {
-            console.log("⚠️ Using stale cache as fallback");
-            setNewsCards(JSON.parse(cachedNews));
-          }
-        }
+        // 🔥 CRITICAL FIX: Use refreshNewsCache instead of fetchNewsCards
+        const result = await base44.functions.refreshNewsCache();
+        console.log("📰 News cards loaded:", result);
+        setNewsCards(result || []);
+        setLastRefreshTime(new Date());
       } catch (error) {
         console.error("Error loading news cards:", error);
-        
-        // If we have old cache, use it
-        if (cachedNews) {
-          console.log("⚠️ Error occurred - using stale cache");
-          setNewsCards(JSON.parse(cachedNews));
-        }
+        setNewsCards([]);
       } finally {
         setIsLoadingNews(false);
       }
-    }
+    };
 
-    loadNewsCards();
-    
-    // Auto-refresh every 15 minutes while the page is open
-    const refreshInterval = setInterval(() => {
-      console.log("🔄 Auto-refreshing news cards...");
-      localStorage.removeItem('newsCards');
-      localStorage.removeItem('newsCardsTimestamp');
-      loadNewsCards();
-    }, 15 * 60 * 1000);
-
-    return () => clearInterval(refreshInterval);
-  }, [user, preferences?.onboarding_completed]);
+    loadNews();
+  }, [user]);
 
   // =========================================================
-  // NEW: Manual refresh function for news cards
+  // Manual refresh for news cards
   // =========================================================
   const refreshNewsCards = async () => {
-    if (!user || !preferences?.onboarding_completed) return;
-    
-    setIsLoadingNews(true);
-    console.log("🔄 Manual refresh triggered...");
-    
-    // Clear cache
-    localStorage.removeItem('newsCards');
-    localStorage.removeItem('newsCardsTimestamp');
-    
     try {
-      const response = await base44.functions.invoke("fetchNewsCards", {
-        count: 5,
-        preferences: preferences,
-      });
-
-      if (response?.data?.success && response?.data?.stories) {
-        setNewsCards(response.data.stories);
-        setLastRefreshTime(new Date());
-        localStorage.setItem('newsCards', JSON.stringify(response.data.stories));
-        localStorage.setItem('newsCardsTimestamp', Date.now().toString());
-        console.log("✅ News cards refreshed successfully");
-      }
+      setIsLoadingNews(true);
+      // 🔥 CRITICAL FIX: Use refreshNewsCache instead of fetchNewsCards
+      const result = await base44.functions.refreshNewsCache();
+      setNewsCards(result || []);
+      setLastRefreshTime(new Date());
     } catch (error) {
       console.error("Error refreshing news cards:", error);
     } finally {
@@ -289,183 +169,133 @@ export default function Home() {
     }
   };
 
-  // Save preferences mutation
-  const savePreferencesMutation = useMutation({
-    mutationFn: async (prefs) => {
-      if (preferences?.id) return base44.entities.UserPreferences.update(preferences.id, prefs);
-      return base44.entities.UserPreferences.create(prefs);
+  // =========================================================
+  // Parse highlights from briefing
+  // =========================================================
+  const highlights = todayBriefing?.highlights
+    ? (() => {
+        try {
+          // If highlights is already an array, return it
+          if (Array.isArray(todayBriefing.highlights)) {
+            return todayBriefing.highlights;
+          }
+          // If it's a string, try to parse it as JSON
+          if (typeof todayBriefing.highlights === "string") {
+            return JSON.parse(todayBriefing.highlights);
+          }
+          return [];
+        } catch (e) {
+          console.error("Error parsing highlights:", e);
+          return [];
+        }
+      })()
+    : [];
+
+  // =========================================================
+  // Parse stories from briefing if it exists
+  // =========================================================
+  const briefingStories = todayBriefing?.stories_used
+    ? (() => {
+        try {
+          if (Array.isArray(todayBriefing.stories_used)) {
+            return todayBriefing.stories_used;
+          }
+          if (typeof todayBriefing.stories_used === "string") {
+            return JSON.parse(todayBriefing.stories_used);
+          }
+          return [];
+        } catch (e) {
+          console.error("Error parsing stories_used:", e);
+          return [];
+        }
+      })()
+    : [];
+
+  // =========================================================
+  // Combine briefing stories and general news
+  // Display briefing stories first if they exist, then fill with news cards
+  // =========================================================
+  const displayStories = briefingStories.length > 0 
+    ? briefingStories 
+    : newsCards;
+
+  // =========================================================
+  // Generate new briefing mutation
+  // =========================================================
+  const generateBriefing = useMutation({
+    mutationFn: async () => {
+      if (!user) throw new Error("User not authenticated");
+      if (!canGenerateNew) {
+        throw new Error("Please wait for the cooldown period before generating a new briefing");
+      }
+
+      setIsGenerating(true);
+
+      const result = await base44.functions.generateDailyBriefing({
+        user_email: user.email,
+        user_interests: preferences?.investment_interests || [],
+      });
+
+      return result;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["userPreferences"] });
+      queryClient.invalidateQueries(["todayBriefing"]);
+      setIsGenerating(false);
+    },
+    onError: (error) => {
+      console.error("Error generating briefing:", error);
+      setIsGenerating(false);
     },
   });
 
-  // Safe parser for Base44 array fields (can be array OR JSON-string)
-  const parseJsonArray = (value) => {
-    if (Array.isArray(value)) return value;
-    if (typeof value === "string") {
-      try {
-        const parsed = JSON.parse(value);
-        return Array.isArray(parsed) ? parsed : [];
-      } catch {
-        return [];
-      }
-    }
-    return [];
-  };
+  // Check if user needs onboarding
+  const needsOnboarding = !userLoading && !prefsLoading && !preferences?.onboarding_completed;
 
-  // =========================================================
-  // Generate FULL briefing (script + audio automatically)
-  // =========================================================
-  const generateFullBriefing = async () => {
-    // Check if generation is allowed (not already generating AND cooldown passed)
-    if (isGenerating || !canGenerateNew) return;
-
-    setIsGenerating(true);
-    try {
-      // Log preferences being sent to verify investment_interests are included
-      console.log("📤 [Generate Briefing] Sending preferences:", preferences);
-      console.log("📤 [Generate Briefing] Investment interests:", preferences?.investment_interests);
-      console.log("📤 [Generate Briefing] Portfolio holdings:", preferences?.portfolio_holdings);
-      console.log("📤 [Generate Briefing] Investment goals:", preferences?.investment_goals);
-      
-      const response = await base44.functions.invoke("generateBriefing", {
-        preferences: {
-          user_name: preferences?.user_name || user?.full_name?.split(" ")?.[0] || "there",
-          risk_tolerance: preferences?.risk_tolerance,
-          time_horizon: preferences?.time_horizon,
-          investment_goals: preferences?.investment_goals,
-          investment_interests: preferences?.investment_interests,
-          portfolio_holdings: preferences?.portfolio_holdings,
-          briefing_length: preferences?.briefing_length,
-          preferred_voice: preferences?.preferred_voice,
-        },
-        date: today,
-        skip_audio: false, // Generate both script AND audio
-      });
-
-      if (response?.data?.error) {
-        console.error("❌ Briefing generation error:", response.data.error);
-        alert("Failed to generate briefing: " + response.data.error);
-      } else {
-        console.log("✅ Briefing generated successfully");
-        await refetchBriefing();
-      }
-    } catch (error) {
-      console.error("❌ Error generating briefing:", error);
-      alert("Failed to generate briefing. Please try again.");
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const handleOnboardingComplete = async (prefs) => {
-    await savePreferencesMutation.mutateAsync(prefs);
-  };
-
-  const greeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return "Good morning";
-    if (hour < 17) return "Good afternoon";
-    return "Good evening";
-  };
-
-  // Loading state
-  if (userLoading || prefsLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white p-6">
-        <div className="max-w-4xl mx-auto space-y-8">
-          <Skeleton className="h-12 w-64" />
-          <Skeleton className="h-64 w-full rounded-3xl" />
-          <Skeleton className="h-32 w-full rounded-2xl" />
-        </div>
-      </div>
-    );
+  if (needsOnboarding) {
+    return <OnboardingWizard />;
   }
-
-  // Show onboarding if not completed
-  if (!preferences?.onboarding_completed) {
-    return <OnboardingWizard onComplete={handleOnboardingComplete} />;
-  }
-
-  const firstName = user?.full_name?.split(" ")?.[0] || "there";
-  const audioUrl = todayBriefing?.audio_url || null;
-  
-  console.log("🎵 [AudioPlayer] audioUrl prop:", audioUrl);
-  console.log("🎵 [AudioPlayer] todayBriefing object:", todayBriefing);
-
-  const highlights = parseJsonArray(todayBriefing?.key_highlights);
-  
-  // Get user's watchlist for real-time ticker (from portfolio_holdings)
-  const userWatchlist = parseJsonArray(preferences?.portfolio_holdings || []);
-  console.log("userWatchlist:", userWatchlist);
-  console.log("userWatchlist length:", userWatchlist.length);
-  
-  // Guard sentiment type (new schema uses object)
-  const sentiment =
-    todayBriefing?.market_sentiment && typeof todayBriefing.market_sentiment === "object"
-      ? todayBriefing.market_sentiment
-      : null;
-
-  const status = todayBriefing?.status || null;
-
-  // Determine which stories to show: 
-  // 1. If briefing exists with stories, show those
-  // 2. Otherwise show the instant news cards
-  const briefingStories = parseJsonArray(todayBriefing?.news_stories);
-  const displayStories = briefingStories.length > 0 ? briefingStories : newsCards;
-
-  const statusLabel = briefingLoading
-    ? "Loading briefing..."
-    : audioUrl
-    ? "Status: Ready to Play"
-    : isGenerating
-    ? "Status: Generating..."
-    : "Status: Ready to Generate";
 
   return (
-    <div
-      className="min-h-screen"
-      style={{
-        background:
-          "linear-gradient(180deg, rgba(255, 255, 249, 0.7) 0%, rgba(255, 226, 148, 0.51) 76%, rgba(255, 95, 31, 0.52) 100%)",
-      }}
-    >
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-amber-50/30">
       {/* Header */}
-      <header className="border-b border-slate-100 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
+      <motion.header 
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        className="backdrop-blur-sm bg-white/80 border-b border-slate-100 sticky top-0 z-50"
+      >
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-amber-600 rounded-xl flex items-center justify-center">
-              <Headphones className="h-5 w-5 text-white" />
-            </div>
-            <span className="font-semibold text-slate-900 tracking-tight">Briefing</span>
+            <Headphones className="w-6 h-6 text-amber-600" />
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">
+              Audilin
+            </h1>
           </div>
-          <Link to={createPageUrl("Settings")}>
-            <Button variant="ghost" size="icon" className="text-slate-400 hover:text-slate-600">
-              <Settings className="h-5 w-5" />
+          
+          <Link to={createPageUrl("settings")}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="hover:bg-amber-50"
+            >
+              <Settings className="w-5 h-5" />
             </Button>
           </Link>
         </div>
-      </header>
+      </motion.header>
 
-      <main className="max-w-4xl mx-auto px-6 py-12">
-        {/* AUDIO PLAYER */}
+      <main className="max-w-7xl mx-auto px-6 py-8">
+        {/* Audio Player Section */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="mb-10"
+          className="mb-12"
         >
           <AudioPlayer
-            audioUrl={audioUrl}
-            duration={todayBriefing?.duration_minutes || 8}
-            greeting={greeting()}
-            userName={firstName}
-            currentDate={format(new Date(), "MM/dd, EEE")}
-            onGenerate={generateFullBriefing}
+            audioUrl={todayBriefing?.audio_url}
+            todayBriefing={todayBriefing}
+            onGenerate={() => generateBriefing.mutate()}
             isGenerating={isGenerating}
-            status={status}
-            // NEW: Pass countdown props to AudioPlayer
+            isLoading={briefingLoading}
             canGenerateNew={canGenerateNew}
             timeUntilNextBriefing={timeUntilNextBriefing}
             briefingCount={getBriefingCount()}
