@@ -277,42 +277,40 @@ export default function Home() {
   // =========================================================
   // NEW: Manual refresh function for news cards
   // =========================================================
-const refreshNewsCards = async () => {  // ← Make sure 'async' is here!
+const refreshNewsCards = async () => {
   if (!user || !preferences?.onboarding_completed) return;
   
   setIsLoadingNews(true);
-  console.log("🔄 Manual refresh triggered...");
+  console.log("🔄 Manual refresh triggered - FORCING CACHE REGENERATION...");
   
-  // Clear cache
+  // Clear local cache
   localStorage.removeItem('newsCards');
   localStorage.removeItem('newsCardsTimestamp');
   
   try {
-    const response = await base44.functions.invoke("refreshNewsCache", {
-      count: 5,
-      preferences: preferences,
-    });
+    // FORCE refresh the cache (this will trigger LLM analysis)
+    console.log("📡 Calling refreshNewsCache to regenerate with LLM...");
+    const refreshResponse = await base44.functions.invoke("refreshNewsCache", {});
 
-    if (response?.data?.success) {
-      console.log("✅ Cache refreshed, now reading from NewsCache entity...");
+    if (refreshResponse?.data?.success) {
+      console.log("✅ Cache regenerated with LLM analysis!");
+      console.log(`📊 LLM analyzed ${refreshResponse.data.llm_analyzed_count} stories`);
       
-      // Read from NewsCache entity
+      // Now read the fresh cache
       const cacheEntries = await base44.entities.NewsCache.filter({});
       
       if (cacheEntries && cacheEntries.length > 0) {
-        // Get most recent cache entry
         const latestCache = cacheEntries.sort((a, b) => 
           new Date(b.refreshed_at) - new Date(a.refreshed_at)
         )[0];
         
-        // Parse stories from JSON string
         const stories = JSON.parse(latestCache.stories);
         
         setNewsCards(stories);
         setLastRefreshTime(new Date(latestCache.refreshed_at));
         localStorage.setItem('newsCards', JSON.stringify(stories));
         localStorage.setItem('newsCardsTimestamp', Date.now().toString());
-        console.log(`✅ News cards refreshed - ${stories.length} stories`);
+        console.log(`✅ Loaded ${stories.length} stories with fresh LLM analysis`);
       }
     }
   } catch (error) {
