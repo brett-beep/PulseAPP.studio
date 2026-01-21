@@ -445,8 +445,10 @@ const refreshNewsCards = async () => {  // ← Make sure 'async' is here!
   // Determine which stories to show: 
   // 1. If briefing exists with stories, show those
   // 2. Otherwise show the instant news cards
-  const briefingStories = parseJsonArray(todayBriefing?.news_stories);
-  const displayStories = briefingStories.length > 0 ? briefingStories : newsCards;
+const briefingStories = parseJsonArray(todayBriefing?.news_stories);
+const displayStories = briefingStories.length > 0 
+  ? briefingStories.slice(0, 5)  // Only show top 5 from briefing
+  : newsCards.slice(0, 5);        // Only show top 5 from news cards
 
   const statusLabel = briefingLoading
     ? "Loading briefing..."
