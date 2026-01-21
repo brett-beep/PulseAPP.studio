@@ -104,7 +104,7 @@ function isNearDuplicate(a, b) {
   }
   
   // If 3+ key entities match, these are about the same topic
-  if (entityOverlap >= 3) {
+  if (entityOverlap >= 4) {
     console.log(`🔄 DUPE (${entityOverlap} entities: ${sharedEntities.join(", ")})`);
     console.log(`   A: "${aHeadline.slice(0,50)}..."`);
     console.log(`   B: "${bHeadline.slice(0,50)}..."`);
@@ -158,7 +158,7 @@ function isNearDuplicate(a, b) {
   const bText = `${bHeadline} ${bSummary}`;
   const sim = jaccard(tokenSet(aText), tokenSet(bText));
   
-  if (sim >= 0.40) {
+  if (sim >= 0.50) {
     console.log(`🔄 DUPE (jaccard=${sim.toFixed(2)})`);
     return true;
   }
