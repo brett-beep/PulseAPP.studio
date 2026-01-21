@@ -265,7 +265,7 @@ Deno.serve(async (req) => {
     let cacheInfo = {};
     
     try {
-      const cacheEntries = await base44.entities.NewsCache.filter({});
+      const cacheEntries = await base44.data.NewsCache.findMany({});
       
       if (cacheEntries && cacheEntries.length > 0) {
         const latestCache = cacheEntries.sort((a, b) => 
