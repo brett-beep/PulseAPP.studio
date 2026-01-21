@@ -599,23 +599,46 @@ Deno.serve(async (req) => {
     const topArticles = pickTopDiverseArticles(allArticles, 30);
     
     // ============================================================
-    // NEW: Enhance top 5 with LLM analysis
+    // NEW: Enhance top 10 with LLM analysis (increased from 5)
     // ============================================================
-    console.log("\n🤖 Analyzing top 5 stories with LLM...");
-    const top5ForAnalysis = topArticles.slice(0, 5);
+    console.log("\n🤖 Analyzing top 10 stories with LLM for investor insights...");
+    const top10ForAnalysis = topArticles.slice(0, 10);
     
-    const analyzedTop5 = await Promise.all(
-      top5ForAnalysis.map(async (article, index) => {
+    const analyzedTop10 = await Promise.all(
+      top10ForAnalysis.map(async (article, index) => {
         try {
-          const prompt = `You are a financial advisor. Analyze this news and explain in ONE clear sentence why it matters to investors.
+          // More specific, personalized prompt
+          const prompt = `Analyze this financial news story and explain in ONE sentence why it matters specifically to investors.
 
-Headline: ${article.headline}
-Summary: ${article.summary || "No summary available"}
+Headline: "${article.headline}"
+Summary: "${article.summary || "No summary available"}"
+Category: ${article.category}
 
-Focus on: portfolio impact, market implications, or investment opportunities. Be specific and actionable. Maximum 25 words.`;
+Your response should:
+- Focus on tangible portfolio/investment impact
+- Mention specific sectors, assets, or market segments affected
+- Be actionable and concrete (not generic)
+- Maximum 20 words
+- Start directly with the impact (no "This could..." or "This may...")
+
+Example good responses:
+- "Tech stocks may rally as AI chip demand signals strong Q1 earnings potential."
+- "Rising gold prices suggest investors hedging against inflation uncertainty."
+- "Federal rate policy shift could trigger bond portfolio rebalancing opportunities."
+
+Respond with ONLY the one-sentence analysis:`;
 
           const llmResponse = await invokeLLM(base44, prompt, false, null);
-          const whyItMatters = safeText(llmResponse, "Potential investment implications - read full story for details.");
+          let whyItMatters = safeText(llmResponse, getCategoryMessage(article.category)).trim();
+          
+          // Clean up common prefixes that LLMs add
+          whyItMatters = whyItMatters
+            .replace(/^(This could|This may|This might|This news|This suggests|This indicates)/i, '')
+            .replace(/^[,\s]+/, '')
+            .trim();
+          
+          // Ensure first letter is capitalized
+          whyItMatters = whyItMatters.charAt(0).toUpperCase() + whyItMatters.slice(1);
           
           console.log(`✅ Analyzed #${index + 1}: ${article.headline?.slice(0, 40)}...`);
           console.log(`   → ${whyItMatters}`);
@@ -635,13 +658,13 @@ Focus on: portfolio impact, market implications, or investment opportunities. Be
       })
     );
     
-    // Merge analyzed top 5 with remaining stories (with category fallbacks)
-    const remainingStories = topArticles.slice(5).map(article => ({
+    // Merge analyzed top 10 with remaining stories (with category fallbacks)
+    const remainingStories = topArticles.slice(10).map(article => ({
       ...article,
       why_it_matters: getCategoryMessage(article.category)
     }));
     
-    const allStoriesWithAnalysis = [...analyzedTop5, ...remainingStories];
+    const allStoriesWithAnalysis = [...analyzedTop10, ...remainingStories];
     
     // Format for storage
     const formattedStories = allStoriesWithAnalysis.map((article, index) => ({
@@ -685,7 +708,7 @@ Focus on: portfolio impact, market implications, or investment opportunities. Be
     
     console.log("\n" + "=".repeat(60));
     console.log(`✅ COMPLETE in ${elapsed}ms`);
-    console.log(`📰 Cached ${formattedStories.length} diverse stories (top 5 LLM-analyzed)`);
+    console.log(`📰 Cached ${formattedStories.length} diverse stories (top 10 LLM-analyzed)`);
     console.log("=".repeat(60) + "\n");
     
     return Response.json({
@@ -696,7 +719,7 @@ Focus on: portfolio impact, market implications, or investment opportunities. Be
       sources_used: successfulSources,
       refreshed_at: cacheEntry.refreshed_at,
       elapsed_ms: elapsed,
-      llm_analyzed_count: 5,
+      llm_analyzed_count: 10,
       category_breakdown: formattedStories.reduce((acc, s) => {
         acc[s.category] = (acc[s.category] || 0) + 1;
         return acc;
