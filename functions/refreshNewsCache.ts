@@ -609,6 +609,7 @@ Deno.serve(async (req) => {
     return Response.json({
       success: true,
       message: "News cache refreshed (v3 - strict dedup)",
+      stories: formattedStories,  // 🔥 ADD THIS LINE
       stories_cached: formattedStories.length,
       total_fetched: allArticles.length,
       sources_used: successfulSources,
@@ -617,9 +618,9 @@ Deno.serve(async (req) => {
       category_breakdown: formattedStories.reduce((acc, s) => {
         acc[s.category] = (acc[s.category] || 0) + 1;
         return acc;
-      }, {}),
-      top_5_headlines: formattedStories.slice(0, 5).map(s => `[${s.category}] ${s.title}`)
-    });
+ }, {}),
+  top_5_headlines: formattedStories.slice(0, 5).map(s => `[${s.category}] ${s.title}`)
+});
     
   } catch (error) {
     console.error("❌ [refreshNewsCache] Error:", error);
