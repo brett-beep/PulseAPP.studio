@@ -443,17 +443,6 @@ export default function Home() {
   <span className="font-semibold text-slate-900 tracking-tight">PulseApp.Studio</span>
 </div>
 
-```
-
-The logo URL format for Base44 is typically:
-```
-https://cdn.base44.app/{YOUR_APP_ID}/logo.png
-```
-
-Your app ID appears to be `696a8e65ef692fa1b775cb03` based on your earlier logs.
-
-So the full image src should be:
-```
 https://cdn.base44.app/696a8e65ef692fa1b775cb03/logo.png
 
           <Link to={createPageUrl("Settings")}>
