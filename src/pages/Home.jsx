@@ -26,7 +26,9 @@ export default function Home() {
 
   // Countdown timer state for briefing limits (3 per day, 3-hour cooldown)
   const [timeUntilNextBriefing, setTimeUntilNextBriefing] = useState(null);
-  const [canGenerateNew, setCanGenerateNew] = useState(true);
+  //const [canGenerateNew, setCanGenerateNew] = useState(true);// REENABLE THIS WHEN YOU NEED COOLDOWN AND DELETE THE CODE BERLOW
+  const canGenerateNewOverride = true; // TEMP: disable cooldown
+
 
   // Fetch current user
   const { data: user, isLoading: userLoading } = useQuery({
