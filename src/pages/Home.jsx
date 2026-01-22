@@ -155,23 +155,43 @@ export default function Home() {
       }
 
       // Cooldown from LAST DELIVERED briefing (prefer delivered_at)
-      const lastDelivered = [...delivered].sort((a, b) => {
-        const dateA = a.delivered_at || a.updated_date || a.created_date || a.updated_at || a.created_at || 0;
-        const dateB = b.delivered_at || b.updated_date || b.created_date || b.updated_at || b.created_at || 0;
-        return new Date(dateB) - new Date(dateA);
-      })[0];
+      // FIX: Base44 timestamps may come back without timezone ("Z").
+// If no timezone suffix is present, treat it as UTC by appending "Z".
+const parseBase44Time = (value) => {
+  const s = typeof value === "string" ? value.trim() : "";
+  if (!s) return null;
 
-      const lastDeliveredAt = new Date(
-        lastDelivered.delivered_at ||
-          lastDelivered.updated_date ||
-          lastDelivered.created_date ||
-          lastDelivered.updated_at ||
-          lastDelivered.created_at
-      );
+  const hasTZ =
+    s.endsWith("Z") ||
+    /[+-]\d{2}:\d{2}$/.test(s) ||
+    /[+-]\d{4}$/.test(s);
 
-      const threeHoursLater = new Date(lastDeliveredAt.getTime() + 3 * 60 * 60 * 1000);
-      const now = new Date();
-      const msRemaining = threeHoursLater - now;
+  return new Date(hasTZ ? s : `${s}Z`);
+};
+
+const pickDeliveredTime = (b) =>
+  b?.delivered_at || b?.updated_date || b?.created_date || b?.updated_at || b?.created_at || null;
+
+// Cooldown from LAST DELIVERED briefing (prefer delivered_at)
+const lastDelivered = [...delivered].sort((a, b) => {
+  const ta = parseBase44Time(pickDeliveredTime(a))?.getTime() || 0;
+  const tb = parseBase44Time(pickDeliveredTime(b))?.getTime() || 0;
+  return tb - ta;
+})[0];
+
+const lastDeliveredAt = parseBase44Time(pickDeliveredTime(lastDelivered));
+const now = new Date();
+
+if (!lastDeliveredAt || isNaN(lastDeliveredAt.getTime())) {
+  console.log("⏱️ [Countdown] Could not parse last delivered time, allowing generation");
+  setCanGenerateNew(true);
+  setTimeUntilNextBriefing(null);
+  return;
+}
+
+const threeHoursLater = new Date(lastDeliveredAt.getTime() + 3 * 60 * 60 * 1000);
+const msRemaining = threeHoursLater.getTime() - now.getTime();
+
 
       console.log("⏱️ [Countdown] Last delivered at:", lastDeliveredAt.toLocaleString());
       console.log("⏱️ [Countdown] Current time:", now.toLocaleString());
