@@ -140,10 +140,36 @@ export default function Settings() {
             </header>
 
             <main className="max-w-2xl mx-auto px-6 py-12 space-y-12">
+                {/* Display Name */}
+                <motion.section
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                >
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center">
+                            <span className="text-lg">👋</span>
+                        </div>
+                        <div>
+                            <h2 className="font-semibold text-slate-900">Display Name</h2>
+                            <p className="text-sm text-slate-500">How should we greet you?</p>
+                        </div>
+                    </div>
+                    <input
+                        type="text"
+                        value={editedPrefs.display_name || ''}
+                        onChange={(e) => setEditedPrefs(prev => ({ ...prev, display_name: e.target.value }))}
+                        placeholder="Enter your name"
+                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 transition-all"
+                    />
+                </motion.section>
+
+                <Separator />
+
                 {/* Investment Goals */}
                 <motion.section
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 }}
                 >
                     <div className="flex items-center gap-3 mb-4">
                         <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center">
@@ -180,7 +206,7 @@ export default function Settings() {
                 <motion.section
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 }}
+                    transition={{ delay: 0.2 }}
                 >
                     <div className="flex items-center gap-3 mb-4">
                         <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
@@ -217,7 +243,7 @@ export default function Settings() {
                 <motion.section
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
+                    transition={{ delay: 0.3 }}
                 >
                     <div className="flex items-center gap-3 mb-4">
                         <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center">
@@ -254,7 +280,7 @@ export default function Settings() {
                 <motion.section
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3 }}
+                    transition={{ delay: 0.4 }}
                 >
                     <div className="flex items-center gap-3 mb-4">
                         <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center">
@@ -282,7 +308,7 @@ export default function Settings() {
                 <motion.section
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.4 }}
+                    transition={{ delay: 0.5 }}
                 >
                     <div className="flex items-center gap-3 mb-6">
                         <div className="w-10 h-10 bg-cyan-50 rounded-xl flex items-center justify-center">

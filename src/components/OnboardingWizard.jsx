@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 
 const steps = [
+    { id: 'name', title: 'Your Name', icon: Target },
     { id: 'goals', title: 'Investment Goals', icon: Target },
     { id: 'risk', title: 'Risk Tolerance', icon: Shield },
     { id: 'interests', title: 'Interests', icon: Briefcase },
@@ -38,6 +39,7 @@ const interestOptions = [
 export default function OnboardingWizard({ onComplete }) {
     const [currentStep, setCurrentStep] = useState(0);
     const [preferences, setPreferences] = useState({
+        display_name: '',
         investment_goals: [],
         risk_tolerance: 'moderate',
         investment_interests: [],
@@ -95,6 +97,27 @@ export default function OnboardingWizard({ onComplete }) {
 
     const renderStepContent = () => {
         switch (steps[currentStep].id) {
+            case 'name':
+                return (
+                    <div className="space-y-6">
+                        <p className="text-slate-600 text-center">
+                            What should we call you?
+                        </p>
+                        <div className="max-w-md mx-auto">
+                            <Input
+                                type="text"
+                                placeholder="Enter your name"
+                                value={preferences.display_name}
+                                onChange={(e) => setPreferences(prev => ({ ...prev, display_name: e.target.value }))}
+                                className="text-center text-lg h-12"
+                            />
+                            <p className="text-xs text-slate-400 text-center mt-2">
+                                This name will appear on your home page
+                            </p>
+                        </div>
+                    </div>
+                );
+
             case 'goals':
                 return (
                     <div className="space-y-6">

@@ -473,7 +473,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
     return <OnboardingWizard onComplete={handleOnboardingComplete} />;
   }
 
-  const firstName = user?.full_name?.split(" ")?.[0] || "there";
+  const firstName = preferences?.display_name || user?.full_name?.split(" ")?.[0] || "there";
   const audioUrl = todayBriefing?.audio_url || null;
 
   console.log("🎵 [AudioPlayer] audioUrl prop:", audioUrl);
