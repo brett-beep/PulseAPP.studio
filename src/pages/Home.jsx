@@ -560,6 +560,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
             onGenerate={generateFullBriefing}
             isGenerating={isGenerating}
             status={status}
+            statusLabel={getStatusLabel()}
             canGenerateNew={canGenerateNew}
             timeUntilNextBriefing={timeUntilNextBriefing}
             briefingCount={getBriefingCount()}

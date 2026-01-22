@@ -1,10 +1,10 @@
-import Home from './pages/Home';
 import Settings from './pages/Settings';
+import Home from './pages/Home';
 
 
 export const PAGES = {
-    "Home": Home,
     "Settings": Settings,
+    "Home": Home,
 }
 
 export const pagesConfig = {
