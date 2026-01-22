@@ -184,7 +184,12 @@ Deno.serve(async (req) => {
         );
       }
 
-      const briefing = existing[0];
+    const briefing = [...existing].sort((a, b) => {
+      const da = a.delivered_at || a.updated_at || a.created_at;
+      const db = b.delivered_at || b.updated_at || b.created_at;
+      return new Date(db) - new Date(da);
+    })[0];
+
       const script = safeText(briefing?.script);
       if (!script) {
         return Response.json(
