@@ -109,25 +109,24 @@ export default function Settings() {
     };
 
     const handleSignOut = async () => {
-        try {
-            // Clear React Query cache
-            queryClient.clear();
-            
-            // Clear localStorage/sessionStorage
-            localStorage.clear();
-            sessionStorage.clear();
-            
-            // Logout from Base44 (invalidates session)
-            await base44.auth.logout();
-            
-            // Force hard redirect to root
-            window.location.replace("/");
-        } catch (error) {
-            console.error('Sign out error:', error);
-            // Force redirect even on error
-            window.location.replace("/");
-        }
-    };
+    try {
+        // Clear React Query cache
+        queryClient.clear();
+        
+        // Clear localStorage/sessionStorage
+        localStorage.clear();
+        sessionStorage.clear();
+        
+        // Base44's logout will automatically redirect to the login page
+        await base44.auth.logout();
+        
+        // Remove the window.location.replace("/") - Base44 handles this
+    } catch (error) {
+        console.error('Sign out error:', error);
+        // If logout fails, force reload to trigger auth check
+        window.location.href = window.location.origin;
+    }
+};
 
     if (isLoading || !editedPrefs) {
         return (
