@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence, useMotionValue, useSpring } from "framer-motion";
-import { Play, Pause, RotateCcw, FastForward, Volume2, VolumeX, Gauge, Clock } from "lucide-react";
+import { Play, Pause, RotateCcw, FastForward, Volume2, VolumeX, Gauge, Clock, Loader2 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { GlassFilter } from "@/components/ui/liquid-glass-button";
 
@@ -14,7 +14,7 @@ export default function AudioPlayer({
   onGenerate,
   isGenerating = false,
   status = null,
-  // NEW PROPS for countdown timer feature
+  statusLabel = null, // NEW: Add this prop
   canGenerateNew = true,
   timeUntilNextBriefing = null,
   briefingCount = 0,
@@ -22,9 +22,7 @@ export default function AudioPlayer({
   console.log("🎵 [AudioPlayer Component] Rendered with audioUrl:", audioUrl);
   console.log("🎵 [AudioPlayer Component] isGenerating:", isGenerating);
   console.log("🎵 [AudioPlayer Component] status:", status);
-  console.log("🎵 [AudioPlayer Component] canGenerateNew:", canGenerateNew);
-  console.log("🎵 [AudioPlayer Component] timeUntilNextBriefing:", timeUntilNextBriefing);
-  console.log("🎵 [AudioPlayer Component] briefingCount:", briefingCount);
+  console.log("🎵 [AudioPlayer Component] statusLabel:", statusLabel);
   
   const audioRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -85,7 +83,6 @@ export default function AudioPlayer({
     };
   }, [audioUrl, duration, onComplete]);
 
-  // Apply playback rate when it changes
   useEffect(() => {
     const audio = audioRef.current;
     if (audio) {
@@ -161,7 +158,6 @@ export default function AudioPlayer({
     my.set(e.clientY - rect.top);
   };
 
-  // NEW: Determine button state and text
   const isButtonDisabled = isGenerating || !canGenerateNew;
   const getButtonText = () => {
     if (isGenerating) return "Generating...";
@@ -184,24 +180,22 @@ export default function AudioPlayer({
         WebkitBackdropFilter: "blur(60px) saturate(1.5)",
         border: "0.5px solid rgba(255, 255, 255, 0.8)",
         boxShadow: `
-          0_0_6px_rgba(0,0,0,0.03),
-          0_2px_6px_rgba(0,0,0,0.08),
-          inset_3px_3px_0.5px_-3px_rgba(0,0,0,0.9),
-          inset_-3px_-3px_0.5px_-3px_rgba(0,0,0,0.85),
-          inset_1px_1px_1px_-0.5px_rgba(0,0,0,0.6),
-          inset_-1px_-1px_1px_-0.5px_rgba(0,0,0,0.6),
-          inset_0_0_6px_6px_rgba(0,0,0,0.12),
-          inset_0_0_2px_2px_rgba(0,0,0,0.06),
-          0_0_12px_rgba(255,255,255,0.15),
-          0_24px_70px_-12px_rgba(0,0,0,0.15),
-          0_8px_24px_-8px_rgba(0,0,0,0.08)
-        `.replace(/_/g, ' '),
+          0 0 6px rgba(0,0,0,0.03),
+          0 2px 6px rgba(0,0,0,0.08),
+          inset 3px 3px 0.5px -3px rgba(0,0,0,0.9),
+          inset -3px -3px 0.5px -3px rgba(0,0,0,0.85),
+          inset 1px 1px 1px -0.5px rgba(0,0,0,0.6),
+          inset -1px -1px 1px -0.5px rgba(0,0,0,0.6),
+          inset 0 0 6px 6px rgba(0,0,0,0.12),
+          inset 0 0 2px 2px rgba(0,0,0,0.06),
+          0 0 12px rgba(255,255,255,0.15),
+          0 24px 70px -12px rgba(0,0,0,0.15),
+          0 8px 24px -8px rgba(0,0,0,0.08)
+        `,
       }}
     >
-      {/* Glass Filter SVG */}
       <GlassFilter />
 
-      {/* Multi-layer depth borders */}
       <div
         className="pointer-events-none absolute inset-[0.5px] rounded-[39.5px]"
         style={{
@@ -216,7 +210,6 @@ export default function AudioPlayer({
         }}
       />
 
-      {/* Dynamic specular highlight */}
       <motion.div
         className="pointer-events-none absolute inset-0 rounded-[40px]"
         style={{
@@ -227,34 +220,20 @@ export default function AudioPlayer({
         }}
       />
 
-      {/* Animated dots for generating state */}
+      {/* UPDATED: Better generating overlay with progress status */}
       {isGenerating && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="absolute inset-0 flex items-center justify-center bg-white/5 backdrop-blur-sm rounded-[40px] z-30"
+          className="absolute inset-0 flex flex-col items-center justify-center bg-white/5 backdrop-blur-sm rounded-[40px] z-30 gap-4"
         >
-          <div className="flex items-center gap-1">
-            {[0, 1, 2].map((i) => (
-              <motion.div
-                key={i}
-                className="w-2 h-2 rounded-full bg-amber-500"
-                animate={{
-                  scale: [1, 1.3, 1],
-                  opacity: [0.5, 1, 0.5],
-                }}
-                transition={{
-                  duration: 1.2,
-                  repeat: Infinity,
-                  delay: i * 0.2,
-                }}
-              />
-            ))}
-          </div>
+          <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
+          {statusLabel && (
+            <p className="text-slate-700 text-sm font-medium">{statusLabel}</p>
+          )}
         </motion.div>
       )}
 
-      {/* Ambient liquid blobs */}
       <motion.div
         className="pointer-events-none absolute -top-32 -right-32 h-80 w-80 rounded-full opacity-40"
         animate={{
@@ -282,7 +261,6 @@ export default function AudioPlayer({
         }}
       />
 
-      {/* Subtle noise texture */}
       <div
         className="pointer-events-none absolute inset-0 opacity-[0.035] mix-blend-overlay rounded-[40px]"
         style={{
@@ -300,7 +278,6 @@ export default function AudioPlayer({
       ) : null}
 
       <div className="relative z-10">
-        {/* Header with date and briefing count */}
         <div className="flex items-center justify-between mb-8">
           <div>
             <p className="text-slate-500/80 text-xs font-medium tracking-wider uppercase mb-1">
@@ -311,7 +288,6 @@ export default function AudioPlayer({
             </p>
           </div>
           <div className="flex items-center gap-3">
-            {/* NEW: Briefing count indicator */}
             <div className="text-right">
               <p className="text-slate-400 text-[10px] font-medium tracking-wider uppercase">Today</p>
               <p className="text-slate-700 text-sm font-semibold">{briefingCount} / 3</p>
@@ -328,7 +304,6 @@ export default function AudioPlayer({
           </div>
         </div>
 
-        {/* Waveform */}
         <div className="flex items-center justify-center gap-[3px] h-28 mb-8 px-2">
           {bars.map((bar) => {
             const isActive = bar.p <= progress;
@@ -358,7 +333,6 @@ export default function AudioPlayer({
           })}
         </div>
 
-        {/* Progress */}
         <div className="mb-10 px-1">
           <Slider
             value={[currentTime]}
@@ -373,7 +347,6 @@ export default function AudioPlayer({
           </div>
         </div>
 
-        {/* Controls */}
         <div className="flex items-center justify-center gap-4">
           <motion.button
             whileHover={{ scale: 1.12 }}
@@ -462,7 +435,6 @@ export default function AudioPlayer({
             <FastForward className="h-5 w-5 text-slate-600" />
           </motion.button>
 
-          {/* Speed Control Button */}
           <div className="relative">
             <motion.button
               whileHover={{ scale: 1.12 }}
@@ -482,7 +454,6 @@ export default function AudioPlayer({
               </span>
             </motion.button>
 
-            {/* Speed Menu Dropdown */}
             <AnimatePresence>
               {showSpeedMenu && (
                 <motion.div
@@ -523,7 +494,6 @@ export default function AudioPlayer({
           </div>
         </div>
 
-        {/* Generate Button / Generating Message / Countdown Timer */}
         <AnimatePresence mode="wait">
           {isGenerating ? (
             <motion.div
@@ -533,24 +503,8 @@ export default function AudioPlayer({
               exit={{ opacity: 0, y: -10 }}
               className="text-center mt-8"
             >
-              <p className="text-slate-600 text-sm flex items-center justify-center gap-2">
-                Audio briefing is being generated
-                <span className="inline-flex gap-0.5">
-                  {[0, 1, 2].map((i) => (
-                    <motion.span
-                      key={i}
-                      animate={{ opacity: [0.3, 1, 0.3] }}
-                      transition={{
-                        duration: 1.5,
-                        repeat: Infinity,
-                        delay: i * 0.2,
-                      }}
-                    >
-                      .
-                    </motion.span>
-                  ))}
-                </span>
-              </p>
+              {/* Progress status is now shown in the overlay above, so we can keep this minimal */}
+              <p className="text-slate-500 text-xs">Please wait while your briefing is being created...</p>
             </motion.div>
           ) : (
             <motion.div
@@ -560,7 +514,6 @@ export default function AudioPlayer({
               exit={{ opacity: 0, y: -10 }}
               className="flex flex-col items-center mt-8 gap-2"
             >
-              {/* Generate Button - Always visible, but greyed out when disabled */}
               <motion.button
                 whileHover={canGenerateNew ? { scale: 1.05, y: -2 } : {}}
                 whileTap={canGenerateNew ? { scale: 0.98 } : {}}
@@ -587,7 +540,6 @@ export default function AudioPlayer({
                 {getButtonText()}
               </motion.button>
 
-              {/* Countdown Timer - Shows when button is disabled due to cooldown */}
               {timeUntilNextBriefing && timeUntilNextBriefing !== "Daily limit reached" && (
                 <motion.div
                   initial={{ opacity: 0 }}
@@ -599,7 +551,6 @@ export default function AudioPlayer({
                 </motion.div>
               )}
 
-              {/* Daily limit message */}
               {timeUntilNextBriefing === "Daily limit reached" && (
                 <motion.div
                   initial={{ opacity: 0 }}
