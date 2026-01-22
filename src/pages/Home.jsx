@@ -128,11 +128,7 @@ export default function Home() {
   // =========================================================
   
   //====ENABLE THIS FOR COOLDOWN====//
-  useEffect(() => {
-    if (!briefings || !Array.isArray(briefings)) {
-      console.log("⏱️ [Countdown] No briefings array, allowing generation");
-      setCanGenerateNew(true);
-      setTimeUntilNextBriefing(null);
+  useEffect() => {
       return;
     } 
 
