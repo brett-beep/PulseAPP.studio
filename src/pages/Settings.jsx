@@ -18,8 +18,7 @@ import {
     Clock,
     Save,
     Check,
-    TrendingUp,
-    LogOut
+    TrendingUp
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -107,18 +106,6 @@ export default function Settings() {
             portfolio_holdings: prev.portfolio_holdings?.filter(h => h !== symbol) || []
         }));
     };
-
-const handleSignOut = async () => {
-    try {
-        await base44.auth.logout();
-        
-        // Force a complete page reload to trigger Base44's auth check
-        window.location.href = window.location.origin;
-    } catch (error) {
-        console.error('Sign out error:', error);
-        window.location.href = window.location.origin;
-    }
-};
 
     if (isLoading || !editedPrefs) {
         return (
@@ -355,24 +342,6 @@ const handleSignOut = async () => {
                             </div>
                         </div>
                     </div>
-                </motion.section>
-
-                <Separator />
-
-                {/* Sign Out */}
-                <motion.section
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.5 }}
-                >
-                    <Button
-                        onClick={handleSignOut}
-                        variant="outline"
-                        className="w-full text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-                    >
-                        <LogOut className="h-4 w-4 mr-2" />
-                        Sign Out
-                    </Button>
                 </motion.section>
             </main>
         </div>
