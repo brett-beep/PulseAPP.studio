@@ -466,12 +466,22 @@ const newsCardStories = newsCards.slice(0, 5);
 
   // FIXED: Show proper status based on briefing state
   const getStatusLabel = () => {
-    if (briefingLoading) return "Loading briefing...";
-    if (isGenerating) return "Status: Generating...";
-    if (status === "generating") return "Status: Generating audio...";
-    if (audioUrl) return "Status: Ready to Play";
-    return "Status: Ready to Generate";
-  };
+  if (briefingLoading) return "Loading briefing...";
+  
+  // Show progress messages based on status
+  switch (status) {
+    case "writing_script":
+      return "✍️ Writing your briefing script...";
+    case "generating_audio":
+      return "🎵 Generating audio (this takes ~45 seconds)...";
+    case "uploading":
+      return "📤 Almost ready...";
+    case "ready":
+      return audioUrl ? "✅ Ready to Play" : "⏳ Finalizing...";
+    default:
+      return "Ready to Generate";
+  }
+};
 
   return (
     <div
