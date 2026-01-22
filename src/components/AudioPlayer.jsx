@@ -220,15 +220,17 @@ export default function AudioPlayer({
         }}
       />
 
-      {/* Status overlay during generation */}
-      {isGenerating && statusLabel && (
+      {/* UPDATED: Better generating overlay with progress status */}
+      {isGenerating && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="absolute inset-0 flex flex-col items-center justify-center bg-white/20 backdrop-blur-md rounded-[40px] z-30 gap-4"
+          className="absolute inset-0 flex flex-col items-center justify-center bg-white/5 backdrop-blur-sm rounded-[40px] z-30 gap-4"
         >
-          <Loader2 className="w-10 h-10 text-amber-500 animate-spin" />
-          <p className="text-slate-800 text-base font-semibold px-6 text-center">{statusLabel}</p>
+          <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
+          {statusLabel && (
+            <p className="text-slate-700 text-sm font-medium">{statusLabel}</p>
+          )}
         </motion.div>
       )}
 

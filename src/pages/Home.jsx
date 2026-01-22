@@ -501,17 +501,17 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
 
     switch (status) {
       case "writing_script":
-        return "Hang Tight! We're writing your briefing script...";
+        return "✍️ Writing your briefing script...";
       case "generating_audio":
-        return "🎵 Generating audio...";
+        return "🎵 Generating audio (~45 seconds)...";
       case "uploading":
         return "📤 Almost ready...";
       case "ready":
         return audioUrl ? "✅ Ready to Play" : "⏳ Finalizing...";
       case "script_ready":
-        return "✅ Script Ready";
+        return "✅ Script Ready (audio skipped for testing)";
       default:
-        return null;
+        return "Ready to Generate";
     }
   };
 
@@ -560,7 +560,6 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
             onGenerate={generateFullBriefing}
             isGenerating={isGenerating}
             status={status}
-            statusLabel={getStatusLabel()}
             canGenerateNew={canGenerateNew}
             timeUntilNextBriefing={timeUntilNextBriefing}
             briefingCount={getBriefingCount()}
