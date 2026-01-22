@@ -621,12 +621,7 @@ CRITICAL REQUIREMENTS:
 - Mention a ticker/asset/sector if obvious
 - No fluff, no generic lines
 
-Example responses (notice brevity):
-- "AI chip demand could boost tech stocks."
-- "Fed rate changes may affect bond portfolios."
-- "Gold rally signals inflation hedge demand."
-
-Respond with ONLY the brief analysis (15 words max):`;
+Respond with brief investor analysis (45 words max):`;
 
           const llmResponse = await invokeLLM(base44, prompt, false, null);
           let whyItMatters = safeText(llmResponse, getCategoryMessage(article.category)).trim();
