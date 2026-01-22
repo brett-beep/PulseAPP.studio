@@ -549,6 +549,9 @@ SCRIPT STRUCTURE - HYBRID FRAMEWORK:
    • QUESTION (optional)
    • FACTS
    • DEEPER MEANING
+   • Do NOT include any section labels or meta words like: "HOOK", "QUESTION", "FACTS", "DEEPER MEANING"
+   • Just write clean spoken paragraphs.
+
    (~150-180 words per story)
 
 3. MARKET SNAPSHOT (30-40 words):
@@ -567,6 +570,9 @@ VOICE GUIDELINES:
 - No filler phrases
 - Percent moves ONLY, no index levels
 - Direct address ("you", "your portfolio")
+- ABSOLUTE RULE: Do not output any outline markers, headings, or labels.
+  Do not say or print: "HOOK", "QUESTION", "FACTS", "DEEPER MEANING", "Top Story", "Market Snapshot", "Closing".
+  Write as continuous spoken narration only.
 
 DATA:
 
