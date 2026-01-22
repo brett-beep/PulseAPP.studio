@@ -403,7 +403,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
 
       const response = await base44.functions.invoke("generateBriefing", {
         preferences: {
-          user_name: preferences?.user_name || user?.full_name?.split(" ")?.[0] || "there",
+          user_name: preferences?.display_name || user?.full_name?.split(" ")?.[0] || "there",
           risk_tolerance: preferences?.risk_tolerance,
           time_horizon: preferences?.time_horizon,
           investment_goals: preferences?.investment_goals,
