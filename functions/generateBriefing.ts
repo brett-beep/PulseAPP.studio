@@ -5,6 +5,42 @@ function safeISODate(input) {
   return new Date().toISOString().slice(0, 10);
 }
 
+function localISODate(timeZone, input) {
+  const s = typeof input === "string" ? input.trim() : "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  // YYYY-MM-DD in the user's timezone
+  return new Date().toLocaleDateString("en-CA", { timeZone });
+}
+
+function isValidTimeZone(tz) {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: tz }).format(new Date());
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function getZonedParts(timeZone, d = new Date()) {
+  const weekdayShort = new Intl.DateTimeFormat("en-US", { timeZone, weekday: "short" }).format(d);
+  const hourStr = new Intl.DateTimeFormat("en-US", { timeZone, hour: "2-digit", hour12: false }).format(d);
+  const mdParts = new Intl.DateTimeFormat("en-US", { timeZone, month: "numeric", day: "numeric" }).formatToParts(d);
+
+  const map = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  const dayOfWeek = map[weekdayShort] ?? 0;
+
+  let month = 1;
+  let day = 1;
+  for (const p of mdParts) {
+    if (p.type === "month") month = Number(p.value) || 1;
+    if (p.type === "day") day = Number(p.value) || 1;
+  }
+
+  const hour = Number(hourStr) || 0;
+
+  return { dayOfWeek, hour, month, day };
+}
+
 function wordCount(text) {
   return String(text || "").split(/\s+/).filter(Boolean).length;
 }
@@ -117,7 +153,10 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const preferences = body?.preferences ?? {};
-    const date = safeISODate(body?.date);
+    const rawTz = safeText(body?.timeZone || body?.time_zone || body?.timezone, "UTC");
+    const timeZone = isValidTimeZone(rawTz) ? rawTz : "UTC";
+
+    const date = localISODate(timeZone, body?.date);
     const audioOnly = Boolean(body?.audio_only);
     const skipAudio = Boolean(body?.skip_audio);
 
@@ -155,7 +194,7 @@ Deno.serve(async (req) => {
       }
 
       await base44.asServiceRole.entities.DailyBriefing.update(briefing.id, {
-        status: "generating",
+        status: "generating_audio",
       });
 
       const audioFile = await generateAudioFile(script, date, elevenLabsApiKey);
@@ -168,9 +207,13 @@ Deno.serve(async (req) => {
         expires_in: 60 * 60 * 24 * 7,
       });
 
+      const deliveredAt = new Date().toISOString();
+
       const updated = await base44.asServiceRole.entities.DailyBriefing.update(briefing.id, {
         audio_url: signed_url,
         status: "ready",
+        delivered_at: deliveredAt,
+        time_zone: timeZone,
       });
 
       return Response.json({ success: true, briefing: updated });
@@ -280,7 +323,6 @@ Return JSON only.
       required: ["market_snapshot", "top_headlines"],
     };
 
-    // Use internet search to get real-time news
     const headlineData = await invokeLLM(base44, headlinePrompt, true, headlineSchema);
 
     if (!headlineData || !Array.isArray(headlineData.top_headlines) || headlineData.top_headlines.length !== 3) {
@@ -289,7 +331,6 @@ Return JSON only.
 
     const allowedCats = new Set(["markets", "crypto", "economy", "technology", "real estate", "commodities", "default"]);
 
-    // Helper function for truncating only headlines
     const truncateTitle = (text, maxLen) => {
       const clean = safeText(text, "");
       if (clean.length <= maxLen) return clean;
@@ -309,7 +350,7 @@ Return JSON only.
         why_it_matters: safeText(story?.portfolio_impact, ""),
         both_sides: {
           side_a: safeText(story?.portfolio_impact, ""),
-          side_b: ""
+          side_b: "",
         },
         outlet: safeText(story?.source, "Unknown"),
         category,
@@ -327,7 +368,7 @@ Return JSON only.
     // =========================================================
     const contextPrompt = `
 You already have these 3 TOP HEADLINES:
-${topStories.map((s, i) => `${i + 1}. ${s.title}`).join('\n')}
+${topStories.map((s, i) => `${i + 1}. ${s.title}`).join("\n")}
 
 Now find 2 ADDITIONAL stories that provide context or related developments. These should:
 - Complement the top 3 (not duplicate)
@@ -338,9 +379,9 @@ USER PROFILE:
 ${JSON.stringify(prefProfile, null, 2)}
 
 ${prefProfile.interests && Array.isArray(prefProfile.interests) && prefProfile.interests.length > 0 
-  ? `\nUSER INTERESTS: ${prefProfile.interests.join(', ')}. 
+  ? `\nUSER INTERESTS: ${prefProfile.interests.join(", ")}. 
 Look for stories related to these areas when selecting context stories.`
-  : ''}
+  : ""}
 
 LENGTH REQUIREMENTS:
 - headline: 60-80 characters max
@@ -392,14 +433,13 @@ Return 2 stories in same format as before.
         why_it_matters: safeText(story?.portfolio_impact, ""),
         both_sides: {
           side_a: safeText(story?.portfolio_impact, ""),
-          side_b: ""
+          side_b: "",
         },
         outlet: safeText(story?.source, "Unknown"),
         category,
       };
     });
 
-    // Combine: 3 headlines + 2 context = 5 total stories
     const allStories = [...topStories, ...contextStories];
 
     // =========================================================
@@ -411,7 +451,7 @@ Create briefing metadata for ${date}.
 LISTENER: ${name}
 
 TOP 3 HEADLINES:
-${topStories.map((s, i) => `${i + 1}. ${s.title} - ${s.what_happened}`).join('\n')}
+${topStories.map((s, i) => `${i + 1}. ${s.title} - ${s.what_happened}`).join("\n")}
 
 MARKET SNAPSHOT:
 - S&P: ${marketSnapshot.sp500_pct}
@@ -453,46 +493,38 @@ Return JSON with:
 
     // =========================================================
     // STEP 4: Generate Script with Hybrid Framework + Personal Opening
+    // (timezone-aware)
     // =========================================================
-    
-    // Determine time of day for accurate greeting
     const now = new Date();
-    const hour = now.getHours();
+    const { hour, dayOfWeek, month, day } = getZonedParts(timeZone, now);
+
     let timeGreeting = "Good morning";
     if (hour >= 12 && hour < 17) timeGreeting = "Good afternoon";
     if (hour >= 17) timeGreeting = "Good evening";
-    
-    // Determine day context for personal touch
-    const dayOfWeek = now.getDay(); // 0 = Sunday, 6 = Saturday
+
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
     const isMonday = dayOfWeek === 1;
     const isFriday = dayOfWeek === 5;
-    
-    // Check if it's a major holiday (expand as needed)
-    const month = now.getMonth() + 1;
-    const day = now.getDate();
+
     let holidayGreeting = null;
-    
     if (month === 1 && day === 1) holidayGreeting = "Happy New Year";
     if (month === 7 && day === 4) holidayGreeting = "Happy Fourth of July";
     if (month === 12 && day === 25) holidayGreeting = "Merry Christmas";
     if (month === 12 && day === 31) holidayGreeting = "Happy New Year's Eve";
-    if (month === 11 && (day >= 22 && day <= 28) && dayOfWeek === 4) holidayGreeting = "Happy Thanksgiving";
-    // Add Memorial Day (last Monday of May)
+    if (month === 11 && day >= 22 && day <= 28 && dayOfWeek === 4) holidayGreeting = "Happy Thanksgiving";
     if (month === 5 && dayOfWeek === 1 && day >= 25) holidayGreeting = "Happy Memorial Day";
-    // Add Labor Day (first Monday of September)
     if (month === 9 && dayOfWeek === 1 && day <= 7) holidayGreeting = "Happy Labor Day";
-    
+
     const scriptPrompt = `
 Write the spoken script for "Pulse" - a news-first investor briefing.
 
 LISTENER: ${name}
 DATE: ${date}
 TIME OF DAY: ${timeGreeting}
-${holidayGreeting ? `HOLIDAY: ${holidayGreeting}` : ''}
-${isWeekend ? 'CONTEXT: Weekend' : ''}
-${isMonday ? 'CONTEXT: Monday (start of week)' : ''}
-${isFriday ? 'CONTEXT: Friday (end of week)' : ''}
+${holidayGreeting ? `HOLIDAY: ${holidayGreeting}` : ""}
+${isWeekend ? "CONTEXT: Weekend" : ""}
+${isMonday ? "CONTEXT: Monday (start of week)" : ""}
+${isFriday ? "CONTEXT: Friday (end of week)" : ""}
 
 CRITICAL: TARGET LENGTH IS 5 MINUTES (650-750 words).
 
@@ -500,75 +532,59 @@ SCRIPT STRUCTURE - HYBRID FRAMEWORK:
 
 1. PERSONAL OPENING (20-30 words):
    - Start with: "${timeGreeting}, ${name}"
-   ${holidayGreeting ? `- Include holiday greeting: "${holidayGreeting}"` : ''}
-   ${isWeekend ? '- Add: "Hope you\'re enjoying your weekend" or similar weekend acknowledgment' : ''}
-   ${isMonday ? '- Add: "Hope you had a great weekend" or "Let\'s start the week strong"' : ''}
-   ${isFriday ? '- Add: "Let\'s wrap up the week" or similar end-of-week sentiment' : ''}
+   ${holidayGreeting ? `- Include holiday greeting: "${holidayGreeting}"` : ""}
+   ${isWeekend ? "- Add: \"Hope you're enjoying your weekend\" or similar weekend acknowledgment" : ""}
+   ${isMonday ? "- Add: \"Hope you had a great weekend\" or \"Let's start the week strong\"" : ""}
+   ${isFriday ? "- Add: \"Let's wrap up the week\" or similar end-of-week sentiment" : ""}
    - Make it feel like talking to a friend, not reading news
    - Then transition: "Let's get into it" or "Here's what moved markets today"
 
 2. TOP 3 STORIES - Each follows HYBRID FRAMEWORK:
-   
-   FRAMEWORK (adapt flexibly based on story type):
-   • HOOK: Lead with the most important fact (the headline number/event)
-   • QUESTION: Pose "why" to create curiosity ("Why now?" "What changed?" "Why would they?")
-   • FACTS: Give clean supporting details (what actually happened)
-   • DEEPER MEANING: Reveal the insight (what it means for portfolios, what others aren't saying)
-   
-   Not every story needs all 4 parts - adapt naturally.
-   (~150-180 words per story, develop each fully)
-   
+   • HOOK
+   • QUESTION (optional)
+   • FACTS
+   • DEEPER MEANING
+   (~150-180 words per story)
+
 3. MARKET SNAPSHOT (30-40 words):
    - S&P, Nasdaq, Dow % moves
-   - Brief one-sentence context on what led the move
-   
+   - One-sentence context
+
 4. CLOSING (30-40 words):
-   - Synthesize the big themes from all stories
-   - One actionable insight or thought
-   - Sign off: "That's your Pulse. See you tomorrow" or similar
+   - Synthesize themes
+   - One actionable insight
+   - Sign off
 
 TOTAL TARGET: 650-750 words
 
 VOICE GUIDELINES:
-- Conversational but authoritative (like talking to a smart friend)
-- Use the hybrid framework flexibly - not formulaic
-- Natural questions that a listener would actually ask
-- Insights should be portfolio-relevant and actionable
-- No filler phrases ("according to", "it appears", "it seems")
+- Conversational but authoritative
+- No filler phrases
 - Percent moves ONLY, no index levels
 - Direct address ("you", "your portfolio")
-- Flow naturally between stories
 
 DATA:
 
 TOP 3 HEADLINES:
-${topStories.map((s, i) => `
+${topStories
+  .map(
+    (s, i) => `
 ${i + 1}. ${s.title}
    What: ${s.what_happened}
    Impact: ${s.why_it_matters}
    Source: ${s.outlet}
    Category: ${s.category}
-`).join('\n')}
+`
+  )
+  .join("\n")}
 
 MARKET SNAPSHOT:
 - S&P: ${marketSnapshot.sp500_pct}
 - Nasdaq: ${marketSnapshot.nasdaq_pct}
 - Dow: ${marketSnapshot.dow_pct}
 
-CONTEXT STORIES (weave in if relevant):
-${contextStories.map((s, i) => `${i + 1}. ${s.title} - ${s.what_happened}`).join('\n')}
-
-EXAMPLE STORY STRUCTURE (adapt as needed):
-
-"[Company X] just announced [big number/event]. (HOOK)
-
-Why would they do this now? (QUESTION - optional, use when natural)
-
-Here's what's happening. [2-3 sentences of clean facts]. (FACTS)
-
-But here's what most people are missing. [Deeper insight - portfolio/market impact]. (DEEPER MEANING)"
-
-Remember: The framework is a guide, not a formula. Let the story dictate the structure.
+CONTEXT STORIES:
+${contextStories.map((s, i) => `${i + 1}. ${s.title} - ${s.what_happened}`).join("\n")}
 
 Return JSON: { "script": "..." }
 `;
@@ -584,11 +600,14 @@ Return JSON: { "script": "..." }
     const script = sanitizeForAudio(scriptData?.script || "");
 
     const wc = wordCount(script);
-    const estimatedMinutes = Math.max(1, Math.round(wc / 150)); // 150 words per minute
+    const estimatedMinutes = Math.max(1, Math.round(wc / 150));
 
     // =========================================================
-    // STEP 5: Save Briefing (ALWAYS CREATE NEW - supports multiple per day)
+    // STEP 5: Save Briefing (ALWAYS CREATE NEW)
+    // - delivered_at is set ONLY when user has access (ready/script_ready)
     // =========================================================
+    const deliveredAtNow = new Date().toISOString();
+
     const baseRecord = {
       date,
       created_by: userEmail,
@@ -600,100 +619,98 @@ Return JSON: { "script": "..." }
       duration_minutes: estimatedMinutes,
       status: skipAudio ? "script_ready" : "writing_script",
       audio_url: null,
+      time_zone: timeZone,
+      delivered_at: skipAudio ? deliveredAtNow : null,
     };
 
-    // Always create new briefing (supports 3-per-day feature)
-const saved = await base44.entities.DailyBriefing.create(baseRecord);
+    const saved = await base44.entities.DailyBriefing.create(baseRecord);
 
+    console.log("🔍 [DEBUG] Created briefing with:");
+    console.log("  - ID:", saved.id);
+    console.log("  - date:", saved.date);
+    console.log("  - created_by:", saved.created_by);
+    console.log("  - status:", saved.status);
+    console.log("  - time_zone:", saved.time_zone);
+    console.log("  - delivered_at:", saved.delivered_at);
 
-// ADD THIS DEBUG LOGGING
-console.log("🔍 [DEBUG] Created briefing with:");
-console.log("  - ID:", saved.id);
-console.log("  - date:", saved.date);
-console.log("  - created_by:", saved.created_by);
-console.log("  - status:", saved.status);
+    if (skipAudio) {
+      return Response.json({
+        success: true,
+        briefing: saved,
+        wordCount: wc,
+        estimatedMinutes,
+        status: "script_ready",
+      });
+    }
 
-if (skipAudio) {
-  return Response.json({
-    success: true,
-    briefing: saved,
-    wordCount: wc,
-    estimatedMinutes,
-    status: "script_ready",
-  });
-}
+    // =========================================================
+    // Return immediately; generate audio async
+    // =========================================================
+    console.log("✅ Briefing created; starting async audio generation...");
 
-// =========================================================
-// CRITICAL FIX: Return immediately, generate audio async
-// =========================================================
-console.log("✅ Briefing created with status 'generating', starting async audio generation...");
+    generateAudioAsync(base44, saved.id, script, date, elevenLabsApiKey, timeZone).catch((error) => {
+      console.error("❌ Async audio generation failed:", error);
+      base44.asServiceRole.entities.DailyBriefing.update(saved.id, {
+        status: "failed",
+      }).catch(console.error);
+    });
 
-// Spawn audio generation in background (don't await!)
-generateAudioAsync(base44, saved.id, script, date, elevenLabsApiKey).catch((error) => {
-  console.error("❌ Async audio generation failed:", error);
-  // Update status to failed
-  base44.asServiceRole.entities.DailyBriefing.update(saved.id, {
-    status: "failed",
-  }).catch(console.error);
-});
-
-// Return immediately with "generating" status
-return Response.json({
-  success: true,
-  briefing: saved,  // ← Returns briefing with status: "generating"
-  wordCount: wc,
-  estimatedMinutes,
-  status: "writing_script",
-  message: "Hang Tight! We're writing your briefing script..."
-});
+    return Response.json({
+      success: true,
+      briefing: saved,
+      wordCount: wc,
+      estimatedMinutes,
+      status: "writing_script",
+      message: "Hang Tight! We're writing your briefing script...",
+    });
   } catch (error) {
     console.error("Error in generateBriefing:", error);
     return Response.json({ error: error?.message || String(error), stack: error?.stack }, { status: 500 });
   }
 });
+
 // =========================================================
-// NEW: Async audio generation function
+// Async audio generation function
+// - sets delivered_at when READY (user can access)
 // =========================================================
-async function generateAudioAsync(base44Client, briefingId, script, date, elevenLabsApiKey) {
+async function generateAudioAsync(base44Client, briefingId, script, date, elevenLabsApiKey, timeZone) {
   console.log(`🎵 [Async Audio] Starting generation for briefing ${briefingId}...`);
-  
+
   try {
-    // Update to "generating_audio"
     await base44Client.asServiceRole.entities.DailyBriefing.update(briefingId, {
       status: "generating_audio",
     });
     console.log("✅ [Status] Updated to generating_audio");
 
-    // Generate audio file (the slow part - ~45 seconds)
     const audioFile = await generateAudioFile(script, date, elevenLabsApiKey);
     console.log(`✅ [Async Audio] Audio file generated`);
 
-    // Update to "uploading"
     await base44Client.asServiceRole.entities.DailyBriefing.update(briefingId, {
       status: "uploading",
     });
     console.log("✅ [Status] Updated to uploading");
 
-    // Upload to storage
     const { file_uri } = await base44Client.asServiceRole.integrations.Core.UploadPrivateFile({
       file: audioFile,
     });
     console.log(`✅ [Async Audio] File uploaded: ${file_uri}`);
 
-    // Create signed URL
     const { signed_url } = await base44Client.asServiceRole.integrations.Core.CreateFileSignedUrl({
       file_uri,
       expires_in: 60 * 60 * 24 * 7,
     });
     console.log(`✅ [Async Audio] Signed URL created`);
 
-    // Final update to "ready"
+    const deliveredAt = new Date().toISOString();
+
     await base44Client.asServiceRole.entities.DailyBriefing.update(briefingId, {
       audio_url: signed_url,
       status: "ready",
+      delivered_at: deliveredAt,
+      time_zone: timeZone,
     });
-    
-    console.log(`🎉 [Async Audio] Briefing ${briefingId} is now READY with audio!`);
+
+    console.log(`🎉 [Async Audio] Briefing ${briefingId} is now READY with audio! delivered_at=${deliveredAt}`);
   } catch (error) {
     console.error(`❌ [Async Audio] Failed for briefing ${briefingId}:`, error);
     throw error;
