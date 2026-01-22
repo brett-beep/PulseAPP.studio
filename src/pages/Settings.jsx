@@ -18,7 +18,8 @@ import {
     Clock,
     Save,
     Check,
-    TrendingUp
+    TrendingUp,
+    LogOut
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -342,6 +343,24 @@ export default function Settings() {
                             </div>
                         </div>
                     </div>
+                </motion.section>
+
+                <Separator />
+
+                {/* Sign Out */}
+                <motion.section
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 }}
+                >
+                    <Button
+                        onClick={() => base44.auth.logout()}
+                        variant="outline"
+                        className="w-full text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                    >
+                        <LogOut className="h-4 w-4 mr-2" />
+                        Sign Out
+                    </Button>
                 </motion.section>
             </main>
         </div>
