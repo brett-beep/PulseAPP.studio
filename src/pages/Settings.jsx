@@ -108,6 +108,27 @@ export default function Settings() {
         }));
     };
 
+    const handleSignOut = async () => {
+        try {
+            // Clear React Query cache
+            queryClient.clear();
+            
+            // Clear any localStorage/sessionStorage
+            localStorage.clear();
+            sessionStorage.clear();
+            
+            // Logout and redirect to login page
+            await base44.auth.logout();
+            
+            // Force hard redirect to login (in case logout doesn't redirect)
+            window.location.href = '/login';
+        } catch (error) {
+            console.error('Sign out error:', error);
+            // Force redirect even on error
+            window.location.href = '/login';
+        }
+    };
+
     if (isLoading || !editedPrefs) {
         return (
             <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(180deg, rgba(255, 255, 249, 0.7) 0%, rgba(255, 226, 148, 0.51) 76%, rgba(255, 95, 31, 0.52) 100%)' }}>
@@ -354,7 +375,7 @@ export default function Settings() {
                     transition={{ delay: 0.5 }}
                 >
                     <Button
-                        onClick={() => base44.auth.logout()}
+                        onClick={handleSignOut}
                         variant="outline"
                         className="w-full text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
                     >
