@@ -598,7 +598,7 @@ Return JSON: { "script": "..." }
       key_highlights: uiHighlights,
       news_stories: allStories,
       duration_minutes: estimatedMinutes,
-      status: skipAudio ? "script_ready" : "generating",
+      status: skipAudio ? "script_ready" : "writing_script",
       audio_url: null,
     };
 
@@ -635,8 +635,8 @@ return Response.json({
   briefing: saved,  // ← Returns briefing with status: "generating"
   wordCount: wc,
   estimatedMinutes,
-  status: "generating",
-  message: "Briefing created, audio generation in progress"
+  status: "writing_script",
+  message: "Hang Tight! We're writing your briefing script..."
 });
   } catch (error) {
     console.error("Error in generateBriefing:", error);
@@ -650,9 +650,21 @@ async function generateAudioAsync(base44Client, briefingId, script, date, eleven
   console.log(`🎵 [Async Audio] Starting generation for briefing ${briefingId}...`);
   
   try {
-    // Generate audio file
+    // Update to "generating_audio"
+    await base44Client.asServiceRole.entities.DailyBriefing.update(briefingId, {
+      status: "generating_audio",
+    });
+    console.log("✅ [Status] Updated to generating_audio");
+
+    // Generate audio file (the slow part - ~45 seconds)
     const audioFile = await generateAudioFile(script, date, elevenLabsApiKey);
     console.log(`✅ [Async Audio] Audio file generated`);
+
+    // Update to "uploading"
+    await base44Client.asServiceRole.entities.DailyBriefing.update(briefingId, {
+      status: "uploading",
+    });
+    console.log("✅ [Status] Updated to uploading");
 
     // Upload to storage
     const { file_uri } = await base44Client.asServiceRole.integrations.Core.UploadPrivateFile({
@@ -660,14 +672,14 @@ async function generateAudioAsync(base44Client, briefingId, script, date, eleven
     });
     console.log(`✅ [Async Audio] File uploaded: ${file_uri}`);
 
-    // Create signed URL (7 days expiry)
+    // Create signed URL
     const { signed_url } = await base44Client.asServiceRole.integrations.Core.CreateFileSignedUrl({
       file_uri,
       expires_in: 60 * 60 * 24 * 7,
     });
     console.log(`✅ [Async Audio] Signed URL created`);
 
-    // Update briefing with audio URL and "ready" status
+    // Final update to "ready"
     await base44Client.asServiceRole.entities.DailyBriefing.update(briefingId, {
       audio_url: signed_url,
       status: "ready",
@@ -676,6 +688,6 @@ async function generateAudioAsync(base44Client, briefingId, script, date, eleven
     console.log(`🎉 [Async Audio] Briefing ${briefingId} is now READY with audio!`);
   } catch (error) {
     console.error(`❌ [Async Audio] Failed for briefing ${briefingId}:`, error);
-    throw error; // Will be caught by the .catch() in main handler
+    throw error;
   }
 }
