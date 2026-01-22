@@ -48,7 +48,7 @@ export default function GenerateBriefingButton({ onGenerate, isGenerating, hasEx
                     <motion.div
                         className="absolute inset-0 bg-gradient-to-r from-amber-400 to-amber-500 opacity-0"
                         whileHover={{ opacity: 1 }}
-                        transition={{ duration: 0.2, ease: "easeInOut" }}
+                        transition={{ duration: 0.1, ease: "easeInOut" }}
                     />
                 )}
             </motion.button>
