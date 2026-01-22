@@ -108,24 +108,12 @@ export default function Settings() {
         }));
     };
 
-    const handleSignOut = async () => {
+const handleSignOut = async () => {
     try {
-        queryClient.clear();
-        localStorage.clear();
-        sessionStorage.clear();
-        
-        // Logout and wait for it to complete
+        // Just call logout - Base44 handles everything
         await base44.auth.logout();
-        
-        // Give Base44 a moment to handle redirect, then force if needed
-        setTimeout(() => {
-            if (window.location.pathname !== '/') {
-                window.location.href = '/';
-            }
-        }, 500);
     } catch (error) {
         console.error('Sign out error:', error);
-        window.location.href = '/';
     }
 };
 
