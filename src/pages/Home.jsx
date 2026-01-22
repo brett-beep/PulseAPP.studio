@@ -138,17 +138,20 @@ export default function Home() {
         return;
       }
 
-      // FIXED: Check 3-hour cooldown with timezone-aware date handling
+      // FIXED: Check 3-hour cooldown with protection against future timestamps
 const lastBriefing = [...briefings].sort((a, b) => {
   const dateA = a.created_date || a.updated_date || a.created_at || 0;
   const dateB = b.created_date || b.updated_date || b.created_at || 0;
   return new Date(dateB) - new Date(dateA);
 })[0];
 
-// Parse the UTC timestamp and let JavaScript handle local timezone conversion
 const lastCreatedAt = new Date(lastBriefing.created_date || lastBriefing.updated_date || lastBriefing.created_at);
-const threeHoursLater = new Date(lastCreatedAt.getTime() + 3 * 60 * 60 * 1000);
-const now = new Date(); // This is already in local timezone
+const now = new Date();
+
+// If the briefing timestamp is in the future, treat it as "now"
+const actualCreationTime = lastCreatedAt > now ? now : lastCreatedAt;
+
+const threeHoursLater = new Date(actualCreationTime.getTime() + 3 * 60 * 60 * 1000);
 const msRemaining = threeHoursLater - now;
 
 console.log("⏱️ [Countdown] Last briefing created:", lastCreatedAt.toLocaleString());
