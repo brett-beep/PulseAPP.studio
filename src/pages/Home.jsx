@@ -146,13 +146,13 @@ export default function Home() {
 
       console.log("⏱️ [Countdown] Delivered briefings today:", briefingCount);
 
-      // Daily limit (3 max) based on DELIVERED briefings only
-      if (briefingCount >= 3) {
-        console.log("⏱️ [Countdown] Daily limit reached (3/3 delivered)");
-        setCanGenerateNew(false);
-        setTimeUntilNextBriefing("Daily limit reached");
-        return;
-      }
+      // TEMPORARILY DISABLED: Daily limit (3 max) based on DELIVERED briefings only
+      // if (briefingCount >= 3) {
+      //   console.log("⏱️ [Countdown] Daily limit reached (3/3 delivered)");
+      //   setCanGenerateNew(false);
+      //   setTimeUntilNextBriefing("Daily limit reached");
+      //   return;
+      // }
 
       // If none delivered today, can generate immediately
       if (briefingCount === 0) {
@@ -503,7 +503,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
       case "writing_script":
         return "✍️ Writing your briefing script...";
       case "generating_audio":
-        return "🎵 Generating audio (~45 seconds)...";
+        return "🎵 Generating audio...";
       case "uploading":
         return "📤 Almost ready...";
       case "ready":
