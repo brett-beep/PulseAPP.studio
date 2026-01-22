@@ -603,7 +603,7 @@ Return JSON: { "script": "..." }
     };
 
     // Always create new briefing (supports 3-per-day feature)
-const saved = await base44.asServiceRole.entities.DailyBriefing.create(baseRecord);
+const saved = await base44.entities.DailyBriefing.create(baseRecord);
 
 
 // ADD THIS DEBUG LOGGING
