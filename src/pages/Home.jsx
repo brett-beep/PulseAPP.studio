@@ -138,7 +138,7 @@ export default function Home() {
         return;
       }
 
-      // FIXED: Check 3-hour cooldown with protection against future timestamps
+     // In Home.jsx, around lines 143-155
 const lastBriefing = [...briefings].sort((a, b) => {
   const dateA = a.created_date || a.updated_date || a.created_at || 0;
   const dateB = b.created_date || b.updated_date || b.created_at || 0;
@@ -148,13 +148,14 @@ const lastBriefing = [...briefings].sort((a, b) => {
 const lastCreatedAt = new Date(lastBriefing.created_date || lastBriefing.updated_date || lastBriefing.created_at);
 const now = new Date();
 
-// If the briefing timestamp is in the future, treat it as "now"
+// ✅ FIX: If timestamp is in the future, treat it as "now"
 const actualCreationTime = lastCreatedAt > now ? now : lastCreatedAt;
 
 const threeHoursLater = new Date(actualCreationTime.getTime() + 3 * 60 * 60 * 1000);
 const msRemaining = threeHoursLater - now;
 
 console.log("⏱️ [Countdown] Last briefing created:", lastCreatedAt.toLocaleString());
+console.log("⏱️ [Countdown] Adjusted creation time:", actualCreationTime.toLocaleString());
 console.log("⏱️ [Countdown] Current time:", now.toLocaleString());
 console.log("⏱️ [Countdown] Three hours later:", threeHoursLater.toLocaleString());
 console.log("⏱️ [Countdown] Time remaining (ms):", msRemaining);
