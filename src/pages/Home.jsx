@@ -26,9 +26,7 @@ export default function Home() {
 
   // Countdown timer state for briefing limits (3 per day, 3-hour cooldown)
   const [timeUntilNextBriefing, setTimeUntilNextBriefing] = useState(null);
-  //const [canGenerateNew, setCanGenerateNew] = useState(true);// REENABLE THIS WHEN YOU NEED COOLDOWN AND DELETE THE CODE BERLOW
-  const canGenerateNewOverride = true; // TEMP: disable cooldown
-
+  const [canGenerateNew, setCanGenerateNew] = useState(true);
 
   // Fetch current user
   const { data: user, isLoading: userLoading } = useQuery({
@@ -128,7 +126,11 @@ export default function Home() {
   // =========================================================
   
   //====ENABLE THIS FOR COOLDOWN====//
-  useEffect() => {
+  useEffect(() => {
+    if (!briefings || !Array.isArray(briefings)) {
+      console.log("⏱️ [Countdown] No briefings array, allowing generation");
+      setCanGenerateNew(true);
+      setTimeUntilNextBriefing(null);
       return;
     } 
 
@@ -553,8 +555,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
             onGenerate={generateFullBriefing}
             isGenerating={isGenerating}
             status={status}
-            //canGenerateNew={canGenerateNew}// ENABLE THIS WHEN YOU NEED COOLDOWN (DELETE CODE BELOW)
-            canGenerateNew={true}
+            canGenerateNew={canGenerateNew}
             timeUntilNextBriefing={timeUntilNextBriefing}
             briefingCount={getBriefingCount()}
           />
