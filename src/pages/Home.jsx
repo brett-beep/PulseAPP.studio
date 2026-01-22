@@ -411,7 +411,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
         },
         date: today,
         timeZone: userTimeZone,
-        skip_audio: true, // TEMPORARY: Skip audio to save ElevenLabs credits during testing
+        skip_audio: false, // TEMPORARY: Skip audio to save ElevenLabs credits during testing
       });
 
       if (response?.data?.error) {
