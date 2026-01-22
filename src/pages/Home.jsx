@@ -124,13 +124,20 @@ export default function Home() {
   // - delivered statuses: ready / script_ready
   // - cooldown starts from delivered_at if available
   // =========================================================
+  
+  //====ENABLE THIS FOR COOLDOWN====//
+ // useEffect(() => {
+ //   if (!briefings || !Array.isArray(briefings)) {
+ //     console.log("⏱️ [Countdown] No briefings array, allowing generation");
+ //     setCanGenerateNew(true);
+ //     setTimeUntilNextBriefing(null);
+ //     return;
+ //   } 
+
   useEffect(() => {
-    if (!briefings || !Array.isArray(briefings)) {
-      console.log("⏱️ [Countdown] No briefings array, allowing generation");
-      setCanGenerateNew(true);
-      setTimeUntilNextBriefing(null);
-      return;
-    }
+  setCanGenerateNew(true);
+  setTimeUntilNextBriefing(null);
+}, []);
 
     const checkEligibility = () => {
       const delivered = briefings.filter((b) => b && (b.status === "ready" || b.status === "script_ready"));
