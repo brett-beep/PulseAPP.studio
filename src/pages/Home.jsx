@@ -383,7 +383,7 @@ if (resp?.data?.success) {
           preferred_voice: preferences?.preferred_voice,
         },
         date: today,
-        skip_audio: false, // Generate both script AND audio
+        skip_audio: true, // Generate both script AND audio
       });
 
       if (response?.data?.error) {
