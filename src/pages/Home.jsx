@@ -558,7 +558,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
             isGenerating={isGenerating}
             status={status}
             //canGenerateNew={canGenerateNew}// ENABLE THIS WHEN YOU NEED COOLDOWN (DELETE CODE BELOW)
-            canGenerateNew={canGenerateNewOverride || canGenerateNew}
+            canGenerateNew={true}
             timeUntilNextBriefing={timeUntilNextBriefing}
             briefingCount={getBriefingCount()}
           />
