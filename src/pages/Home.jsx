@@ -117,7 +117,6 @@ export default function Home() {
     }
 
     const checkEligibility = () => {
-      const now = new Date();
       
       const briefingCount = briefings.length;
       
