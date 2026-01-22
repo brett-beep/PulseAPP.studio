@@ -126,14 +126,103 @@ export default function Home() {
   // =========================================================
   
   //====ENABLE THIS FOR COOLDOWN====//
- // =========================================================
-// TEMP: DISABLE COOLDOWN FOR TESTING
-// =========================================================
-useEffect(() => {
+  useEffect(() => {
+    if (!briefings || !Array.isArray(briefings)) {
+      console.log("⏱️ [Countdown] No briefings array, allowing generation");
+      setCanGenerateNew(true);
+      setTimeUntilNextBriefing(null);
+      return;
+    } 
+
+
+    const checkEligibility = () => {
+      const delivered = briefings.filter((b) => b && (b.status === "ready" || b.status === "script_ready"));
+      const briefingCount = delivered.length;
+
+      console.log("⏱️ [Countdown] Delivered briefings today:", briefingCount);
+
+      // Daily limit (3 max) based on DELIVERED briefings only
+      if (briefingCount >= 3) {
+        console.log("⏱️ [Countdown] Daily limit reached (3/3 delivered)");
+        setCanGenerateNew(false);
+        setTimeUntilNextBriefing("Daily limit reached");
+        return;
+      }
+
+      // If none delivered today, can generate immediately
+      if (briefingCount === 0) {
+        console.log("⏱️ [Countdown] No delivered briefings today, can generate");
+        setCanGenerateNew(true);
+        setTimeUntilNextBriefing(null);
+        return;
+      }
+
+      // Cooldown from LAST DELIVERED briefing (prefer delivered_at)
+      // FIX: Base44 timestamps may come back without timezone ("Z").
+// If no timezone suffix is present, treat it as UTC by appending "Z".
+const parseBase44Time = (value) => {
+  const s = typeof value === "string" ? value.trim() : "";
+  if (!s) return null;
+
+  const hasTZ =
+    s.endsWith("Z") ||
+    /[+-]\d{2}:\d{2}$/.test(s) ||
+    /[+-]\d{4}$/.test(s);
+
+  return new Date(hasTZ ? s : `${s}Z`);
+};
+
+const pickDeliveredTime = (b) =>
+  b?.delivered_at || b?.updated_date || b?.created_date || b?.updated_at || b?.created_at || null;
+
+// Cooldown from LAST DELIVERED briefing (prefer delivered_at)
+const lastDelivered = [...delivered].sort((a, b) => {
+  const ta = parseBase44Time(pickDeliveredTime(a))?.getTime() || 0;
+  const tb = parseBase44Time(pickDeliveredTime(b))?.getTime() || 0;
+  return tb - ta;
+})[0];
+
+const lastDeliveredAt = parseBase44Time(pickDeliveredTime(lastDelivered));
+const now = new Date();
+
+if (!lastDeliveredAt || isNaN(lastDeliveredAt.getTime())) {
+  console.log("⏱️ [Countdown] Could not parse last delivered time, allowing generation");
   setCanGenerateNew(true);
   setTimeUntilNextBriefing(null);
-}, []);
+  return;
+}
 
+const threeHoursLater = new Date(lastDeliveredAt.getTime() + 3 * 60 * 60 * 1000);
+const msRemaining = threeHoursLater.getTime() - now.getTime();
+
+
+      console.log("⏱️ [Countdown] Last delivered at:", lastDeliveredAt.toLocaleString());
+      console.log("⏱️ [Countdown] Current time:", now.toLocaleString());
+      console.log("⏱️ [Countdown] Three hours later:", threeHoursLater.toLocaleString());
+      console.log("⏱️ [Countdown] Time remaining (ms):", msRemaining);
+
+      if (msRemaining <= 0) {
+        console.log("⏱️ [Countdown] Cooldown complete, can generate");
+        setCanGenerateNew(true);
+        setTimeUntilNextBriefing(null);
+      } else {
+        console.log("⏱️ [Countdown] Cooldown active, cannot generate");
+        setCanGenerateNew(false);
+
+        const hours = Math.floor(msRemaining / (1000 * 60 * 60));
+        const minutes = Math.floor((msRemaining % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((msRemaining % (1000 * 60)) / 1000);
+
+        if (hours > 0) setTimeUntilNextBriefing(`${hours}h ${minutes}m ${seconds}s`);
+        else if (minutes > 0) setTimeUntilNextBriefing(`${minutes}m ${seconds}s`);
+        else setTimeUntilNextBriefing(`${seconds}s`);
+      }
+    };
+
+    checkEligibility();
+    const interval = setInterval(checkEligibility, 1000);
+    return () => clearInterval(interval);
+  }, [briefings]);
 
   // Briefing count for UI (DELIVERED only)
   const getBriefingCount = () => {
@@ -547,3 +636,4 @@ useEffect(() => {
     </div>
   );
 }
+
