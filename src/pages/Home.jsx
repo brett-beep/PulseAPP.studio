@@ -64,7 +64,7 @@ export default function Home() {
       
       // Log the status of most recent briefing
       if (b && b.length > 0) {
-        const mostRecent = [...b].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+        const mostRecent = [...b].sort((a, b) => new Date(b.created_date) - new Date(a.created_date))[0];
         console.log("📍 [Briefing Query] Most recent status:", mostRecent.status);
         console.log("📍 [Briefing Query] Has audio_url:", !!mostRecent.audio_url);
       }
@@ -84,7 +84,7 @@ export default function Home() {
 
   // Get the most recent briefing (sorted by created_at descending)
   const todayBriefing = briefings && briefings.length > 0 
-    ? [...briefings].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0] 
+    ? [...briefings].sort((a, b) => new Date(b.created_date) - new Date(a.created_date))[0] 
     : null;
   console.log("📍 [Briefing State] todayBriefing (most recent):", todayBriefing);
   console.log("📍 [Briefing State] audio_url:", todayBriefing?.audio_url);
