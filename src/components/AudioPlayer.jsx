@@ -225,7 +225,7 @@ export default function AudioPlayer({
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="absolute inset-0 flex flex-col items-center justify-center bg-white/5 backdrop-blur-sm rounded-[40px] z-30 gap-4"
+          className="absolute inset-0 flex flex-col items-center justify-center bg-white/5 backdrop-blur-sm rounded-[40px] z-30 gap-4 pointer-events-none"
         >
           <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
           {statusLabel && (
