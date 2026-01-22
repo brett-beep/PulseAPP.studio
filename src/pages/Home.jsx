@@ -21,9 +21,9 @@ export default function Home() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [newsCards, setNewsCards] = useState([]);
   const [isLoadingNews, setIsLoadingNews] = useState(true);
-  
+
   const [lastRefreshTime, setLastRefreshTime] = useState(null);
-  
+
   // Countdown timer state for briefing limits (3 per day, 3-hour cooldown)
   const [timeUntilNextBriefing, setTimeUntilNextBriefing] = useState(null);
   const [canGenerateNew, setCanGenerateNew] = useState(true);
@@ -44,13 +44,23 @@ export default function Home() {
     enabled: !!user,
   });
 
-  // Fetch today's briefing
-  const today = format(new Date(), "yyyy-MM-dd");
+  // ============================
+  // TIMEZONE-SAFE "TODAY"
+  // ============================
+  const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: userTimeZone }); // YYYY-MM-DD
+
   console.log("📍 [Briefing Query] Date filter:", today);
   console.log("📍 [Briefing Query] User email:", user?.email);
+  console.log("📍 [Briefing Query] User timezone:", userTimeZone);
   console.log("📍 [Briefing Query] Onboarding completed:", preferences?.onboarding_completed);
-  
-  const { data: briefings, isLoading: briefingLoading, error: briefingError, refetch: refetchBriefing } = useQuery({
+
+  const {
+    data: briefings,
+    isLoading: briefingLoading,
+    error: briefingError,
+    refetch: refetchBriefing,
+  } = useQuery({
     queryKey: ["todayBriefing", today, user?.email],
     queryFn: async () => {
       console.log("📍 [Briefing Query] Executing query...");
@@ -61,24 +71,24 @@ export default function Home() {
       console.log("📍 [Briefing Query] Raw result:", b);
       console.log("📍 [Briefing Query] Is array?", Array.isArray(b));
       console.log("📍 [Briefing Query] Length:", b?.length);
-      
-      // FIXED: Safe date parsing with fallbacks
+
       if (b && b.length > 0) {
         const mostRecent = [...b].sort((a, b) => {
-          const dateA = a.created_date || a.updated_date || a.created_at || 0;
-          const dateB = b.created_date || b.updated_date || b.created_at || 0;
+          // Prefer delivered_at if present; else fall back
+          const dateA = a.delivered_at || a.updated_date || a.created_date || a.updated_at || a.created_at || 0;
+          const dateB = b.delivered_at || b.updated_date || b.created_date || b.updated_at || b.created_at || 0;
           return new Date(dateB) - new Date(dateA);
         })[0];
         console.log("📍 [Briefing Query] Most recent status:", mostRecent.status);
         console.log("📍 [Briefing Query] Has audio_url:", !!mostRecent.audio_url);
+        console.log("📍 [Briefing Query] delivered_at:", mostRecent.delivered_at);
       }
-      
+
       return b;
     },
     enabled: !!user && !!preferences?.onboarding_completed,
     staleTime: 0,
     refetchOnMount: true,
-    // Poll every 2 seconds when generating
     refetchInterval: isGenerating ? 2000 : false,
   });
 
@@ -86,28 +96,34 @@ export default function Home() {
   console.log("📍 [Briefing State] error:", briefingError);
   console.log("📍 [Briefing State] briefings data:", briefings);
 
-  // FIXED: Get the most recent briefing with safe date parsing
-  const todayBriefing = briefings && briefings.length > 0 
-    ? [...briefings].sort((a, b) => {
-        const dateA = a.created_date || a.updated_date || a.created_at || 0;
-        const dateB = b.created_date || b.updated_date || b.created_at || 0;
-        return new Date(dateB) - new Date(dateA);
-      })[0]
-    : null;
-  
+  // Most recent briefing (prefer delivered_at)
+  const todayBriefing =
+    briefings && briefings.length > 0
+      ? [...briefings].sort((a, b) => {
+          const dateA = a.delivered_at || a.updated_date || a.created_date || a.updated_at || a.created_at || 0;
+          const dateB = b.delivered_at || b.updated_date || b.created_date || b.updated_at || b.created_at || 0;
+          return new Date(dateB) - new Date(dateA);
+        })[0]
+      : null;
+
   console.log("📍 [Briefing State] todayBriefing (most recent):", todayBriefing);
   console.log("📍 [Briefing State] audio_url:", todayBriefing?.audio_url);
   console.log("📍 [Briefing State] status:", todayBriefing?.status);
+  console.log("📍 [Briefing State] delivered_at:", todayBriefing?.delivered_at);
 
-  // Auto-stop isGenerating when briefing is ready
+  // Auto-stop isGenerating when briefing is ready OR script_ready (since you skip audio sometimes)
   useEffect(() => {
-    if (isGenerating && todayBriefing?.status === "ready") {
-      console.log("✅ Briefing is ready! Stopping generation state.");
+    if (isGenerating && (todayBriefing?.status === "ready" || todayBriefing?.status === "script_ready")) {
+      console.log("✅ Briefing is delivered! Stopping generation state.");
       setIsGenerating(false);
     }
   }, [isGenerating, todayBriefing?.status]);
 
-  // Countdown timer logic for 3-per-day limit with 3-hour gap
+  // =========================================================
+  // COUNTDOWN: ONLY START AFTER BRIEFING IS DELIVERED
+  // - delivered statuses: ready / script_ready
+  // - cooldown starts from delivered_at if available
+  // =========================================================
   useEffect(() => {
     if (!briefings || !Array.isArray(briefings)) {
       console.log("⏱️ [Countdown] No briefings array, allowing generation");
@@ -117,44 +133,50 @@ export default function Home() {
     }
 
     const checkEligibility = () => {
-      
-      const briefingCount = briefings.length;
-      
-      console.log("⏱️ [Countdown] Briefings today:", briefingCount);
+      const delivered = briefings.filter((b) => b && (b.status === "ready" || b.status === "script_ready"));
+      const briefingCount = delivered.length;
 
-      // Check daily limit (3 max)
+      console.log("⏱️ [Countdown] Delivered briefings today:", briefingCount);
+
+      // Daily limit (3 max) based on DELIVERED briefings only
       if (briefingCount >= 3) {
-        console.log("⏱️ [Countdown] Daily limit reached (3/3)");
+        console.log("⏱️ [Countdown] Daily limit reached (3/3 delivered)");
         setCanGenerateNew(false);
         setTimeUntilNextBriefing("Daily limit reached");
         return;
       }
 
-      // If no briefings today, can generate immediately
+      // If none delivered today, can generate immediately
       if (briefingCount === 0) {
-        console.log("⏱️ [Countdown] No briefings today, can generate");
+        console.log("⏱️ [Countdown] No delivered briefings today, can generate");
         setCanGenerateNew(true);
         setTimeUntilNextBriefing(null);
         return;
       }
 
-// FIXED: Check 3-hour cooldown with timezone-aware date handling
-const lastBriefing = [...briefings].sort((a, b) => {
-  const dateA = a.created_date || a.updated_date || a.created_at || 0;
-  const dateB = b.created_date || b.updated_date || b.created_at || 0;
-  return new Date(dateB) - new Date(dateA);
-})[0];
+      // Cooldown from LAST DELIVERED briefing (prefer delivered_at)
+      const lastDelivered = [...delivered].sort((a, b) => {
+        const dateA = a.delivered_at || a.updated_date || a.created_date || a.updated_at || a.created_at || 0;
+        const dateB = b.delivered_at || b.updated_date || b.created_date || b.updated_at || b.created_at || 0;
+        return new Date(dateB) - new Date(dateA);
+      })[0];
 
-// Parse the UTC timestamp and let JavaScript handle local timezone conversion
-const lastCreatedAt = new Date(lastBriefing.created_date || lastBriefing.updated_date || lastBriefing.created_at);
-const threeHoursLater = new Date(lastCreatedAt.getTime() + 3 * 60 * 60 * 1000);
-const now = new Date(); // This is already in local timezone
-const msRemaining = threeHoursLater - now;
+      const lastDeliveredAt = new Date(
+        lastDelivered.delivered_at ||
+          lastDelivered.updated_date ||
+          lastDelivered.created_date ||
+          lastDelivered.updated_at ||
+          lastDelivered.created_at
+      );
 
-console.log("⏱️ [Countdown] Last briefing created:", lastCreatedAt.toLocaleString());
-console.log("⏱️ [Countdown] Current time:", now.toLocaleString());
-console.log("⏱️ [Countdown] Three hours later:", threeHoursLater.toLocaleString());
-console.log("⏱️ [Countdown] Time remaining (ms):", msRemaining);
+      const threeHoursLater = new Date(lastDeliveredAt.getTime() + 3 * 60 * 60 * 1000);
+      const now = new Date();
+      const msRemaining = threeHoursLater - now;
+
+      console.log("⏱️ [Countdown] Last delivered at:", lastDeliveredAt.toLocaleString());
+      console.log("⏱️ [Countdown] Current time:", now.toLocaleString());
+      console.log("⏱️ [Countdown] Three hours later:", threeHoursLater.toLocaleString());
+      console.log("⏱️ [Countdown] Time remaining (ms):", msRemaining);
 
       if (msRemaining <= 0) {
         console.log("⏱️ [Countdown] Cooldown complete, can generate");
@@ -163,33 +185,26 @@ console.log("⏱️ [Countdown] Time remaining (ms):", msRemaining);
       } else {
         console.log("⏱️ [Countdown] Cooldown active, cannot generate");
         setCanGenerateNew(false);
-        
-        // Format remaining time
+
         const hours = Math.floor(msRemaining / (1000 * 60 * 60));
         const minutes = Math.floor((msRemaining % (1000 * 60 * 60)) / (1000 * 60));
         const seconds = Math.floor((msRemaining % (1000 * 60)) / 1000);
-        
-        if (hours > 0) {
-          setTimeUntilNextBriefing(`${hours}h ${minutes}m ${seconds}s`);
-        } else if (minutes > 0) {
-          setTimeUntilNextBriefing(`${minutes}m ${seconds}s`);
-        } else {
-          setTimeUntilNextBriefing(`${seconds}s`);
-        }
+
+        if (hours > 0) setTimeUntilNextBriefing(`${hours}h ${minutes}m ${seconds}s`);
+        else if (minutes > 0) setTimeUntilNextBriefing(`${minutes}m ${seconds}s`);
+        else setTimeUntilNextBriefing(`${seconds}s`);
       }
     };
 
-    // Check immediately
     checkEligibility();
-
-    // Update every second for live countdown
     const interval = setInterval(checkEligibility, 1000);
     return () => clearInterval(interval);
   }, [briefings]);
 
-  // Get briefing count for today
+  // Briefing count for UI (DELIVERED only)
   const getBriefingCount = () => {
-    return briefings?.length || 0;
+    if (!briefings || !Array.isArray(briefings)) return 0;
+    return briefings.filter((b) => b && (b.status === "ready" || b.status === "script_ready")).length;
   };
 
   // Fetch news cards with better refresh logic
@@ -211,12 +226,12 @@ console.log("⏱️ [Countdown] Time remaining (ms):", msRemaining);
       const cachedNews = localStorage.getItem(CACHE_KEY);
       const cacheTimestamp = localStorage.getItem(TIMESTAMP_KEY);
       const isNewSession = !sessionStorage.getItem(SESSION_FLAG);
-      
-      sessionStorage.setItem(SESSION_FLAG, 'true');
 
-      const cacheAge = cacheTimestamp ? (now - parseInt(cacheTimestamp)) : Infinity;
+      sessionStorage.setItem(SESSION_FLAG, "true");
+
+      const cacheAge = cacheTimestamp ? now - parseInt(cacheTimestamp) : Infinity;
       const cacheValid = cacheAge < CACHE_DURATION;
-      
+
       const shouldRefresh = !cacheValid || isNewSession || !cachedNews;
 
       if (!shouldRefresh && cachedNews) {
@@ -260,7 +275,7 @@ console.log("⏱️ [Countdown] Time remaining (ms):", msRemaining);
         }
       } catch (error) {
         console.error("Error loading news cards:", error);
-        
+
         if (cachedNews) {
           console.log("⚠️ Error occurred - using stale cache");
           setNewsCards(JSON.parse(cachedNews));
@@ -271,7 +286,7 @@ console.log("⏱️ [Countdown] Time remaining (ms):", msRemaining);
     }
 
     loadNewsCards();
-    
+
     const refreshInterval = setInterval(() => {
       console.log("🔄 Auto-refreshing news cards...");
       localStorage.removeItem(CACHE_KEY);
@@ -285,13 +300,13 @@ console.log("⏱️ [Countdown] Time remaining (ms):", msRemaining);
   // Manual refresh function for news cards
   const refreshNewsCards = async () => {
     if (!user || !preferences?.onboarding_completed) return;
-    
+
     const CACHE_KEY = `newsCards:${user.email}`;
     const TIMESTAMP_KEY = `newsCardsTimestamp:${user.email}`;
 
     setIsLoadingNews(true);
     console.log("🔄 Manual refresh triggered - FORCING CACHE REGENERATION...");
-    
+
     try {
       console.log("🔄 Manual refresh - bypassing localStorage, reading via fetchNewsCards...");
 
@@ -359,10 +374,10 @@ console.log("⏱️ [Countdown] Time remaining (ms):", msRemaining);
 
     setIsGenerating(true);
     console.log("🎬 Starting briefing generation...");
-    
+
     try {
       console.log("📤 [Generate Briefing] Sending preferences:", preferences);
-      
+
       const response = await base44.functions.invoke("generateBriefing", {
         preferences: {
           user_name: preferences?.user_name || user?.full_name?.split(" ")?.[0] || "there",
@@ -375,6 +390,7 @@ console.log("⏱️ [Countdown] Time remaining (ms):", msRemaining);
           preferred_voice: preferences?.preferred_voice,
         },
         date: today,
+        timeZone: userTimeZone,
         skip_audio: true, // TEMPORARY: Skip audio to save ElevenLabs credits during testing
       });
 
@@ -385,16 +401,13 @@ console.log("⏱️ [Countdown] Time remaining (ms):", msRemaining);
       } else {
         console.log("✅ Briefing generation started!");
         console.log("📊 Response data:", response.data);
-        
-        // Force multiple refetches to ensure briefings array updates
+
         await refetchBriefing();
-        
+
         setTimeout(async () => {
           await refetchBriefing();
           console.log("🔄 Second refetch completed for countdown timer");
         }, 500);
-        
-        // NOTE: isGenerating will be set to false when polling detects ready status
       }
     } catch (error) {
       console.error("❌ Error generating briefing:", error);
@@ -434,16 +447,16 @@ console.log("⏱️ [Countdown] Time remaining (ms):", msRemaining);
 
   const firstName = user?.full_name?.split(" ")?.[0] || "there";
   const audioUrl = todayBriefing?.audio_url || null;
-  
+
   console.log("🎵 [AudioPlayer] audioUrl prop:", audioUrl);
   console.log("🎵 [AudioPlayer] todayBriefing object:", todayBriefing);
 
   const highlights = parseJsonArray(todayBriefing?.key_highlights);
-  
+
   const userWatchlist = parseJsonArray(preferences?.portfolio_holdings || []);
   console.log("userWatchlist:", userWatchlist);
   console.log("userWatchlist length:", userWatchlist.length);
-  
+
   const sentiment =
     todayBriefing?.market_sentiment && typeof todayBriefing.market_sentiment === "object"
       ? todayBriefing.market_sentiment
@@ -457,7 +470,7 @@ console.log("⏱️ [Countdown] Time remaining (ms):", msRemaining);
   // Show proper status based on briefing state
   const getStatusLabel = () => {
     if (briefingLoading) return "Loading briefing...";
-    
+
     switch (status) {
       case "writing_script":
         return "✍️ Writing your briefing script...";
@@ -486,9 +499,9 @@ console.log("⏱️ [Countdown] Time remaining (ms):", msRemaining);
       <header className="border-b border-slate-100 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img 
+            <img
               src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/696a8e65ef692fa1b775cb03/810cc2a22_output-onlinepngtools.png"
-              alt="PulseApp.Studio" 
+              alt="PulseApp.Studio"
               className="w-10 h-10"
             />
             <span className="font-semibold text-slate-900 tracking-tight">PulseApp.Studio</span>
@@ -548,15 +561,9 @@ console.log("⏱️ [Countdown] Time remaining (ms):", msRemaining);
         )}
 
         {/* NEWS CARDS */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-        >
+        <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold text-slate-900">
-              Breaking News
-            </h2>
+            <h2 className="text-xl font-semibold text-slate-900">Breaking News</h2>
             <div className="flex items-center gap-4">
               {lastRefreshTime && (
                 <span className="text-xs text-slate-400">
@@ -568,11 +575,7 @@ console.log("⏱️ [Countdown] Time remaining (ms):", msRemaining);
                 disabled={isLoadingNews}
                 className="text-sm text-amber-600 hover:text-amber-700 transition-colors disabled:opacity-50 flex items-center gap-1"
               >
-                {isLoadingNews ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="w-4 h-4" />
-                )}
+                {isLoadingNews ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                 Refresh
               </button>
               <span className="text-sm text-slate-400">
