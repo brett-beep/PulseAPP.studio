@@ -17,7 +17,7 @@ export default function GenerateBriefingButton({ onGenerate, isGenerating, hasEx
                 disabled={isGenerating}
                 className={`
                     relative overflow-hidden px-8 py-4 rounded-2xl font-medium text-white
-                    transition-all duration-300 shadow-lg
+                    transition-shadow duration-300 shadow-lg
                     ${isGenerating 
                         ? 'bg-slate-400 cursor-not-allowed' 
                         : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:shadow-amber-200/50 hover:shadow-xl'
@@ -43,12 +43,12 @@ export default function GenerateBriefingButton({ onGenerate, isGenerating, hasEx
                     )}
                 </span>
                 
+                {/* Smooth gradient overlay on hover */}
                 {!isGenerating && (
                     <motion.div
-                        className="absolute inset-0 bg-gradient-to-r from-amber-400 to-amber-500"
-                        initial={{ x: '-100%' }}
-                        whileHover={{ x: 0 }}
-                        transition={{ duration: 0.3 }}
+                        className="absolute inset-0 bg-gradient-to-r from-amber-400 to-amber-500 opacity-0"
+                        whileHover={{ opacity: 1 }}
+                        transition={{ duration: 0.2, ease: "easeInOut" }}
                     />
                 )}
             </motion.button>
