@@ -127,11 +127,6 @@ export default function Home() {
   
   //====ENABLE THIS FOR COOLDOWN====//
   useEffect(() => {
-    // TEMPORARILY DISABLED FOR TESTING
-    setCanGenerateNew(true);
-    setTimeUntilNextBriefing(null);
-    return;
-    
     if (!briefings || !Array.isArray(briefings)) {
       console.log("⏱️ [Countdown] No briefings array, allowing generation");
       setCanGenerateNew(true);
@@ -146,13 +141,13 @@ export default function Home() {
 
       console.log("⏱️ [Countdown] Delivered briefings today:", briefingCount);
 
-      // TEMPORARILY DISABLED: Daily limit (3 max) based on DELIVERED briefings only
-      // if (briefingCount >= 3) {
-      //   console.log("⏱️ [Countdown] Daily limit reached (3/3 delivered)");
-      //   setCanGenerateNew(false);
-      //   setTimeUntilNextBriefing("Daily limit reached");
-      //   return;
-      // }
+      // Daily limit (3 max) based on DELIVERED briefings only
+      if (briefingCount >= 3) {
+        console.log("⏱️ [Countdown] Daily limit reached (3/3 delivered)");
+        setCanGenerateNew(false);
+        setTimeUntilNextBriefing("Daily limit reached");
+        return;
+      }
 
       // If none delivered today, can generate immediately
       if (briefingCount === 0) {
