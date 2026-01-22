@@ -605,6 +605,14 @@ Return JSON: { "script": "..." }
     // Always create new briefing (supports 3-per-day feature)
 const saved = await base44.asServiceRole.entities.DailyBriefing.create(baseRecord);
 
+
+// ADD THIS DEBUG LOGGING
+console.log("🔍 [DEBUG] Created briefing with:");
+console.log("  - ID:", saved.id);
+console.log("  - date:", saved.date);
+console.log("  - created_by:", saved.created_by);
+console.log("  - status:", saved.status);
+
 if (skipAudio) {
   return Response.json({
     success: true,
