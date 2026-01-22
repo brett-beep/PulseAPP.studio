@@ -113,19 +113,19 @@ export default function Settings() {
             // Clear React Query cache
             queryClient.clear();
             
-            // Clear any localStorage/sessionStorage
+            // Clear localStorage/sessionStorage
             localStorage.clear();
             sessionStorage.clear();
             
-            // Logout and redirect to login page
+            // Logout from Base44 (invalidates session)
             await base44.auth.logout();
             
-            // Force hard redirect to login (in case logout doesn't redirect)
-            window.location.href = '/login';
+            // Force hard redirect to root
+            window.location.replace("/");
         } catch (error) {
             console.error('Sign out error:', error);
             // Force redirect even on error
-            window.location.href = '/login';
+            window.location.replace("/");
         }
     };
 
