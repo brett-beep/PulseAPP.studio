@@ -515,11 +515,11 @@ export default function AudioPlayer({
               className="flex flex-col items-center mt-8 gap-2"
             >
               <motion.button
-                whileHover={canGenerateNew ? { scale: 1.05, y: -2 } : {}}
-                whileTap={canGenerateNew ? { scale: 0.98 } : {}}
+                whileHover={canGenerateNew ? { scale: 1.06 } : {}}
+                whileTap={canGenerateNew ? { scale: 0.96 } : {}}
                 onClick={canGenerateNew ? onGenerate : undefined}
                 disabled={isButtonDisabled}
-                className={`px-6 py-3 rounded-full text-sm font-semibold transition-all ${
+                className={`px-6 py-3 rounded-full text-sm font-semibold ${
                   isButtonDisabled ? 'cursor-not-allowed' : 'cursor-pointer'
                 }`}
                 style={{
