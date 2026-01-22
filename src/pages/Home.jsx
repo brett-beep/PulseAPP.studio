@@ -127,6 +127,11 @@ export default function Home() {
   
   //====ENABLE THIS FOR COOLDOWN====//
   useEffect(() => {
+    // TEMPORARILY DISABLED FOR TESTING
+    setCanGenerateNew(true);
+    setTimeUntilNextBriefing(null);
+    return;
+    
     if (!briefings || !Array.isArray(briefings)) {
       console.log("⏱️ [Countdown] No briefings array, allowing generation");
       setCanGenerateNew(true);
@@ -636,4 +641,3 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
     </div>
   );
 }
-
