@@ -503,7 +503,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
       case "writing_script":
         return "✍️ Writing your briefing script...";
       case "generating_audio":
-        return "🎵 Generating audio (~45 seconds)...";
+        return "🎵 Generating audio...";
       case "uploading":
         return "📤 Almost ready...";
       case "ready":
