@@ -109,12 +109,9 @@ export default function Settings() {
     };
 
 const handleSignOut = async () => {
-    try {
-        // Just call logout - Base44 handles everything
-        await base44.auth.logout();
-    } catch (error) {
-        console.error('Sign out error:', error);
-    }
+    await base44.auth.logout();
+    // Force a full page reload to trigger Base44's auth check
+    window.location.href = window.location.origin;
 };
 
     if (isLoading || !editedPrefs) {
