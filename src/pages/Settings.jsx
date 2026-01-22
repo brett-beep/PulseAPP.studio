@@ -109,9 +109,15 @@ export default function Settings() {
     };
 
 const handleSignOut = async () => {
-    await base44.auth.logout();
-    // Force a full page reload to trigger Base44's auth check
-    window.location.href = window.location.origin;
+    try {
+        await base44.auth.logout();
+        
+        // Force a complete page reload to trigger Base44's auth check
+        window.location.href = window.location.origin;
+    } catch (error) {
+        console.error('Sign out error:', error);
+        window.location.href = window.location.origin;
+    }
 };
 
     if (isLoading || !editedPrefs) {
