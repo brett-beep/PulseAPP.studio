@@ -164,10 +164,8 @@ Deno.serve(async (req) => {
     const userEmail = safeText(user?.email);
     if (!userEmail) return Response.json({ error: "User email missing" }, { status: 400 });
 
-    const elevenLabsApiKey = Deno.env.get("ELEVENLABS_API_KEY");
-    if (!skipAudio && !elevenLabsApiKey) {
-      return Response.json({ error: "ELEVENLABS_API_KEY not configured" }, { status: 500 });
-    }
+    // Hardcoded temporarily while Base44 env vars are broken
+    const elevenLabsApiKey = "sk_d95bc50d1ee151866aebf48be5f5d48a8c7c15809e913066";
 
     // =========================================================
     // AUDIO-ONLY MODE: convert existing script -> audio_url
