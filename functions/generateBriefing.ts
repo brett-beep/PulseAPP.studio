@@ -1,3 +1,4 @@
+// generateBriefing function - synced Jan 26, 2026
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
 
 function safeISODate(input) {
