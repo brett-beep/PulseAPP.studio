@@ -30,7 +30,7 @@ function getZonedParts(timeZone, d = new Date()) {
   const map = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
   const dayOfWeek = map[weekdayShort] ?? 0;
 
-  let month = 1;
+  let month = 1; 
   let day = 1;
   for (const p of mdParts) {
     if (p.type === "month") month = Number(p.value) || 1;
