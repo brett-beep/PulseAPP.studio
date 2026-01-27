@@ -27,6 +27,7 @@ export default function Home() {
   // Countdown timer state for briefing limits (3 per day, 3-hour cooldown)
   const [timeUntilNextBriefing, setTimeUntilNextBriefing] = useState(null);
   const [canGenerateNew, setCanGenerateNew] = useState(true);
+  const [generationStartedAt, setGenerationStartedAt] = useState(null); // Track when generation started
 
   // Fetch current user
   const { data: user, isLoading: userLoading } = useQuery({
@@ -112,12 +113,33 @@ export default function Home() {
   console.log("📍 [Briefing State] delivered_at:", todayBriefing?.delivered_at);
 
   // Auto-stop isGenerating when briefing is ready OR script_ready (since you skip audio sometimes)
+  // FIX: Only stop if the briefing was delivered AFTER we started generating
   useEffect(() => {
-    if (isGenerating && (todayBriefing?.status === "ready" || todayBriefing?.status === "script_ready")) {
-      console.log("✅ Briefing is delivered! Stopping generation state.");
+    if (!isGenerating || !generationStartedAt) return;
+    
+    const isReady = todayBriefing?.status === "ready" || todayBriefing?.status === "script_ready";
+    if (!isReady) return;
+    
+    // Check if this briefing was delivered after we started generating
+    const deliveredAt = todayBriefing?.delivered_at || todayBriefing?.updated_date || todayBriefing?.created_date || todayBriefing?.updated_at || todayBriefing?.created_at;
+    if (!deliveredAt) return;
+    
+    const deliveredTime = new Date(deliveredAt).getTime();
+    const startedTime = generationStartedAt.getTime();
+    
+    // Only stop if this briefing was delivered AFTER we clicked generate (with 5s buffer for clock skew)
+    if (deliveredTime >= startedTime - 5000) {
+      console.log("✅ NEW Briefing is delivered! Stopping generation state.");
+      console.log("   - Generation started at:", generationStartedAt.toISOString());
+      console.log("   - Briefing delivered at:", deliveredAt);
       setIsGenerating(false);
+      setGenerationStartedAt(null);
+    } else {
+      console.log("⏳ Old briefing detected, still waiting for new one...");
+      console.log("   - Generation started at:", generationStartedAt.toISOString());
+      console.log("   - Old briefing delivered at:", deliveredAt);
     }
-  }, [isGenerating, todayBriefing?.status]);
+  }, [isGenerating, generationStartedAt, todayBriefing?.status, todayBriefing?.delivered_at, todayBriefing?.updated_date, todayBriefing?.created_date, todayBriefing?.updated_at, todayBriefing?.created_at]);
 
   // =========================================================
   // COUNTDOWN: ONLY START AFTER BRIEFING IS DELIVERED
@@ -395,8 +417,10 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
       return;
     }
 
+    const startTime = new Date();
+    setGenerationStartedAt(startTime);
     setIsGenerating(true);
-    console.log("🎬 Starting briefing generation...");
+    console.log("🎬 Starting briefing generation at:", startTime.toISOString());
 
     try {
       console.log("📤 [Generate Briefing] Sending preferences:", preferences);
@@ -421,6 +445,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
         console.error("❌ Briefing generation error:", response.data.error);
         alert("Failed to generate briefing: " + response.data.error);
         setIsGenerating(false);
+        setGenerationStartedAt(null);
       } else {
         console.log("✅ Briefing generation started!");
         console.log("📊 Response data:", response.data);
@@ -436,6 +461,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
       console.error("❌ Error generating briefing:", error);
       alert("Failed to generate briefing. Please try again.");
       setIsGenerating(false);
+      setGenerationStartedAt(null);
     }
   };
 
