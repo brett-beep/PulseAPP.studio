@@ -126,12 +126,12 @@ async function generateAudioFile(script, date, elevenLabsApiKey) {
     },
     body: JSON.stringify({
       text: script,
-      model_id: "eleven_multilingual_v2",
+      model_id: "eleven_v3",
       output_format: "mp3_44100_128",
       voice_settings: {
         stability: 0.5,
         similarity_boost: 0.75,
-        style: 0.0,
+        style: 0.3,
         use_speaker_boost: true,
       },
     }),
