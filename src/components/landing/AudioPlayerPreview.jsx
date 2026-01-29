@@ -94,7 +94,7 @@ export function AudioPlayerPreview() {
       <motion.div
         animate={{ y: [0, -8, 0] }}
         transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-        className="relative mx-auto max-w-sm"
+        className="relative mx-auto max-w-md"
       >
         {/* Glass card */}
         <div className="glass-card-strong rounded-3xl p-8 glow-primary">

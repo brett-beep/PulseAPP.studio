@@ -36,46 +36,49 @@ function InterestSelector() {
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => toggleInterest(interest.id)}
-            className={`relative flex items-center gap-3 rounded-xl p-4 text-left transition-all duration-300 ${
+            className={`relative flex items-center gap-3 rounded-xl p-4 pr-14 text-left transition-all duration-300 ${
               isSelected
                 ? "glass-card-strong shadow-lg glow-primary"
                 : "glass-card hover:shadow-lg"
             }`}
           >
             <div
-              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-all ${
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all ${
                 isSelected 
                   ? "bg-gradient-to-br from-primary to-accent shadow-md" 
                   : "bg-muted/50"
               }`}
             >
               <IconComponent
-                className={`h-5 w-5 transition-colors ${
+                className={`h-4 w-4 transition-colors ${
                   isSelected ? "text-primary-foreground" : "text-muted-foreground"
                 }`}
               />
             </div>
             <span
-              className={`font-medium transition-colors ${
+              className={`text-sm font-medium transition-colors ${
                 isSelected ? "text-foreground" : "text-muted-foreground"
               }`}
             >
               {interest.label}
             </span>
 
-            <AnimatePresence>
-              {isSelected && (
-                <motion.div
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0, opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="absolute right-3 flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent shadow-md"
-                >
-                  <Check className="h-3.5 w-3.5 text-primary-foreground" />
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {/* Check indicator - positioned absolutely with proper spacing */}
+            <div className="absolute right-4 top-1/2 -translate-y-1/2">
+              <AnimatePresence>
+                {isSelected && (
+                  <motion.div
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent shadow-md"
+                  >
+                    <Check className="h-3.5 w-3.5 text-primary-foreground" />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </motion.button>
         )
       })}
@@ -91,14 +94,15 @@ function AnimatedAudioPlayer() {
   useEffect(() => {
     const sequence = async () => {
       await new Promise(r => setTimeout(r, 1000))
-      setCursorPosition({ x: 50, y: 55 })
+      // Move cursor precisely to center of play button
+      setCursorPosition({ x: 46, y: 72 })
       setIsHovering(true)
       await new Promise(r => setTimeout(r, 800))
       setIsPlaying(true)
       await new Promise(r => setTimeout(r, 3000))
       setIsPlaying(false)
       setIsHovering(false)
-      setCursorPosition({ x: 80, y: 60 })
+      setCursorPosition({ x: 75, y: 30 })
     }
     
     sequence()
@@ -342,7 +346,9 @@ export function HowItWorks() {
                 <h3 className="font-serif text-2xl md:text-3xl font-medium text-foreground">What Matters To You</h3>
               </div>
               <p className="text-lg text-muted-foreground leading-relaxed">
-                Select your interests to personalize your briefings
+                Select your interests to personalize your briefings.
+                <br />
+                Choose the topics, sectors, and companies you care about.
               </p>
             </div>
             <div>
@@ -363,7 +369,9 @@ export function HowItWorks() {
                 <h3 className="font-serif text-2xl md:text-3xl font-medium text-foreground">Get Your Briefings</h3>
               </div>
               <p className="text-lg text-muted-foreground leading-relaxed">
-                PulseApp generates up to 3 audio market briefings per day, prioritizing market-moving developments relevant to your selections
+                PulseApp generates up to <strong className="text-foreground font-semibold">3 audio market briefings</strong> per day, prioritizing market-moving developments relevant to your selections.
+                <br />
+                Prioritize convenience and investor-related takeaways.
               </p>
             </div>
             <div className="lg:order-1">
@@ -385,7 +393,9 @@ export function HowItWorks() {
                 <span className="glass-subtle rounded-full px-3 py-1 text-xs font-semibold text-muted-foreground">Coming Soon</span>
               </div>
               <p className="text-lg text-muted-foreground leading-relaxed">
-                Optional integrations with email, calendar, and financial planning tools—so briefings arrive at the right time and reflect what's relevant to your day and your portfolio context.
+                Integrations with email, calendar, and financial planning tools.
+                <br />
+                An audio briefing assistant that fits your workflow.
               </p>
             </div>
             <div>

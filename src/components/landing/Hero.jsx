@@ -70,7 +70,9 @@ export function Hero({ onSignIn }) {
               transition={{ duration: 0.6, delay: 0.3 }}
               className="mt-6 text-lg leading-relaxed text-muted-foreground md:text-xl lg:text-xl max-w-xl mx-auto lg:mx-0"
             >
-              PulseApp turns financial news into personalized audio briefings you can listen to every morning. Focus on what matters. Cut through market noise.
+              PulseApp turns financial news into personalized audio briefings you can listen to every morning.
+              <br className="hidden sm:block" />
+              <span className="sm:block">Focus on what matters. Cut through market noise.</span>
             </motion.p>
 
             <motion.div
