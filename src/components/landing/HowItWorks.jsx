@@ -88,21 +88,25 @@ function InterestSelector() {
 
 function AnimatedAudioPlayer() {
   const [isPlaying, setIsPlaying] = useState(false)
-  const [cursorPosition, setCursorPosition] = useState({ x: 80, y: 60 })
+  const [cursorPosition, setCursorPosition] = useState({ x: 85, y: 85 })
   const [isHovering, setIsHovering] = useState(false)
 
   useEffect(() => {
     const sequence = async () => {
+      // Start from bottom right corner
+      setCursorPosition({ x: 85, y: 85 })
       await new Promise(r => setTimeout(r, 1000))
-      // Move cursor precisely to center of play button
-      setCursorPosition({ x: 46, y: 72 })
+      // Move smoothly to center of play button
+      setCursorPosition({ x: 47, y: 68 })
+      await new Promise(r => setTimeout(r, 600))
       setIsHovering(true)
-      await new Promise(r => setTimeout(r, 800))
+      await new Promise(r => setTimeout(r, 400))
       setIsPlaying(true)
       await new Promise(r => setTimeout(r, 3000))
       setIsPlaying(false)
       setIsHovering(false)
-      setCursorPosition({ x: 75, y: 30 })
+      // Return to bottom right
+      setCursorPosition({ x: 85, y: 85 })
     }
     
     sequence()
@@ -117,44 +121,51 @@ function AnimatedAudioPlayer() {
       <div className="absolute inset-0 bg-gradient-to-r from-background/30 via-transparent to-background/30 pointer-events-none z-10 rounded-3xl" />
       
       <motion.div 
-        className="relative mx-auto max-w-xs glass-card-strong rounded-2xl p-6"
+        className="relative mx-auto max-w-md glass-card-strong rounded-3xl p-8"
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
       >
         {/* Mini waveform */}
-        <div className="mb-5 flex h-14 items-center justify-center gap-0.5">
-          {[...Array(32)].map((_, i) => (
-            <motion.div
-              key={i}
-              className="w-1 rounded-full bg-gradient-to-t from-primary/60 to-accent/60"
-              animate={
-                isPlaying
-                  ? {
-                      height: [8, Math.random() * 35 + 12, 8],
-                    }
-                  : { height: 10 }
-              }
-              transition={{
-                duration: 0.6,
-                repeat: isPlaying ? Infinity : 0,
-                delay: i * 0.02,
-                ease: "easeInOut",
-              }}
-            />
-          ))}
+        <div className="mb-6 flex h-20 items-center justify-center gap-1">
+          {[...Array(28)].map((_, i) => {
+            const baseHeight = Math.sin(i * 0.4) * 15 + 25
+            return (
+              <motion.div
+                key={i}
+                className="w-1 rounded-full bg-gradient-to-t from-primary to-accent"
+                animate={
+                  isPlaying
+                    ? {
+                        height: [
+                          baseHeight * 0.6,
+                          baseHeight * 1.8,
+                          baseHeight * 0.6,
+                        ],
+                      }
+                    : { height: 20 }
+                }
+                transition={{
+                  duration: 1.2,
+                  repeat: isPlaying ? Infinity : 0,
+                  delay: i * 0.04,
+                  ease: "easeInOut",
+                }}
+              />
+            )
+          })}
         </div>
 
         {/* Progress bar */}
-        <div className="mb-5">
-          <div className="h-1.5 w-full rounded-full bg-muted/40 overflow-hidden glass-border">
+        <div className="mb-6">
+          <div className="h-2 w-full rounded-full bg-muted/50 overflow-hidden glass-border">
             <motion.div
               className="h-full rounded-full bg-gradient-to-r from-primary to-accent"
               animate={{ width: isPlaying ? "60%" : "0%" }}
               transition={{ duration: 3, ease: "linear" }}
             />
           </div>
-          <div className="mt-2 flex justify-between text-xs text-muted-foreground font-medium">
+          <div className="mt-3 flex justify-between text-sm text-muted-foreground font-medium">
             <span>{isPlaying ? "1:48" : "0:00"}</span>
             <span>5:00</span>
           </div>
@@ -163,7 +174,7 @@ function AnimatedAudioPlayer() {
         {/* Controls */}
         <div className="flex items-center justify-center">
           <motion.div
-            className={`flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent text-primary-foreground shadow-xl transition-all ${isHovering ? 'scale-110 glow-primary' : ''}`}
+            className={`flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent text-primary-foreground shadow-xl transition-all ${isHovering ? 'scale-110 glow-primary' : ''}`}
           >
             <AnimatePresence mode="wait">
               {isPlaying ? (
@@ -369,7 +380,7 @@ export function HowItWorks() {
                 <h3 className="font-serif text-2xl md:text-3xl font-medium text-foreground">Get Your Briefings</h3>
               </div>
               <p className="text-lg text-muted-foreground leading-relaxed">
-                PulseApp generates up to <strong className="text-foreground font-semibold">3 audio market briefings</strong> per day, prioritizing market-moving developments relevant to your selections.
+                PulseApp generates up to <strong className="text-foreground font-semibold">3 audio market briefings</strong> per day.
                 <br />
                 Prioritize convenience and investor-related takeaways.
               </p>

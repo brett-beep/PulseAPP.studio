@@ -101,36 +101,39 @@ export function AudioPlayerPreview() {
           {/* Greeting */}
           <div className="mb-8 text-center">
             <p className="font-magnolia text-base text-muted-foreground">Good morning, Alex.</p>
-            <p className="mt-1 font-magnolia text-2xl text-foreground">
-              Here&apos;s your briefing this morning
+            <p className="mt-1 text-2xl text-foreground" style={{ fontStyle: 'normal' }}>
+              Here&apos;s your briefing this morning...
             </p>
           </div>
 
           {/* Waveform visualization */}
           <div className="mb-8 flex h-20 items-center justify-center gap-1">
-            {[...Array(28)].map((_, i) => (
-              <motion.div
-                key={i}
-                className="w-1 rounded-full bg-gradient-to-t from-primary to-accent"
-                animate={
-                  isPlaying
-                    ? {
-                        height: [
-                          Math.random() * 20 + 10,
-                          Math.random() * 50 + 25,
-                          Math.random() * 20 + 10,
-                        ],
-                      }
-                    : { height: 20 }
-                }
-                transition={{
-                  duration: 0.8,
-                  repeat: isPlaying ? Infinity : 0,
-                  delay: i * 0.03,
-                  ease: "easeInOut",
-                }}
-              />
-            ))}
+            {[...Array(28)].map((_, i) => {
+              const baseHeight = Math.sin(i * 0.4) * 15 + 25
+              return (
+                <motion.div
+                  key={i}
+                  className="w-1 rounded-full bg-gradient-to-t from-primary to-accent"
+                  animate={
+                    isPlaying
+                      ? {
+                          height: [
+                            baseHeight * 0.6,
+                            baseHeight * 1.8,
+                            baseHeight * 0.6,
+                          ],
+                        }
+                      : { height: 20 }
+                  }
+                  transition={{
+                    duration: 1.2,
+                    repeat: isPlaying ? Infinity : 0,
+                    delay: i * 0.04,
+                    ease: "easeInOut",
+                  }}
+                />
+              )
+            })}
           </div>
 
           {/* Progress bar */}
