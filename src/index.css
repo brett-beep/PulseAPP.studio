@@ -2,7 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&display=swap');
+
+/* Magnolia-style font (using Cormorant Garamond as a similar elegant alternative) */
+@font-face {
+  font-family: 'Magnolia';
+  src: local('Cormorant Garamond'), local('Georgia');
+  font-weight: 400;
+  font-style: normal;
+}
 
 @layer base {
   :root {
@@ -117,6 +125,12 @@
 
 .landing-theme .font-serif {
   font-family: 'Fraunces', serif;
+}
+
+.landing-theme .font-magnolia {
+  font-family: 'Cormorant Garamond', 'Georgia', serif;
+  font-style: italic;
+  letter-spacing: 0.02em;
 }
 
 /* Smooth scrolling */

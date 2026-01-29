@@ -100,9 +100,9 @@ export function AudioPlayerPreview() {
         <div className="rounded-3xl bg-card/80 p-6 shadow-xl backdrop-blur-sm border border-border/50">
           {/* Greeting */}
           <div className="mb-6 text-center">
-            <p className="text-sm text-muted-foreground">Good morning</p>
-            <p className="mt-1 font-serif text-xl text-card-foreground">
-              Here&apos;s your briefing
+            <p className="font-magnolia text-sm text-muted-foreground">Good morning, Alex.</p>
+            <p className="mt-1 font-magnolia text-xl text-card-foreground">
+              Here&apos;s your briefing this morning
             </p>
           </div>
 

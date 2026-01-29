@@ -1,6 +1,6 @@
 import { Hero } from "./Hero"
 import { ValueProps } from "./ValueProps"
-import { InterestSelection } from "./InterestSelection"
+import { HowItWorks } from "./HowItWorks"
 import { CTASection } from "./CTASection"
 import { Footer } from "./Footer"
 
@@ -10,7 +10,7 @@ export function LandingPage({ onSignIn }) {
       <main className="min-h-screen bg-background text-foreground">
         <Hero onSignIn={onSignIn} />
         <ValueProps />
-        <InterestSelection />
+        <HowItWorks />
         <CTASection onSignIn={onSignIn} />
         <Footer />
       </main>
