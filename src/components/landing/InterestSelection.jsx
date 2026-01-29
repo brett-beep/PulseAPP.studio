@@ -1,18 +1,18 @@
 import { useState } from "react"
-import { motion } from "framer-motion"
-import { Check } from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
+import { Cpu, Bitcoin, Building2, TrendingUp, Gem, BarChart3, Check } from "lucide-react"
 
 const interests = [
-  { id: "tech", label: "Tech & AI" },
-  { id: "crypto", label: "Crypto" },
-  { id: "realestate", label: "Real Estate" },
-  { id: "macro", label: "Macro Economy" },
-  { id: "commodities", label: "Commodities" },
-  { id: "equities", label: "Equities" },
+  { id: "tech", label: "Tech Stocks", icon: Cpu },
+  { id: "crypto", label: "Crypto", icon: Bitcoin },
+  { id: "realestate", label: "Real Estate", icon: Building2 },
+  { id: "economy", label: "Economy", icon: TrendingUp },
+  { id: "commodities", label: "Commodities", icon: Gem },
+  { id: "markets", label: "Markets", icon: BarChart3 },
 ]
 
 export function InterestSelection() {
-  const [selected, setSelected] = useState(["tech", "equities"])
+  const [selected, setSelected] = useState(["tech", "markets"])
 
   const toggleInterest = (id) => {
     setSelected((prev) =>
@@ -21,28 +21,26 @@ export function InterestSelection() {
   }
 
   return (
-    <section className="py-32 relative">
-      <div className="mx-auto max-w-4xl px-6 lg:px-12">
+    <section className="py-24">
+      <div className="mx-auto max-w-4xl px-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-100px" }}
-          className="text-center mb-16"
+          className="mb-12 text-center"
         >
-          <p className="text-sm tracking-[0.2em] uppercase text-[oklch(0.78_0.12_85)] mb-4">
-            Personalization
-          </p>
-          <h2 className="font-serif text-3xl md:text-4xl text-foreground">
-            What do you care about?
+          <h2 className="font-serif text-3xl text-foreground md:text-4xl text-balance">
+            What matters to you?
           </h2>
-          <p className="mt-4 text-muted-foreground max-w-md mx-auto">
-            Select your interests. We&apos;ll tailor every briefing to what matters to your portfolio.
+          <p className="mt-4 text-lg text-muted-foreground">
+            Select your interests to personalize your briefings
           </p>
         </motion.div>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {interests.map((interest, i) => {
             const isSelected = selected.includes(interest.id)
+            const IconComponent = interest.icon
             return (
               <motion.button
                 key={interest.id}
@@ -50,50 +48,58 @@ export function InterestSelection() {
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-50px" }}
-                transition={{ duration: 0.4, delay: i * 0.05 }}
+                transition={{ duration: 0.4, delay: i * 0.08 }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => toggleInterest(interest.id)}
-                className={`relative flex items-center justify-between rounded-sm border px-5 py-4 text-left transition-all duration-200 ${
+                className={`relative flex items-center gap-4 rounded-xl border p-5 text-left transition-all duration-300 ${
                   isSelected
-                    ? "border-[oklch(0.78_0.12_85)] bg-[oklch(0.78_0.12_85_/_0.08)]"
-                    : "border-[oklch(0.25_0.01_260)] bg-[oklch(0.14_0.01_260)] hover:border-[oklch(0.35_0.01_260)]"
+                    ? "border-primary/50 bg-primary/5 shadow-md shadow-primary/10"
+                    : "border-border/50 bg-card/40 hover:border-border hover:bg-card/60"
                 }`}
               >
+                <div
+                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                    isSelected ? "bg-primary/20" : "bg-muted/50"
+                  }`}
+                >
+                  <IconComponent
+                    className={`h-5 w-5 transition-colors ${
+                      isSelected ? "text-primary" : "text-muted-foreground"
+                    }`}
+                  />
+                </div>
                 <span
-                  className={`text-sm transition-colors ${
+                  className={`font-medium transition-colors ${
                     isSelected ? "text-foreground" : "text-muted-foreground"
                   }`}
                 >
                   {interest.label}
                 </span>
 
-                <div
-                  className={`flex h-5 w-5 items-center justify-center rounded-sm border transition-all ${
-                    isSelected
-                      ? "border-[oklch(0.78_0.12_85)] bg-[oklch(0.78_0.12_85)]"
-                      : "border-[oklch(0.35_0.01_260)]"
-                  }`}
-                >
+                {/* Check indicator */}
+                <AnimatePresence>
                   {isSelected && (
-                    <Check className="h-3 w-3 text-[oklch(0.12_0.01_260)]" strokeWidth={3} />
+                    <motion.div
+                      initial={{ scale: 0, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="absolute right-4 flex h-6 w-6 items-center justify-center rounded-full bg-primary"
+                    >
+                      <Check className="h-3.5 w-3.5 text-primary-foreground" />
+                    </motion.div>
                   )}
-                </div>
+                </AnimatePresence>
+
+                {/* Selected glow effect */}
+                {isSelected && (
+                  <div className="pointer-events-none absolute inset-0 -z-10 rounded-xl bg-primary/5" />
+                )}
               </motion.button>
             )
           })}
         </div>
-
-        <motion.p
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ delay: 0.3 }}
-          className="mt-8 text-center text-sm text-muted-foreground"
-        >
-          {selected.length === 0 
-            ? "Select at least one interest" 
-            : `${selected.length} selected — your briefings will focus on these areas`
-          }
-        </motion.p>
       </div>
     </section>
   )

@@ -1,135 +1,90 @@
 import { motion } from "framer-motion"
+import { Zap } from "lucide-react"
 import { AudioPlayerPreview } from "./AudioPlayerPreview"
+import { MarketTicker } from "./MarketTicker"
 
 export function Hero({ onSignIn }) {
   return (
-    <section className="relative min-h-screen overflow-hidden">
-      {/* Subtle gradient background */}
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute inset-0 bg-gradient-to-b from-background via-background to-[oklch(0.10_0.01_260)]" />
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 h-[800px] w-[1200px] rounded-full bg-[oklch(0.78_0.12_85_/_0.03)] blur-[120px]" />
+    <section className="relative min-h-screen overflow-hidden pb-12 pt-8">
+      {/* Background gradient */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -right-1/4 -top-1/4 h-[600px] w-[600px] rounded-full bg-primary/5 blur-3xl" />
+        <div className="absolute -bottom-1/4 -left-1/4 h-[600px] w-[600px] rounded-full bg-accent/5 blur-3xl" />
       </div>
 
-      <div className="relative mx-auto max-w-7xl px-6 lg:px-12">
+      <div className="relative mx-auto max-w-6xl px-6">
         {/* Nav */}
         <motion.nav
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.8 }}
-          className="flex items-center justify-between py-8 lg:py-10"
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="flex items-center justify-between py-6"
         >
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-sm bg-gradient-to-br from-[oklch(0.78_0.12_85)] to-[oklch(0.65_0.10_60)]" />
-            <span className="text-lg tracking-wide text-foreground/90">PULSE</span>
+          <div className="flex items-center gap-2">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent">
+              <Zap className="h-5 w-5 text-primary-foreground" />
+            </div>
+            <span className="font-serif text-xl text-foreground">PulseApp</span>
           </div>
           <button
             type="button"
             onClick={onSignIn}
-            className="text-sm tracking-wide text-muted-foreground transition-colors hover:text-foreground"
+            className="rounded-full border border-border bg-card/60 px-5 py-2 text-sm font-medium text-foreground backdrop-blur-sm transition-colors hover:bg-card"
           >
             Sign In
           </button>
         </motion.nav>
 
         {/* Hero content */}
-        <div className="grid items-center gap-16 pt-12 lg:grid-cols-2 lg:gap-24 lg:pt-20">
+        <div className="grid items-center gap-12 pt-12 lg:grid-cols-2 lg:gap-16 lg:pt-24">
           {/* Left column - Text */}
-          <div>
-            <motion.p
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-              className="mb-6 text-sm tracking-[0.2em] uppercase text-[oklch(0.78_0.12_85)]"
-            >
-              Your Morning Intelligence
-            </motion.p>
-            
+          <div className="text-center lg:text-left">
             <motion.h1
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.1 }}
-              className="font-serif text-4xl font-medium leading-[1.1] tracking-tight text-foreground md:text-5xl lg:text-6xl"
+              transition={{ duration: 0.6, delay: 0.1 }}
+              className="font-serif text-4xl leading-tight text-foreground md:text-5xl lg:text-6xl text-balance"
             >
-              Markets move fast.
-              <br />
-              <span className="text-[oklch(0.78_0.12_85)]">Stay ahead.</span>
+              Your Daily Financial Market Briefing
             </motion.h1>
-            
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.6, delay: 0.3 }}
-              className="my-8 editorial-line w-24"
-            />
             
             <motion.p
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
-              className="text-lg leading-relaxed text-muted-foreground max-w-md"
+              transition={{ duration: 0.6, delay: 0.3 }}
+              className="mt-6 text-lg leading-relaxed text-muted-foreground md:text-xl text-pretty"
             >
-              AI-curated market briefings delivered to your ears every morning. 
-              Five minutes. Personalized to your portfolio. No noise.
+              PulseApp turns financial news into personalized audio briefings you can listen to every morning. Focus on what matters. Cut through market noise.
             </motion.p>
 
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.6 }}
-              className="mt-10 flex flex-col gap-6 sm:flex-row sm:items-center"
+              transition={{ duration: 0.6, delay: 0.5 }}
+              className="mt-8 flex flex-col items-center gap-4 sm:flex-row lg:justify-start"
             >
               <button
                 type="button"
                 onClick={onSignIn}
-                className="group relative overflow-hidden rounded-sm bg-[oklch(0.78_0.12_85)] px-8 py-4 text-sm font-medium tracking-wide text-[oklch(0.12_0.01_260)] transition-all hover:bg-[oklch(0.85_0.12_85)]"
+                className="group flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-primary to-accent px-8 py-4 font-medium text-primary-foreground shadow-lg transition-all hover:shadow-xl sm:w-auto"
               >
-                <span className="relative z-10">Start Free Trial</span>
+                Start Listening (Beta)
+                <span className="transition-transform group-hover:translate-x-0.5">→</span>
               </button>
-              <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                <span className="h-1 w-1 rounded-full bg-[oklch(0.78_0.12_85)]" />
-                <span>No credit card required</span>
-              </div>
+              <span className="text-sm text-muted-foreground">
+                No credit card required
+              </span>
             </motion.div>
           </div>
 
-          {/* Right column - Audio Player */}
-          <motion.div
-            initial={{ opacity: 0, x: 40 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 1, delay: 0.4 }}
-            className="relative lg:justify-self-end"
-          >
+          {/* Right column - Audio Player Preview */}
+          <div className="relative">
             <AudioPlayerPreview />
-          </motion.div>
+          </div>
         </div>
 
-        {/* Bottom stats */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.8 }}
-          className="mt-24 lg:mt-32 pb-16"
-        >
-          <div className="editorial-line mb-10" />
-          <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
-            {[
-              { value: "5 min", label: "Daily briefing" },
-              { value: "7 AM", label: "Delivered sharp" },
-              { value: "100%", label: "Personalized" },
-              { value: "∞", label: "Market coverage" },
-            ].map((stat, i) => (
-              <motion.div
-                key={stat.label}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.9 + i * 0.1 }}
-              >
-                <p className="font-serif text-3xl text-[oklch(0.78_0.12_85)]">{stat.value}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{stat.label}</p>
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
+        {/* Market Ticker */}
+        <MarketTicker />
       </div>
     </section>
   )

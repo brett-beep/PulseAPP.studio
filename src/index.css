@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap');
 
 @layer base {
   :root {
@@ -76,27 +76,27 @@
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
-  /* Landing page dark theme - only applies within .landing-theme */
+  /* Landing page warm theme - only applies within .landing-theme */
   .landing-theme {
-    --background: 260 8% 12%;
-    --foreground: 90 3% 95%;
-    --card: 260 8% 15%;
-    --card-foreground: 90 3% 95%;
-    --popover: 260 8% 14%;
-    --popover-foreground: 90 3% 95%;
-    --primary: 85 60% 50%;
-    --primary-foreground: 260 8% 12%;
-    --secondary: 260 5% 20%;
-    --secondary-foreground: 90 8% 85%;
-    --muted: 260 5% 22%;
-    --muted-foreground: 90 5% 60%;
-    --accent: 85 50% 48%;
-    --accent-foreground: 260 8% 12%;
+    --background: 45 30% 96%;
+    --foreground: 30 15% 20%;
+    --card: 45 25% 98%;
+    --card-foreground: 30 15% 20%;
+    --popover: 45 25% 98%;
+    --popover-foreground: 30 15% 20%;
+    --primary: 25 80% 50%;
+    --primary-foreground: 45 25% 98%;
+    --secondary: 45 20% 94%;
+    --secondary-foreground: 30 10% 30%;
+    --muted: 45 15% 92%;
+    --muted-foreground: 30 10% 45%;
+    --accent: 15 70% 55%;
+    --accent-foreground: 45 25% 98%;
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 90 3% 95%;
-    --border: 260 5% 25%;
-    --input: 260 5% 20%;
-    --ring: 85 60% 50%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 45 20% 88%;
+    --input: 45 15% 90%;
+    --ring: 25 80% 50%;
   }
 }
 
@@ -113,59 +113,13 @@
 /* Typography for landing page */
 .landing-theme {
   font-family: 'DM Sans', sans-serif;
-  font-feature-settings: "kern" 1, "liga" 1;
 }
 
 .landing-theme .font-serif {
-  font-family: 'Playfair Display', serif;
-}
-
-.landing-theme .font-mono {
-  font-family: 'JetBrains Mono', monospace;
-}
-
-/* Custom utility classes for landing page */
-@layer utilities {
-  .text-gold {
-    color: oklch(0.78 0.12 85);
-  }
-  .bg-gold {
-    background-color: oklch(0.78 0.12 85);
-  }
-  .border-gold {
-    border-color: oklch(0.78 0.12 85);
-  }
-  .text-gold-dim {
-    color: oklch(0.55 0.08 85);
-  }
-  
-  /* Gradient text */
-  .text-gradient-gold {
-    background: linear-gradient(135deg, oklch(0.85 0.12 85) 0%, oklch(0.70 0.10 60) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-  
-  /* Subtle glow */
-  .glow-gold {
-    box-shadow: 0 0 40px -10px oklch(0.78 0.12 85 / 0.3);
-  }
-  
-  /* Editorial line */
-  .editorial-line {
-    height: 1px;
-    background: linear-gradient(90deg, transparent 0%, oklch(0.78 0.12 85 / 0.5) 50%, transparent 100%);
-  }
+  font-family: 'Fraunces', serif;
 }
 
 /* Smooth scrolling */
 html {
   scroll-behavior: smooth;
-}
-
-/* Selection color for landing page */
-.landing-theme ::selection {
-  background: oklch(0.78 0.12 85 / 0.3);
-  color: oklch(0.95 0.01 90);
 }
