@@ -13,15 +13,15 @@ const stocks = [
 
 export function MarketTicker() {
   return (
-    <div className="relative mt-8 overflow-hidden py-3">
-      <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-20 bg-gradient-to-r from-background to-transparent" />
-      <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-20 bg-gradient-to-l from-background to-transparent" />
+    <div className="relative mt-12 overflow-hidden py-4">
+      <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-24 bg-gradient-to-r from-background to-transparent" />
+      <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-24 bg-gradient-to-l from-background to-transparent" />
       
       <motion.div
-        className="flex gap-8"
+        className="flex gap-6"
         animate={{ x: [0, -800] }}
         transition={{
-          duration: 20,
+          duration: 25,
           repeat: Infinity,
           ease: "linear",
         }}
@@ -29,11 +29,11 @@ export function MarketTicker() {
         {[...stocks, ...stocks].map((stock, i) => (
           <div
             key={`${stock.symbol}-${i}`}
-            className="flex shrink-0 items-center gap-2 rounded-full bg-card/60 px-4 py-2 backdrop-blur-sm border border-border/30"
+            className="flex shrink-0 items-center gap-2 glass-card rounded-full px-5 py-2.5"
           >
-            <span className="font-medium text-card-foreground">{stock.symbol}</span>
+            <span className="font-semibold text-foreground">{stock.symbol}</span>
             <span
-              className={`text-sm font-medium ${
+              className={`text-sm font-semibold ${
                 stock.positive ? "text-emerald-600" : "text-red-500"
               }`}
             >

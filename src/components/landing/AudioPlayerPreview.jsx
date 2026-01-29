@@ -97,31 +97,31 @@ export function AudioPlayerPreview() {
         className="relative mx-auto max-w-sm"
       >
         {/* Glass card */}
-        <div className="rounded-3xl bg-card/80 p-6 shadow-xl backdrop-blur-sm border border-border/50">
+        <div className="glass-card-strong rounded-3xl p-8 glow-primary">
           {/* Greeting */}
-          <div className="mb-6 text-center">
-            <p className="font-magnolia text-sm text-muted-foreground">Good morning, Alex.</p>
-            <p className="mt-1 font-magnolia text-xl text-card-foreground">
+          <div className="mb-8 text-center">
+            <p className="font-magnolia text-base text-muted-foreground">Good morning, Alex.</p>
+            <p className="mt-1 font-magnolia text-2xl text-foreground">
               Here&apos;s your briefing this morning
             </p>
           </div>
 
           {/* Waveform visualization */}
-          <div className="mb-6 flex h-16 items-center justify-center gap-1">
-            {[...Array(24)].map((_, i) => (
+          <div className="mb-8 flex h-20 items-center justify-center gap-1">
+            {[...Array(28)].map((_, i) => (
               <motion.div
                 key={i}
-                className="w-1 rounded-full bg-primary/60"
+                className="w-1 rounded-full bg-gradient-to-t from-primary to-accent"
                 animate={
                   isPlaying
                     ? {
                         height: [
                           Math.random() * 20 + 10,
-                          Math.random() * 40 + 20,
+                          Math.random() * 50 + 25,
                           Math.random() * 20 + 10,
                         ],
                       }
-                    : { height: 16 }
+                    : { height: 20 }
                 }
                 transition={{
                   duration: 0.8,
@@ -134,9 +134,9 @@ export function AudioPlayerPreview() {
           </div>
 
           {/* Progress bar */}
-          <div className="mb-4">
+          <div className="mb-6">
             <div
-              className="h-1.5 w-full cursor-pointer overflow-hidden rounded-full bg-muted"
+              className="h-2 w-full cursor-pointer overflow-hidden rounded-full bg-muted/50 glass-border"
               onClick={handleProgressClick}
             >
               <div
@@ -144,46 +144,46 @@ export function AudioPlayerPreview() {
                 style={{ width: `${progress}%` }}
               />
             </div>
-            <div className="mt-2 flex justify-between text-xs text-muted-foreground">
+            <div className="mt-3 flex justify-between text-sm text-muted-foreground font-medium">
               <span>{formatTime(currentTime)}</span>
               <span>{formatTime(duration)}</span>
             </div>
           </div>
 
           {/* Controls */}
-          <div className="flex items-center justify-center gap-6">
+          <div className="flex items-center justify-center gap-8">
             <button
               type="button"
               onClick={() => skip(-10)}
-              className="text-muted-foreground transition-colors hover:text-foreground"
+              className="text-muted-foreground transition-all hover:text-foreground hover:scale-110"
             >
-              <SkipBack className="h-5 w-5" />
+              <SkipBack className="h-6 w-6" />
             </button>
             <button
               type="button"
               onClick={togglePlayPause}
-              className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent text-primary-foreground shadow-lg transition-transform hover:scale-105"
+              className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent text-primary-foreground shadow-xl glow-primary transition-all hover:scale-105 hover:shadow-2xl"
             >
               {isPlaying ? (
-                <Pause className="h-6 w-6" fill="currentColor" />
+                <Pause className="h-7 w-7" fill="currentColor" />
               ) : (
-                <Play className="h-6 w-6 translate-x-0.5" fill="currentColor" />
+                <Play className="h-7 w-7 translate-x-0.5" fill="currentColor" />
               )}
             </button>
             <button
               type="button"
               onClick={() => skip(10)}
-              className="text-muted-foreground transition-colors hover:text-foreground"
+              className="text-muted-foreground transition-all hover:text-foreground hover:scale-110"
             >
-              <SkipForward className="h-5 w-5" />
+              <SkipForward className="h-6 w-6" />
             </button>
           </div>
 
           {/* Volume */}
-          <div className="mt-4 flex items-center justify-center gap-2">
+          <div className="mt-6 flex items-center justify-center gap-3">
             <Volume2 className="h-4 w-4 text-muted-foreground" />
             <div
-              className="h-1.5 w-20 cursor-pointer rounded-full bg-muted"
+              className="h-2 w-24 cursor-pointer rounded-full bg-muted/50 glass-border"
               onClick={handleVolumeClick}
             >
               <div
@@ -195,7 +195,7 @@ export function AudioPlayerPreview() {
         </div>
 
         {/* Decorative glow */}
-        <div className="absolute -inset-4 -z-10 rounded-[2rem] bg-gradient-to-br from-primary/20 to-accent/20 opacity-50 blur-2xl" />
+        <div className="absolute -inset-6 -z-10 rounded-[2.5rem] bg-gradient-to-br from-primary/25 to-accent/25 opacity-60 blur-3xl" />
       </motion.div>
     </motion.div>
   )

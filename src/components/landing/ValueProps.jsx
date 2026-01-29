@@ -21,9 +21,9 @@ const props = [
 
 export function ValueProps() {
   return (
-    <section className="py-12 -mt-8">
+    <section className="py-12 -mt-4">
       <div className="mx-auto max-w-6xl px-6">
-        <div className="grid gap-8 md:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-3">
           {props.map((prop, i) => (
             <motion.div
               key={prop.title}
@@ -31,13 +31,13 @@ export function ValueProps() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-100px" }}
               transition={{ duration: 0.5, delay: i * 0.1 }}
-              whileHover={{ y: -4 }}
-              className="group rounded-2xl bg-card/60 p-8 backdrop-blur-sm border border-border/50 transition-shadow duration-300 hover:shadow-lg"
+              whileHover={{ y: -6, scale: 1.02 }}
+              className="group glass-card rounded-2xl p-8 transition-all duration-300 hover:shadow-xl hover:glow-primary"
             >
-              <div className="mb-4 inline-flex rounded-xl bg-primary/10 p-3">
+              <div className="mb-5 inline-flex rounded-xl bg-gradient-to-br from-primary/15 to-accent/10 p-4">
                 <prop.icon className="h-6 w-6 text-primary" />
               </div>
-              <h3 className="mb-2 font-serif text-xl text-card-foreground">{prop.title}</h3>
+              <h3 className="mb-3 font-serif text-xl font-medium text-foreground">{prop.title}</h3>
               <p className="leading-relaxed text-muted-foreground">{prop.description}</p>
             </motion.div>
           ))}
