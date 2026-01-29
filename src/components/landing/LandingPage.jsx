@@ -6,12 +6,14 @@ import { Footer } from "./Footer"
 
 export function LandingPage({ onSignIn }) {
   return (
-    <main className="min-h-screen bg-background">
-      <Hero onSignIn={onSignIn} />
-      <ValueProps />
-      <InterestSelection />
-      <CTASection onSignIn={onSignIn} />
-      <Footer />
-    </main>
+    <div className="landing-theme">
+      <main className="min-h-screen bg-background text-foreground">
+        <Hero onSignIn={onSignIn} />
+        <ValueProps />
+        <InterestSelection />
+        <CTASection onSignIn={onSignIn} />
+        <Footer />
+      </main>
+    </div>
   )
 }
