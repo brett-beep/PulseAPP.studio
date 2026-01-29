@@ -106,6 +106,173 @@ function categoryImageUrl(categoryRaw) {
   return map[cat] || map.default;
 }
 
+// =========================================================
+// TWO-TIER STORY SELECTION SYSTEM
+// =========================================================
+
+// TIER 1: Breaking News Score - identifies urgent macro headlines
+function getBreakingScore(story, nowTimestamp) {
+  let score = 0;
+  
+  // Calculate age in hours
+  const storyTime = new Date(story.datetime).getTime();
+  const ageHours = (nowTimestamp - storyTime) / (1000 * 60 * 60);
+  
+  // 1. RECENCY BOOST (most important signal)
+  if (ageHours <= 1) score += 100;
+  else if (ageHours <= 2) score += 80;
+  else if (ageHours <= 3) score += 60;
+  else if (ageHours <= 6) score += 30;
+  else if (ageHours <= 12) score += 10;
+  
+  // 2. MACRO CATEGORY BOOST
+  const category = (story.category || "").toLowerCase();
+  if (category === "economy") score += 40;
+  if (category === "markets") score += 30;
+  
+  // 3. HIGH-IMPACT KEYWORDS (Bloomberg/CNBC-style breaking news signals)
+  const BREAKING_SIGNALS = [
+    // Fed/Monetary Policy
+    "fed", "powell", "fomc", "rate cut", "rate hike", "inflation", "deflation",
+    "federal reserve", "central bank", "monetary policy", "basis points", "bps",
+    
+    // Major Economic Data
+    "jobs report", "unemployment", "gdp", "cpi", "ppi", "jobless claims",
+    "consumer confidence", "retail sales", "manufacturing", "housing starts",
+    "payroll", "nonfarm", "initial claims", "core inflation",
+    
+    // Market Events
+    "selloff", "rally", "crash", "surge", "plunge", "record high", "record low",
+    "circuit breaker", "volatility", "vix", "correction", "bear market", "bull market",
+    "futures", "premarket", "after hours",
+    
+    // Geopolitical/Policy
+    "trump", "biden", "tariff", "trade war", "sanctions", "summit",
+    "executive order", "debt ceiling", "shutdown", "stimulus", "tax bill",
+    "congress", "treasury", "yellen",
+    
+    // Corporate Big Events
+    "bankruptcy", "merger", "acquisition", "m&a", "ipo", "earnings beat", 
+    "earnings miss", "guidance cut", "guidance raise", "ceo", "layoffs",
+    "restructuring", "spinoff", "dividend cut", "buyback",
+    
+    // Crisis/Disaster
+    "crisis", "disaster", "emergency", "outbreak", "pandemic", "war", 
+    "conflict", "attack", "breach", "hack", "scandal", "investigation",
+    "default", "recession"
+  ];
+  
+  const titleLower = (story.title || "").toLowerCase();
+  const summaryLower = (story.what_happened || "").toLowerCase();
+  const fullText = `${titleLower} ${summaryLower}`;
+  
+  // Count keyword matches
+  const matchCount = BREAKING_SIGNALS.filter(kw => fullText.includes(kw)).length;
+  score += matchCount * 12; // Each keyword match adds points
+  
+  // 4. SOURCE CREDIBILITY BOOST
+  const TIER_1_SOURCES = ["bloomberg", "reuters", "wsj", "wall street journal", "financial times", "ft", "cnbc", "associated press", "ap"];
+  const outletLower = (story.outlet || "").toLowerCase();
+  if (TIER_1_SOURCES.some(s => outletLower.includes(s))) {
+    score += 25;
+  }
+  
+  // 5. Original cache rank bonus (already pre-scored by refreshNewsCache)
+  const originalRank = story.rank || 999;
+  if (originalRank <= 3) score += 20;
+  else if (originalRank <= 5) score += 15;
+  else if (originalRank <= 10) score += 10;
+  
+  return { score, ageHours };
+}
+
+// TIER 2: Personalization - matches user interests/holdings
+const INTEREST_TO_CATEGORIES = {
+  "crypto": ["crypto"], "cryptocurrency": ["crypto"], "bitcoin": ["crypto"], "ethereum": ["crypto"],
+  "real estate": ["real estate"], "reits": ["real estate"], "housing": ["real estate"],
+  "commodities": ["commodities"], "gold": ["commodities"], "oil": ["commodities"],
+  "technology": ["technology"], "tech": ["technology"], "ai": ["technology"], "semiconductors": ["technology"],
+  "economy": ["economy"], "macro": ["economy"], "federal reserve": ["economy"], "fed": ["economy"],
+  "markets": ["markets"], "stocks": ["markets"], "equities": ["markets"], "etfs": ["markets"],
+  "growth stocks": ["technology", "markets"], "value investing": ["markets", "economy"],
+  "dividends": ["markets", "real estate"], "retirement": ["markets", "economy"],
+};
+
+const INTEREST_KEYWORDS = {
+  "crypto": ["crypto", "bitcoin", "btc", "ethereum", "eth", "blockchain", "defi", "coinbase", "binance"],
+  "real estate": ["real estate", "housing", "mortgage", "property", "rent", "reits", "homebuilder"],
+  "commodities": ["oil", "gold", "silver", "commodity", "wheat", "natural gas", "copper", "lithium"],
+  "technology": ["tech", "software", "ai", "chip", "semiconductor", "apple", "google", "microsoft", "nvidia", "meta", "amazon"],
+  "economy": ["fed", "inflation", "gdp", "unemployment", "interest rate", "recession", "jobs", "cpi", "fomc", "powell"],
+  "markets": ["stock", "market", "s&p", "nasdaq", "dow", "earnings", "ipo", "merger", "etf", "rally", "selloff"],
+};
+
+function getMatchingCategories(userInterests) {
+  const categories = new Set();
+  for (const interest of userInterests) {
+    const interestLower = interest.toLowerCase().trim();
+    if (INTEREST_TO_CATEGORIES[interestLower]) {
+      INTEREST_TO_CATEGORIES[interestLower].forEach(c => categories.add(c));
+    }
+    for (const [key, cats] of Object.entries(INTEREST_TO_CATEGORIES)) {
+      if (interestLower.includes(key) || key.includes(interestLower)) {
+        cats.forEach(c => categories.add(c));
+      }
+    }
+  }
+  return Array.from(categories);
+}
+
+function getMatchingKeywords(userInterests) {
+  const keywords = new Set();
+  for (const interest of userInterests) {
+    const interestLower = interest.toLowerCase().trim();
+    keywords.add(interestLower);
+    for (const [category, kws] of Object.entries(INTEREST_KEYWORDS)) {
+      if (interestLower.includes(category) || category.includes(interestLower)) {
+        kws.forEach(k => keywords.add(k));
+      }
+    }
+  }
+  return Array.from(keywords);
+}
+
+function getPersonalizationScore(story, userCategories, userKeywords, userHoldings) {
+  let relevanceScore = 0;
+  const storyText = `${story.title} ${story.what_happened}`.toLowerCase();
+  const storyCategory = (story.category || "").toLowerCase();
+  
+  // Category match
+  if (userCategories.includes(storyCategory)) relevanceScore += 50;
+  
+  // Keyword matches
+  for (const keyword of userKeywords) {
+    if (storyText.includes(keyword)) relevanceScore += 15;
+  }
+  
+  // Holdings match (highest value)
+  for (const holding of userHoldings) {
+    const symbol = (typeof holding === "string" ? holding : holding?.symbol || "").toLowerCase();
+    const name = (typeof holding === "string" ? "" : holding?.name || "").toLowerCase();
+    if (symbol && storyText.includes(symbol)) relevanceScore += 100;
+    if (name && name.length > 3 && storyText.includes(name)) relevanceScore += 80;
+  }
+  
+  return relevanceScore;
+}
+
+function generateFallbackWhyItMatters(category) {
+  const statements = {
+    crypto: "Monitor for potential volatility in crypto holdings.",
+    "real estate": "May affect REITs and housing-related investments.",
+    commodities: "Could impact commodity ETFs and related positions.",
+    technology: "Consider implications for tech sector holdings.",
+    economy: "May influence broader market sentiment and Fed policy expectations.",
+    markets: "Factor into overall portfolio strategy.",
+  };
+  return statements[category] || statements.markets;
+}
+
 async function invokeLLM(base44, prompt, addInternet, schema) {
   return await base44.integrations.Core.InvokeLLM({
     prompt,
@@ -247,215 +414,198 @@ Deno.serve(async (req) => {
     };
 
     // =========================================================
-    // STEP 1: Pull TOP 3 HEADLINE STORIES (NEWS-FIRST)
+    // STEP 1: READ FROM NEWSCACHE (0 extra API calls)
     // =========================================================
-    const headlinePrompt = `
-You are curating the TOP 3 HEADLINE STORIES for a premium investor briefing on ${date}.
+    console.log("📰 [generateBriefing] Reading from NewsCache...");
 
-CRITICAL: These must be REAL, BREAKING financial/market news from the last 24 hours. Use internet search to find:
-- Breaking corporate news (earnings, M&A, executive changes)
-- Major economic data releases (jobs, inflation, GDP)
-- Federal Reserve or central bank announcements
-- Significant market-moving events
-- Geopolitical developments affecting markets
-
-USER PROFILE (use to PRIORITIZE which headlines matter most):
-${JSON.stringify(prefProfile, null, 2)}
-
-${prefProfile.interests && Array.isArray(prefProfile.interests) && prefProfile.interests.length > 0 
-  ? `\nPRIORITY INTERESTS: The user is particularly interested in: ${prefProfile.interests.join(', ')}. 
-Prioritize stories related to these sectors/topics when selecting headlines.`
-  : ''}
-
-Selection criteria:
-1. RECENCY: Must be from last 24 hours (prioritize overnight/morning news)
-2. IMPACT: Market-moving potential
-3. RELEVANCE: Connection to user's portfolio/watchlist/sectors/interests
-
-LENGTH REQUIREMENTS:
-- headline: 60-80 characters max (be punchy and direct)
-- what_happened: 3-5 sentences with full details and context about the story
-- portfolio_impact: 2-3 sentences explaining what this means for investors and their portfolios
-
-For each story return:
-- headline: attention-grabbing title (60-80 chars)
-- what_happened: 3-5 sentences with full details
-- portfolio_impact: 2-3 sentences on investor impact
-- source: outlet name (Reuters, Bloomberg, WSJ, etc.)
-- category: [markets, economy, technology, crypto, real estate, commodities, default]
-
-Also include current market snapshot:
-- S&P 500, Nasdaq, Dow movements (% only, no levels)
-
-Return JSON only.
-`;
-
-    const headlineSchema = {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        market_snapshot: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            sp500_pct: { type: "string" },
-            nasdaq_pct: { type: "string" },
-            dow_pct: { type: "string" },
-          },
-          required: ["sp500_pct", "nasdaq_pct", "dow_pct"],
-        },
-        top_headlines: {
-          type: "array",
-          minItems: 3,
-          maxItems: 3,
-          items: {
-            type: "object",
-            additionalProperties: true,
-            properties: {
-              id: { type: "string" },
-              headline: { type: "string", maxLength: 80 },
-              what_happened: { type: "string" },
-              portfolio_impact: { type: "string" },
-              source: { type: "string" },
-              category: { type: "string" },
-              href: { type: "string" },
-            },
-            required: ["headline", "what_happened", "portfolio_impact", "source", "category"],
-          },
-        },
-      },
-      required: ["market_snapshot", "top_headlines"],
-    };
-
-    const headlineData = await invokeLLM(base44, headlinePrompt, true, headlineSchema);
-
-    if (!headlineData || !Array.isArray(headlineData.top_headlines) || headlineData.top_headlines.length !== 3) {
-      return Response.json({ error: "Headline generation failed: invalid payload" }, { status: 500 });
+    let cachedStories = [];
+    try {
+      const cacheEntries = await base44.entities.NewsCache.filter({});
+      
+      if (cacheEntries && cacheEntries.length > 0) {
+        const latestCache = cacheEntries.sort((a, b) => 
+          new Date(b.refreshed_at) - new Date(a.refreshed_at)
+        )[0];
+        
+        cachedStories = JSON.parse(latestCache.stories || "[]");
+        console.log(`✅ [generateBriefing] Found ${cachedStories.length} cached stories (refreshed: ${latestCache.refreshed_at})`);
+      } else {
+        return Response.json({
+          error: "News cache is empty. Please wait a few minutes for the cache to refresh.",
+          success: false
+        }, { status: 503 });
+      }
+    } catch (cacheError) {
+      console.error("❌ [generateBriefing] Cache read error:", cacheError);
+      return Response.json({
+        error: "Failed to read news cache: " + cacheError.message,
+        success: false
+      }, { status: 500 });
     }
 
-    const allowedCats = new Set(["markets", "crypto", "economy", "technology", "real estate", "commodities", "default"]);
+    // =========================================================
+    // STEP 1B: Score stories for "breaking-ness"
+    // =========================================================
+    const nowTimestamp = Date.now();
+    const scoredStories = cachedStories
+      .map(story => {
+        const { score, ageHours } = getBreakingScore(story, nowTimestamp);
+        return { ...story, breakingScore: score, ageHours };
+      })
+      .filter(s => s.ageHours <= 24); // Only stories from last 24 hours
 
+    console.log("🔥 [generateBriefing] Top breaking scores:");
+    scoredStories
+      .sort((a, b) => b.breakingScore - a.breakingScore)
+      .slice(0, 5)
+      .forEach((s, i) => {
+        console.log(`   ${i + 1}. [score: ${s.breakingScore}] [age: ${s.ageHours.toFixed(1)}h] ${(s.title || "").slice(0, 55)}...`);
+      });
+
+    // =========================================================
+    // STEP 1C: TIER 1 - Select RAPID FIRE stories (top 3 by breaking score)
+    // =========================================================
+    const rapidFireCandidates = [...scoredStories].sort((a, b) => b.breakingScore - a.breakingScore);
+    const rapidFireStories = rapidFireCandidates.slice(0, 3);
+
+    console.log("\n⚡ [generateBriefing] TIER 1 - RAPID FIRE (Breaking News):");
+    rapidFireStories.forEach((s, i) => {
+      console.log(`   ${i + 1}. [score:${s.breakingScore}] [age:${s.ageHours.toFixed(1)}h] [${s.category}] ${(s.title || "").slice(0, 50)}...`);
+    });
+
+    // =========================================================
+    // STEP 1D: TIER 2 - Select PERSONALIZED stories
+    // =========================================================
+    const userInterests = prefProfile?.interests || [];
+    const userHoldings = prefProfile?.holdings || [];
+    const userCategories = getMatchingCategories(userInterests);
+    const userKeywords = getMatchingKeywords(userInterests);
+
+    console.log(`\n📊 [generateBriefing] User interests: ${userInterests.join(", ") || "none"}`);
+    console.log(`📊 [generateBriefing] Matching categories: ${userCategories.join(", ") || "all"}`);
+
+    // Exclude rapid fire stories from personalization pool
+    const rapidFireIds = new Set(rapidFireStories.map(s => s.id));
+    const personalizedCandidates = scoredStories.filter(story => !rapidFireIds.has(story.id));
+
+    // Score for personalization
+    const personalizedScored = personalizedCandidates.map(story => ({
+      ...story,
+      relevanceScore: getPersonalizationScore(story, userCategories, userKeywords, userHoldings)
+    }));
+
+    // Sort by relevance, then by breaking score as tiebreaker
+    personalizedScored.sort((a, b) => {
+      if (b.relevanceScore !== a.relevanceScore) return b.relevanceScore - a.relevanceScore;
+      return b.breakingScore - a.breakingScore;
+    });
+
+    const personalizedStories = personalizedScored.slice(0, 3);
+
+    console.log("\n📊 [generateBriefing] TIER 2 - PERSONALIZED (Deep Dives):");
+    personalizedStories.forEach((s, i) => {
+      console.log(`   ${i + 1}. [relevance:${s.relevanceScore}] [breaking:${s.breakingScore}] [${s.category}] ${(s.title || "").slice(0, 45)}...`);
+    });
+
+    // =========================================================
+    // STEP 1E: Combine into final 6 stories for briefing
+    // =========================================================
+    const allBriefingStories = [...rapidFireStories, ...personalizedStories];
+    
+    console.log(`\n✅ [generateBriefing] Selected ${allBriefingStories.length} total stories (3 rapid-fire + 3 personalized)`);
+
+    // Format stories for UI compatibility
+    const allowedCats = new Set(["markets", "crypto", "economy", "technology", "real estate", "commodities", "default"]);
+    
     const truncateTitle = (text, maxLen) => {
       const clean = safeText(text, "");
       if (clean.length <= maxLen) return clean;
       return clean.substring(0, maxLen - 3) + "...";
     };
 
-    const topStories = headlineData.top_headlines.map((story) => {
+    const allStories = allBriefingStories.map((story, index) => {
       const rawCat = safeText(story?.category, "default").toLowerCase();
       const category = allowedCats.has(rawCat) ? rawCat : "default";
+      const isRapidFire = index < 3;
 
       return {
         id: safeText(story?.id, randomId()),
         href: safeText(story?.href, "#"),
-        imageUrl: categoryImageUrl(category),
-        title: truncateTitle(story?.headline, 80),
+        imageUrl: story?.imageUrl || categoryImageUrl(category),
+        title: truncateTitle(story?.title, 80),
         what_happened: safeText(story?.what_happened, ""),
-        why_it_matters: safeText(story?.portfolio_impact, ""),
+        why_it_matters: safeText(story?.why_it_matters, generateFallbackWhyItMatters(category)),
         both_sides: {
-          side_a: safeText(story?.portfolio_impact, ""),
+          side_a: safeText(story?.why_it_matters, ""),
           side_b: "",
         },
-        outlet: safeText(story?.source, "Unknown"),
+        outlet: safeText(story?.outlet, "Unknown"),
         category,
+        datetime: story?.datetime,
+        ageHours: story?.ageHours,
+        isRapidFire,
+        breakingScore: story?.breakingScore,
+        relevanceScore: story?.relevanceScore || 0,
       };
     });
 
-    const marketSnapshot = {
-      sp500_pct: normalizePct(headlineData.market_snapshot?.sp500_pct),
-      nasdaq_pct: normalizePct(headlineData.market_snapshot?.nasdaq_pct),
-      dow_pct: normalizePct(headlineData.market_snapshot?.dow_pct),
-    };
-
     // =========================================================
-    // STEP 2: Generate 2 additional context stories
+    // STEP 2: Get Market Snapshot via LLM (quick call, no web search)
     // =========================================================
-    const contextPrompt = `
-You already have these 3 TOP HEADLINES:
-${topStories.map((s, i) => `${i + 1}. ${s.title}`).join("\n")}
+    console.log("📈 [generateBriefing] Fetching market snapshot...");
+    
+    const marketPrompt = `
+Provide the current market snapshot for ${date} (today).
+Return the approximate percentage change for:
+- S&P 500
+- Nasdaq
+- Dow Jones
 
-Now find 2 ADDITIONAL stories that provide context or related developments. These should:
-- Complement the top 3 (not duplicate)
-- Be from the last 48 hours
-- Add depth to the briefing
-
-USER PROFILE:
-${JSON.stringify(prefProfile, null, 2)}
-
-${prefProfile.interests && Array.isArray(prefProfile.interests) && prefProfile.interests.length > 0 
-  ? `\nUSER INTERESTS: ${prefProfile.interests.join(", ")}. 
-Look for stories related to these areas when selecting context stories.`
-  : ""}
-
-LENGTH REQUIREMENTS:
-- headline: 60-80 characters max
-- what_happened: 3-5 sentences with full details and context about the story
-- portfolio_impact: 2-3 sentences explaining what this means for investors
-
-Return 2 stories in same format as before.
+If markets are closed, provide the most recent close percentages.
+Return JSON only.
 `;
 
-    const contextSchema = {
+    const marketSchema = {
       type: "object",
       additionalProperties: false,
       properties: {
-        context_stories: {
-          type: "array",
-          minItems: 2,
-          maxItems: 2,
-          items: {
-            type: "object",
-            additionalProperties: true,
-            properties: {
-              id: { type: "string" },
-              headline: { type: "string", maxLength: 80 },
-              what_happened: { type: "string" },
-              portfolio_impact: { type: "string" },
-              source: { type: "string" },
-              category: { type: "string" },
-              href: { type: "string" },
-            },
-            required: ["headline", "what_happened", "portfolio_impact", "source", "category"],
-          },
-        },
+        sp500_pct: { type: "string" },
+        nasdaq_pct: { type: "string" },
+        dow_pct: { type: "string" },
       },
-      required: ["context_stories"],
+      required: ["sp500_pct", "nasdaq_pct", "dow_pct"],
     };
 
-    const contextData = await invokeLLM(base44, contextPrompt, true, contextSchema);
-
-    const contextStories = (contextData?.context_stories || []).map((story) => {
-      const rawCat = safeText(story?.category, "default").toLowerCase();
-      const category = allowedCats.has(rawCat) ? rawCat : "default";
-
-      return {
-        id: safeText(story?.id, randomId()),
-        href: safeText(story?.href, "#"),
-        imageUrl: categoryImageUrl(category),
-        title: truncateTitle(story?.headline, 80),
-        what_happened: safeText(story?.what_happened, ""),
-        why_it_matters: safeText(story?.portfolio_impact, ""),
-        both_sides: {
-          side_a: safeText(story?.portfolio_impact, ""),
-          side_b: "",
-        },
-        outlet: safeText(story?.source, "Unknown"),
-        category,
+    let marketSnapshot = { sp500_pct: "0.0%", nasdaq_pct: "0.0%", dow_pct: "0.0%" };
+    try {
+      const marketData = await invokeLLM(base44, marketPrompt, true, marketSchema);
+      marketSnapshot = {
+        sp500_pct: normalizePct(marketData?.sp500_pct),
+        nasdaq_pct: normalizePct(marketData?.nasdaq_pct),
+        dow_pct: normalizePct(marketData?.dow_pct),
       };
-    });
-
-    const allStories = [...topStories, ...contextStories];
+      console.log("✅ [generateBriefing] Market snapshot:", marketSnapshot);
+    } catch (marketError) {
+      console.error("⚠️ [generateBriefing] Market snapshot failed, using defaults:", marketError.message);
+    }
 
     // =========================================================
     // STEP 3: Generate Metadata
     // =========================================================
+    // Split stories for prompt formatting
+    const rapidFireForPrompt = allStories.filter(s => s.isRapidFire);
+    const personalizedForPrompt = allStories.filter(s => !s.isRapidFire);
+
     const metaPrompt = `
 Create briefing metadata for ${date}.
 
 LISTENER: ${name}
 
-TOP 3 HEADLINES:
-${topStories.map((s, i) => `${i + 1}. ${s.title} - ${s.what_happened}`).join("\n")}
+BREAKING NEWS (Rapid Fire):
+${rapidFireForPrompt.map((s, i) => `${i + 1}. ${s.title} - ${s.what_happened}`).join("\n")}
+
+PERSONALIZED STORIES:
+${personalizedForPrompt.map((s, i) => `${i + 1}. ${s.title} - ${s.what_happened}`).join("\n")}
 
 MARKET SNAPSHOT:
 - S&P: ${marketSnapshot.sp500_pct}
@@ -463,7 +613,7 @@ MARKET SNAPSHOT:
 - Dow: ${marketSnapshot.dow_pct}
 
 Return JSON with:
-- summary: 2-3 sentence overview focusing on the top headlines
+- summary: 2-3 sentence overview focusing on the breaking news headlines
 - key_highlights: 3-5 bullets (lead with news, not markets)
 - market_sentiment: { label: "bullish"|"bearish"|"neutral"|"mixed", description: one sentence }
 `;
@@ -519,6 +669,12 @@ Return JSON with:
     if (month === 5 && dayOfWeek === 1 && day >= 25) holidayGreeting = "Happy Memorial Day";
     if (month === 9 && dayOfWeek === 1 && day <= 7) holidayGreeting = "Happy Labor Day";
 
+    // Build user interests string for prompt
+    const userInterestsStr = userInterests.length > 0 ? userInterests.join(", ") : "general markets";
+    const userHoldingsStr = userHoldings.length > 0 
+      ? userHoldings.map(h => typeof h === "string" ? h : h?.symbol).filter(Boolean).join(", ") 
+      : "not specified";
+
     const scriptPrompt = `
 Write the spoken script for "Pulse" - a news-first investor briefing.
 
@@ -530,9 +686,9 @@ ${isWeekend ? "CONTEXT: Weekend" : ""}
 ${isMonday ? "CONTEXT: Monday (start of week)" : ""}
 ${isFriday ? "CONTEXT: Friday (end of week)" : ""}
 
-CRITICAL: TARGET LENGTH IS 5 MINUTES (650-750 words).
+TARGET LENGTH: 5 MINUTES (650-750 words total)
 
-SCRIPT STRUCTURE - HYBRID FRAMEWORK:
+SCRIPT STRUCTURE - TWO-TIER FORMAT:
 
 1. PERSONAL OPENING (20-30 words):
    - Start with: "${timeGreeting}, ${name}"
@@ -540,50 +696,72 @@ SCRIPT STRUCTURE - HYBRID FRAMEWORK:
    ${isWeekend ? "- Add: \"Hope you're enjoying your weekend\" or similar weekend acknowledgment" : ""}
    ${isMonday ? "- Add: \"Hope you had a great weekend\" or \"Let's start the week strong\"" : ""}
    ${isFriday ? "- Add: \"Let's wrap up the week\" or similar end-of-week sentiment" : ""}
-   - Make it feel like talking to a friend, not reading news
-   - Then transition: "Let's get into it" or "Here's what moved markets today"
+   - Make it feel like talking to a friend
+   - Transition: "First, let's catch you up on what's breaking" or "Let's start with the headlines"
 
-2. TOP 3 STORIES - Each follows HYBRID FRAMEWORK:
-   • HOOK
-   • QUESTION (optional)
-   • FACTS
-   • DEEPER MEANING
-   • Do NOT include any section labels or meta words like: "HOOK", "QUESTION", "FACTS", "DEEPER MEANING"
-   • Just write clean spoken paragraphs.
+2. RAPID FIRE BREAKING NEWS (Stories 1-3) - ~150-180 words total (~50-60 words each):
+   
+   STYLE: Quick, punchy, Bloomberg/CNBC-style push notification format
+   For EACH story:
+   - State the headline clearly
+   - What happened (1-2 sentences with key facts/numbers)
+   - Investor impact (1 sentence)
+   - Move on quickly
+   
+   DO NOT use narrative structure. Be direct and factual.
+   After all 3, transition: "Now, let's dive deeper into stories that matter for your portfolio..."
 
-   (~150-180 words per story)
+3. PERSONALIZED DEEP DIVES (Stories 4-6) - ~400-450 words total (~130-150 words each):
+   
+   STYLE: Full narrative using HYBRID FRAMEWORK (but DON'T label sections):
+   • HOOK: Grab attention with stakes or surprise
+   • FACTS: Detailed explanation with specifics (numbers, mechanisms, context)
+   • DEEPER MEANING: Connect to portfolio implications, sector impact
+   
+   ${userInterests.length > 0 ? `CONNECT TO USER'S INTERESTS: ${userInterestsStr}` : ""}
+   ${userHoldings.length > 0 ? `MENTION USER'S HOLDINGS WHERE RELEVANT: ${userHoldingsStr}` : ""}
 
-3. MARKET SNAPSHOT (30-40 words):
-   - S&P, Nasdaq, Dow % moves
-   - One-sentence context
+4. MARKET SNAPSHOT (30-40 words):
+   - S&P, Nasdaq, Dow % moves only (no absolute levels)
+   - One-sentence context on market direction
 
-4. CLOSING (30-40 words):
-   - Synthesize themes
-   - One actionable insight
-   - Sign off
+5. CLOSING (30-40 words):
+   - Synthesize the day's themes
+   - One actionable insight or question to consider
+   - Sign off naturally
 
-TOTAL TARGET: 650-750 words
-
-VOICE GUIDELINES:
+CRITICAL VOICE RULES:
 - Conversational but authoritative
-- No filler phrases
-- Percent moves ONLY, no index levels
 - Direct address ("you", "your portfolio")
-- ABSOLUTE RULE: Do not output any outline markers, headings, or labels.
-  Do not say or print: "HOOK", "QUESTION", "FACTS", "DEEPER MEANING", "Top Story", "Market Snapshot", "Closing".
-  Write as continuous spoken narration only.
+- NO section labels in the output (don't say "RAPID FIRE", "DEEP DIVE", "HOOK", "FACTS", etc.)
+- NO filler phrases or hedging
+- Percent moves ONLY for indices (never absolute levels)
+- Write as continuous spoken narration
 
-DATA:
-
-TOP 3 HEADLINES:
-${topStories
+DATA FOR RAPID FIRE (Stories 1-3 - Breaking News):
+${rapidFireForPrompt
   .map(
     (s, i) => `
-${i + 1}. ${s.title}
-   What: ${s.what_happened}
-   Impact: ${s.why_it_matters}
-   Source: ${s.outlet}
-   Category: ${s.category}
+Story ${i + 1}:
+Headline: ${s.title}
+What happened: ${s.what_happened}
+Source: ${s.outlet}
+Category: ${s.category}
+Age: ${(s.ageHours || 0).toFixed(1)} hours old
+`
+  )
+  .join("\n")}
+
+DATA FOR PERSONALIZED DEEP DIVES (Stories 4-6):
+${personalizedForPrompt
+  .map(
+    (s, i) => `
+Story ${i + 4}:
+Headline: ${s.title}
+What happened: ${s.what_happened}
+Why it matters: ${s.why_it_matters || "Connect to investor implications"}
+Source: ${s.outlet}
+Category: ${s.category}
 `
   )
   .join("\n")}
@@ -592,9 +770,6 @@ MARKET SNAPSHOT:
 - S&P: ${marketSnapshot.sp500_pct}
 - Nasdaq: ${marketSnapshot.nasdaq_pct}
 - Dow: ${marketSnapshot.dow_pct}
-
-CONTEXT STORIES:
-${contextStories.map((s, i) => `${i + 1}. ${s.title} - ${s.what_happened}`).join("\n")}
 
 Return JSON: { "script": "..." }
 `;
