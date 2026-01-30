@@ -1,17 +1,7 @@
-import { createClient } from 'npm:@base44/sdk@0.8.6';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
 // Loops.so API integration
 const LOOPS_API_URL = 'https://app.loops.so/api/v1/contacts/create';
-
-// Use app credentials for waitlist (public signups have no user; service role from request often has no token)
-function getBase44ForWaitlist() {
-  const appId = Deno.env.get('BASE44_APP_ID');
-  const token = Deno.env.get('BASE44_TOKEN') ?? Deno.env.get('BASE44_SERVICE_TOKEN');
-  if (!appId || !token) {
-    throw new Error('BASE44_APP_ID and BASE44_TOKEN (or BASE44_SERVICE_TOKEN) must be set');
-  }
-  return createClient({ appId, token });
-}
 
 async function addToLoops(
   email: string,
@@ -94,8 +84,8 @@ Deno.serve(async (req) => {
     const signupSource = source || 'landing_page';
     const trimmedFirstName = typeof firstName === 'string' ? firstName.trim() : undefined;
 
-    // Base44 client with app credentials (public waitlist has no user token)
-    const base44 = getBase44ForWaitlist();
+    // Base44 client - use service role for public waitlist
+    const base44 = createClientFromRequest(req);
 
     // Check if email already exists in Base44
     try {
