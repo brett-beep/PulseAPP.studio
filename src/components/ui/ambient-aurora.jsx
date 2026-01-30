@@ -16,30 +16,30 @@ const AmbientAurora = () => {
     setCanvasSize();
     window.addEventListener('resize', setCanvasSize);
 
-    // Warm color palette: oranges, yellows, salmon pinks, warm whites
+    // Lighter, desaturated warm color palette
     const colors = [
-      { r: 255, g: 140, b: 75 },   // Warm Orange
-      { r: 255, g: 180, b: 100 },  // Light Orange/Yellow
-      { r: 255, g: 200, b: 150 },  // Warm White/Peach
-      { r: 255, g: 120, b: 100 },  // Salmon Pink
-      { r: 255, g: 160, b: 80 },   // Golden Orange
-      { r: 255, g: 220, b: 180 },  // Cream highlight
+      { r: 255, g: 210, b: 180 },  // Lighter Warm Orange
+      { r: 255, g: 230, b: 200 },  // Lighter Yellow
+      { r: 255, g: 240, b: 220 },  // Lighter Warm White
+      { r: 255, g: 210, b: 200 },  // Lighter Salmon Pink
+      { r: 255, g: 220, b: 190 },  // Lighter Golden Orange
+      { r: 255, g: 245, b: 235 },  // Lighter Cream
     ];
 
     class Orb {
       constructor() {
         this.x = Math.random() * canvas.width;
         this.y = Math.random() * canvas.height;
-        this.radius = Math.random() * 350 + 150;
+        this.radius = Math.random() * 400 + 200; // Slightly larger for softer look
         this.color = colors[Math.floor(Math.random() * colors.length)];
-        this.vx = (Math.random() - 0.5) * 0.3;
-        this.vy = (Math.random() - 0.5) * 0.3;
+        this.vx = (Math.random() - 0.5) * 0.2; // Even slower
+        this.vy = (Math.random() - 0.5) * 0.2;
       }
 
       draw() {
         const gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.radius);
-        gradient.addColorStop(0, `rgba(${this.color.r}, ${this.color.g}, ${this.color.b}, 0.25)`);
-        gradient.addColorStop(0.5, `rgba(${this.color.r}, ${this.color.g}, ${this.color.b}, 0.1)`);
+        gradient.addColorStop(0, `rgba(${this.color.r}, ${this.color.g}, ${this.color.b}, 0.12)`); // Reduced opacity
+        gradient.addColorStop(0.5, `rgba(${this.color.r}, ${this.color.g}, ${this.color.b}, 0.05)`);
         gradient.addColorStop(1, `rgba(${this.color.r}, ${this.color.g}, ${this.color.b}, 0)`);
         
         ctx.fillStyle = gradient;
