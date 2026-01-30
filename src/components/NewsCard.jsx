@@ -46,8 +46,11 @@ const whyItMattersText = stripLinksAndUrls(story.why_it_matters || '');
 
     return (
         <article
-            className="group bg-white rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-100 flex flex-col"
-            style={{ alignSelf: 'flex-start' }}
+            className="group bg-white/90 backdrop-blur-sm rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-white/50 flex flex-col"
+            style={{ 
+                alignSelf: 'flex-start',
+                boxShadow: '0 0 40px -15px rgba(255, 140, 75, 0.15), 0 4px 20px -8px rgba(0, 0, 0, 0.08)'
+            }}
         >
             {/* Header */}
             <div className="flex items-start justify-between gap-4 mb-4 flex-shrink-0">

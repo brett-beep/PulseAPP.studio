@@ -18,8 +18,10 @@ import {
     Clock,
     Save,
     Check,
-    TrendingUp
+    TrendingUp,
+    LogOut
 } from 'lucide-react';
+import { useAuth } from '@/lib/AuthContext';
 import { toast } from 'sonner';
 
 const goalOptions = [
@@ -35,6 +37,11 @@ const interestOptions = [
 
 export default function Settings() {
     const queryClient = useQueryClient();
+    const { logout } = useAuth();
+
+    const handleLogout = () => {
+        logout(true); // Pass true to redirect to landing page
+    };
 
     // Fetch current user
     const { data: user } = useQuery({
@@ -109,14 +116,14 @@ export default function Settings() {
 
     if (isLoading || !editedPrefs) {
         return (
-            <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(180deg, rgba(255, 255, 249, 0.7) 0%, rgba(255, 226, 148, 0.51) 76%, rgba(255, 95, 31, 0.52) 100%)' }}>
+            <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(180deg, hsl(45, 30%, 96%) 0%, hsl(40, 50%, 92%) 50%, hsl(35, 60%, 88%) 100%)' }}>
                 <div className="animate-pulse text-slate-400">Loading...</div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen" style={{ background: 'linear-gradient(180deg, rgba(255, 255, 249, 0.7) 0%, rgba(255, 226, 148, 0.51) 76%, rgba(255, 95, 31, 0.52) 100%)' }}>
+        <div className="min-h-screen" style={{ background: 'linear-gradient(180deg, hsl(45, 30%, 96%) 0%, hsl(40, 50%, 92%) 50%, hsl(35, 60%, 88%) 100%)' }}>
             {/* Header */}
             <header className="border-b border-slate-100 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
                 <div className="max-w-2xl mx-auto px-6 py-4 flex items-center justify-between">
@@ -368,6 +375,33 @@ export default function Settings() {
                             </div>
                         </div>
                     </div>
+                </motion.section>
+
+                <Separator />
+
+                {/* Logout Section */}
+                <motion.section
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.6 }}
+                >
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center">
+                            <LogOut className="h-5 w-5 text-red-500" />
+                        </div>
+                        <div>
+                            <h2 className="font-semibold text-slate-900">Sign Out</h2>
+                            <p className="text-sm text-slate-500">Log out of your account</p>
+                        </div>
+                    </div>
+                    <Button 
+                        onClick={handleLogout}
+                        variant="outline"
+                        className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300"
+                    >
+                        <LogOut className="h-4 w-4 mr-2" />
+                        Log Out
+                    </Button>
                 </motion.section>
             </main>
         </div>

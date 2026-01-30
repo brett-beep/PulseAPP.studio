@@ -180,6 +180,8 @@ export default function AudioPlayer({
         WebkitBackdropFilter: "blur(60px) saturate(1.5)",
         border: "0.5px solid rgba(255, 255, 255, 0.8)",
         boxShadow: `
+          0 0 80px -20px rgba(255, 140, 75, 0.35),
+          0 0 60px -15px rgba(255, 100, 50, 0.25),
           0 0 6px rgba(0,0,0,0.03),
           0 2px 6px rgba(0,0,0,0.08),
           inset 3px 3px 0.5px -3px rgba(0,0,0,0.9),
@@ -283,8 +285,10 @@ export default function AudioPlayer({
             <p className="text-slate-500/80 text-xs font-medium tracking-wider uppercase mb-1">
               {currentDate}
             </p>
-            <p className="text-slate-800/90 text-lg">
-              {greeting}, <span className="font-semibold text-slate-900">{userName}</span>
+            <p className="text-lg" style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 300, letterSpacing: '0.15em' }}>
+              <span className="text-slate-800/90 uppercase">{greeting},</span>
+              <br />
+              <span className="font-semibold text-slate-900 normal-case" style={{ fontFamily: "'Italianno', 'Sacramento', cursive", fontSize: '1.75rem', letterSpacing: '0.05em', fontWeight: 400 }}>{userName}</span>
             </p>
           </div>
           <div className="flex items-center gap-3">

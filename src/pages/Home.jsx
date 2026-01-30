@@ -540,8 +540,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
     <div
       className="min-h-screen"
       style={{
-        background:
-          "linear-gradient(180deg, rgba(255, 255, 249, 0.7) 0%, rgba(255, 226, 148, 0.51) 76%, rgba(255, 95, 31, 0.52) 100%)",
+        background: "linear-gradient(180deg, hsl(45, 30%, 96%) 0%, hsl(40, 50%, 92%) 50%, hsl(35, 60%, 88%) 100%)",
       }}
     >
       {/* Header */}
@@ -553,7 +552,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
               alt="PulseApp.Studio"
               className="w-10 h-10"
             />
-            <span className="font-semibold text-slate-900 tracking-tight">PulseApp.Studio</span>
+            <span className="font-semibold text-slate-900 tracking-tight">PulseApp</span>
           </div>
 
           <Link to={createPageUrl("Settings")}>
