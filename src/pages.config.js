@@ -49,11 +49,13 @@
  */
 import Settings from './pages/Settings';
 import Home from './pages/Home';
+import AdminWaitlist from './pages/AdminWaitlist';
 
 
 export const PAGES = {
     "Settings": Settings,
     "Home": Home,
+    "admin/waitlist": AdminWaitlist,
 }
 
 export const pagesConfig = {

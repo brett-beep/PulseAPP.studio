@@ -1,7 +1,7 @@
 import { motion } from "framer-motion"
 import { ArrowRight, Sparkles } from "lucide-react"
 
-export function CTASection({ onSignIn }) {
+export function CTASection({ onSignIn, onJoinWaitlist }) {
   return (
     <section className="py-24 relative">
       {/* Background glow */}
@@ -32,7 +32,7 @@ export function CTASection({ onSignIn }) {
           
           <motion.button
             type="button"
-            onClick={onSignIn}
+            onClick={onJoinWaitlist}
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.98 }}
             className="group relative mt-10 inline-flex items-center gap-3 overflow-hidden rounded-full bg-gradient-to-r from-primary to-accent px-10 py-5 text-lg font-semibold text-primary-foreground shadow-xl glow-primary transition-all hover:shadow-2xl"
@@ -43,7 +43,7 @@ export function CTASection({ onSignIn }) {
               animate={{ opacity: [0, 0.4, 0] }}
               transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
             />
-            <span className="relative">Early Access (Beta)</span>
+            <span className="relative">Join the Waitlist</span>
             <ArrowRight className="relative h-5 w-5 transition-transform group-hover:translate-x-1" />
           </motion.button>
 
