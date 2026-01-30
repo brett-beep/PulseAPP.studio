@@ -1,7 +1,17 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+import { createClient } from 'npm:@base44/sdk@0.8.6';
 
 // Loops.so API integration
 const LOOPS_API_URL = 'https://app.loops.so/api/v1/contacts/create';
+
+// Use app credentials for waitlist (public signups have no user; service role from request often has no token)
+function getBase44ForWaitlist() {
+  const appId = Deno.env.get('BASE44_APP_ID');
+  const token = Deno.env.get('BASE44_TOKEN') ?? Deno.env.get('BASE44_SERVICE_TOKEN');
+  if (!appId || !token) {
+    throw new Error('BASE44_APP_ID and BASE44_TOKEN (or BASE44_SERVICE_TOKEN) must be set');
+  }
+  return createClient({ appId, token });
+}
 
 async function addToLoops(email: string, source: string): Promise<{ success: boolean; error?: string }> {
   const loopsApiKey = Deno.env.get('LOOPS_API_KEY');
@@ -74,12 +84,12 @@ Deno.serve(async (req) => {
     const normalizedEmail = email.toLowerCase().trim();
     const signupSource = source || 'landing_page';
 
-    // Create Base44 client - use service role for public waitlist
-    const base44 = createClientFromRequest(req);
+    // Base44 client with app credentials (public waitlist has no user token)
+    const base44 = getBase44ForWaitlist();
 
     // Check if email already exists in Base44
     try {
-      const existing = await base44.asServiceRole.entities.WaitlistSignup.filter({ email: normalizedEmail });
+      const existing = await base44.entities.WaitlistSignup.filter({ email: normalizedEmail });
       if (existing && existing.length > 0) {
         return Response.json({ 
           error: 'This email is already on the waitlist!',
@@ -90,21 +100,17 @@ Deno.serve(async (req) => {
         });
       }
     } catch (filterError) {
-      // Entity might not exist yet, continue with creation
       console.log('Filter check failed (entity may not exist):', filterError.message);
     }
 
     // Run both operations in parallel for speed
     const [loopsResult, base44Result] = await Promise.allSettled([
-      // 1. Add to Loops.so (for email marketing & welcome email)
       addToLoops(normalizedEmail, signupSource),
-      
-      // 2. Save to Base44 (backup database)
-      base44.asServiceRole.entities.WaitlistSignup.create({
+      base44.entities.WaitlistSignup.create({
         email: normalizedEmail,
         signed_up_at: new Date().toISOString(),
         source: signupSource,
-        loops_synced: false, // Will update below if Loops succeeds
+        loops_synced: false,
       }),
     ]);
 
@@ -128,7 +134,7 @@ Deno.serve(async (req) => {
       // Update loops_synced flag if Loops succeeded
       if (loopsSuccess && base44Result.value?.id) {
         try {
-          await base44.asServiceRole.entities.WaitlistSignup.update(base44Result.value.id, {
+          await base44.entities.WaitlistSignup.update(base44Result.value.id, {
             loops_synced: true,
           });
         } catch (updateError) {
