@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Montserrat:wght@300;400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Montserrat:wght@300;400;500&family=Sacramento&display=swap');
 
 /* Magnolia-style font (using Cormorant Garamond as a similar elegant alternative) */
 @font-face {
@@ -145,6 +145,11 @@
   font-weight: 500;
   font-style: italic;
   letter-spacing: 0.02em;
+}
+
+.landing-theme .font-momo {
+  font-family: 'Momo Signature', 'Sacramento', cursive;
+  font-weight: 350;
 }
 
 /* Glassmorphism utilities for landing page */
