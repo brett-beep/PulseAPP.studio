@@ -147,9 +147,16 @@
   letter-spacing: 0.02em;
 }
 
+@font-face {
+  font-family: 'Italianno';
+  src: url('/fonts/Italianno-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+}
+
 .landing-theme .font-momo {
-  font-family: 'Momo Signature', 'Sacramento', cursive;
-  font-weight: 350;
+  font-family: 'Italianno', 'Sacramento', cursive;
+  font-weight: 400;
 }
 
 /* Glassmorphism utilities for landing page */
