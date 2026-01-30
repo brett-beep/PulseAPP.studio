@@ -10,7 +10,7 @@ const props = [
   {
     icon: Clock,
     title: "5 Minutes Daily",
-    description: "Get up to speed fast. Generate your briefing on demand, whenever you need.",
+    description: "Get up to speed fast. Generate your briefing on demand.",
   },
   {
     icon: Headphones,
