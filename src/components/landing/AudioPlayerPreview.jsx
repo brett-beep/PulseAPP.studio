@@ -99,9 +99,9 @@ export function AudioPlayerPreview() {
         {/* Glass card */}
         <div className="glass-card-strong rounded-3xl p-8 glow-primary">
           {/* Greeting */}
-          <div className="mb-8 text-center">
+          <div className="mb-6 mt-2 text-center">
             <p className="font-montserrat-light text-sm text-muted-foreground">Good Morning,</p>
-            <p className="mt-2 font-bruney text-3xl text-foreground">
+            <p className="mt-2 font-bruney text-3xl text-foreground" style={{ letterSpacing: '0.05em' }}>
               Alex
             </p>
           </div>

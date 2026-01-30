@@ -5,17 +5,17 @@ const props = [
   {
     icon: Brain,
     title: "Personalized Intelligence",
-    description: "AI curates news specifically for your portfolio and investment interests.",
+    description: "AI curates news filtered to your portfolio. Skip the irrelevant headlines.",
   },
   {
     icon: Clock,
     title: "5 Minutes Daily",
-    description: "Delivered at 7am sharp. Everything you need to know, nothing you don't.",
+    description: "Get up to speed fast. Generate your briefing on demand, whenever you need.",
   },
   {
     icon: Headphones,
     title: "Audio First",
-    description: "Listen during your commute, workout, or morning coffee.",
+    description: "Listen during your commute, workout, or morning coffee. Hands-free intel.",
   },
 ]
 
