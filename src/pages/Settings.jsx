@@ -116,14 +116,14 @@ export default function Settings() {
 
     if (isLoading || !editedPrefs) {
         return (
-            <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(180deg, hsl(45, 30%, 96%) 0%, hsl(40, 50%, 92%) 50%, hsl(35, 60%, 88%) 100%)' }}>
+            <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'hsl(45, 40%, 95%)' }}>
                 <div className="animate-pulse text-slate-400">Loading...</div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen" style={{ background: 'linear-gradient(180deg, hsl(45, 30%, 96%) 0%, hsl(40, 50%, 92%) 50%, hsl(35, 60%, 88%) 100%)' }}>
+        <div className="min-h-screen" style={{ backgroundColor: 'hsl(45, 40%, 95%)' }}>
             {/* Header */}
             <header className="border-b border-slate-100 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
                 <div className="max-w-2xl mx-auto px-6 py-4 flex items-center justify-between">

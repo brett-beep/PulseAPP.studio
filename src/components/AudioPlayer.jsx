@@ -288,7 +288,7 @@ export default function AudioPlayer({
             <p className="text-lg" style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 300, letterSpacing: '0.15em' }}>
               <span className="text-slate-800/90 uppercase">{greeting},</span>
               <br />
-              <span className="font-semibold text-slate-900 normal-case" style={{ fontFamily: "'Italianno', 'Sacramento', cursive", fontSize: '1.75rem', letterSpacing: '0.05em', fontWeight: 400 }}>{userName}</span>
+              <span className="font-semibold text-slate-900 normal-case" style={{ fontFamily: "'Italianno', 'Sacramento', cursive", fontSize: '3.5rem', letterSpacing: '0.05em', fontWeight: 400 }}>{userName}</span>
             </p>
           </div>
           <div className="flex items-center gap-3">

@@ -46,10 +46,19 @@ const whyItMattersText = stripLinksAndUrls(story.why_it_matters || '');
 
     return (
         <article
-            className="group bg-white/90 backdrop-blur-sm rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-white/50 flex flex-col"
+            className="group rounded-[28px] p-6 transition-all duration-300 flex flex-col"
             style={{ 
                 alignSelf: 'flex-start',
-                boxShadow: '0 0 40px -15px rgba(255, 140, 75, 0.15), 0 4px 20px -8px rgba(0, 0, 0, 0.08)'
+                background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.55) 100%)',
+                backdropFilter: 'blur(40px) saturate(1.5)',
+                WebkitBackdropFilter: 'blur(40px) saturate(1.5)',
+                border: '0.5px solid rgba(255, 255, 255, 0.8)',
+                boxShadow: `
+                    0 0 50px -20px rgba(255, 140, 75, 0.2),
+                    0 0 35px -15px rgba(255, 100, 50, 0.15),
+                    0 4px 20px -8px rgba(0, 0, 0, 0.08),
+                    inset 0 1px 1px rgba(255, 255, 255, 0.6)
+                `
             }}
         >
             {/* Header */}

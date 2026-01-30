@@ -9,6 +9,7 @@ import NewsCard from "@/components/NewsCard";
 import RealTimeMarketTicker from "@/components/RealTimeMarketTicker";
 import KeyHighlights from "@/components/KeyHighlights";
 import OnboardingWizard from "@/components/OnboardingWizard";
+import AmbientAurora from "@/components/ui/ambient-aurora";
 
 import { Settings, Headphones, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -538,11 +539,13 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
 
   return (
     <div
-      className="min-h-screen"
+      className="min-h-screen relative"
       style={{
-        background: "linear-gradient(180deg, hsl(45, 30%, 96%) 0%, hsl(40, 50%, 92%) 50%, hsl(35, 60%, 88%) 100%)",
+        backgroundColor: "hsl(45, 40%, 95%)",
       }}
     >
+      {/* Animated Aurora Background */}
+      <AmbientAurora />
       {/* Header */}
       <header className="border-b border-slate-100 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
@@ -563,7 +566,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-6 py-12">
+      <main className="max-w-4xl mx-auto px-6 py-12 relative z-10">
         {/* AUDIO PLAYER */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
