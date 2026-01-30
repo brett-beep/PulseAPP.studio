@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
 
     // Check if email already exists in Base44
     try {
-      const existing = await base44.entities.WaitlistSignup.filter({ email: normalizedEmail });
+      const existing = await base44.asServiceRole.entities.WaitlistSignup.filter({ email: normalizedEmail });
       if (existing && existing.length > 0) {
         return Response.json({ 
           error: 'This email is already on the waitlist!',
@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
     // Run both operations in parallel for speed
     const [loopsResult, base44Result] = await Promise.allSettled([
       addToLoops(normalizedEmail, signupSource, trimmedFirstName),
-      base44.entities.WaitlistSignup.create({
+      base44.asServiceRole.entities.WaitlistSignup.create({
         first_name: trimmedFirstName || undefined,
         email: normalizedEmail,
         signed_up_at: new Date().toISOString(),
@@ -135,7 +135,7 @@ Deno.serve(async (req) => {
       // Update loops_synced flag if Loops succeeded
       if (loopsSuccess && base44Result.value?.id) {
         try {
-          await base44.entities.WaitlistSignup.update(base44Result.value.id, {
+          await base44.asServiceRole.entities.WaitlistSignup.update(base44Result.value.id, {
             loops_synced: true,
           });
         } catch (updateError) {
