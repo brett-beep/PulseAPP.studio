@@ -101,7 +101,7 @@ export function AudioPlayerPreview() {
           {/* Greeting */}
           <div className="mb-6 mt-2 text-center">
             <p className="font-montserrat-light text-sm text-muted-foreground">Good Morning,</p>
-            <p className="mt-3 font-momo text-4xl text-foreground" style={{ letterSpacing: '0.05em' }}>
+            <p className="mt-5 font-momo text-5xl text-foreground" style={{ letterSpacing: '0.05em' }}>
               Alex
             </p>
           </div>
