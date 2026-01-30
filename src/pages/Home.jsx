@@ -551,9 +551,9 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img
-              src="/pulse-logo.png"
+              src="/pulse-logo.svg"
               alt="PulseApp"
-              className="h-8"
+              className="h-10 w-auto"
             />
             <span className="font-semibold text-slate-900 tracking-tight">PulseApp</span>
           </div>
