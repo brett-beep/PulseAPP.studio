@@ -32,9 +32,6 @@ export default function Home() {
   const [canGenerateNew, setCanGenerateNew] = useState(true);
   const [generationStartedAt, setGenerationStartedAt] = useState(null); // Track when generation started
 
-  // Check if user is premium
-  const isPremium = preferences?.is_premium === true;
-
   // Fetch current user
   const { data: user, isLoading: userLoading } = useQuery({
     queryKey: ["currentUser"],
@@ -117,6 +114,9 @@ export default function Home() {
   console.log("📍 [Briefing State] audio_url:", todayBriefing?.audio_url);
   console.log("📍 [Briefing State] status:", todayBriefing?.status);
   console.log("📍 [Briefing State] delivered_at:", todayBriefing?.delivered_at);
+
+  // Check if user is premium
+  const isPremium = preferences?.is_premium === true;
 
   // Auto-stop isGenerating when briefing is ready OR script_ready (since you skip audio sometimes)
   // FIX: Only stop if the briefing was delivered AFTER we started generating
