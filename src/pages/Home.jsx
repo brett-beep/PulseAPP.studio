@@ -10,6 +10,7 @@ import RealTimeMarketTicker from "@/components/RealTimeMarketTicker";
 import KeyHighlights from "@/components/KeyHighlights";
 import OnboardingWizard from "@/components/OnboardingWizard";
 import AmbientAurora from "@/components/ui/ambient-aurora";
+import Logo from "@/components/Logo";
 import UpgradeModal from "@/components/UpgradeModal";
 
 import { Settings, Headphones, Loader2, RefreshCw, Crown } from "lucide-react";
@@ -562,14 +563,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
       {/* Header */}
       <header className="border-b border-slate-100 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img
-              src="/pulse-logo.svg"
-              alt="PulseApp"
-              className="h-16 w-auto"
-            />
-            <span className="font-semibold text-slate-900 tracking-tight">PulseApp</span>
-          </div>
+          <Logo height={40} />
 
           <div className="flex items-center gap-2">
             {!isPremium && (

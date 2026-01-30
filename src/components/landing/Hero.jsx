@@ -2,6 +2,7 @@ import { motion } from "framer-motion"
 import { Zap, ArrowRight } from "lucide-react"
 import { AudioPlayerPreview } from "./AudioPlayerPreview"
 import { MarketTicker } from "./MarketTicker"
+import Logo from "@/components/Logo"
 
 export function Hero({ onSignIn }) {
   return (
@@ -22,14 +23,7 @@ export function Hero({ onSignIn }) {
           transition={{ duration: 0.5 }}
           className="flex items-center justify-between py-6"
         >
-          <div className="flex items-center gap-3">
-            <img
-              src="/pulse-logo.svg"
-              alt="PulseApp"
-              className="h-16 w-auto"
-            />
-            <span className="font-serif text-2xl font-medium text-foreground">PulseApp</span>
-          </div>
+          <Logo height={44} />
           <button
             type="button"
             onClick={onSignIn}
