@@ -26,7 +26,7 @@ export function Hero({ onSignIn }) {
             <img
               src="/pulse-logo.svg"
               alt="PulseApp"
-              className="h-11 w-auto"
+              className="h-16 w-auto"
             />
             <span className="font-serif text-2xl font-medium text-foreground">PulseApp</span>
           </div>
