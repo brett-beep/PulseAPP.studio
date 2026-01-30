@@ -14,10 +14,11 @@ export default function AudioPlayer({
   onGenerate,
   isGenerating = false,
   status = null,
-  statusLabel = null, // NEW: Add this prop
+  statusLabel = null,
   canGenerateNew = true,
   timeUntilNextBriefing = null,
   briefingCount = 0,
+  isPremium = false,
 }) {
   console.log("🎵 [AudioPlayer Component] Rendered with audioUrl:", audioUrl);
   console.log("🎵 [AudioPlayer Component] isGenerating:", isGenerating);
@@ -292,10 +293,17 @@ export default function AudioPlayer({
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="text-right">
-              <p className="text-slate-400 text-[10px] font-medium tracking-wider uppercase">Today</p>
-              <p className="text-slate-700 text-sm font-semibold">{briefingCount} / 3</p>
-            </div>
+            {isPremium && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-amber-500/20 to-orange-600/20 border border-amber-500/30">
+                <span className="text-[10px] font-semibold text-amber-700 tracking-wider uppercase">Premium</span>
+              </div>
+            )}
+            {!isPremium && (
+              <div className="text-right">
+                <p className="text-slate-400 text-[10px] font-medium tracking-wider uppercase">Today</p>
+                <p className="text-slate-700 text-sm font-semibold">{briefingCount} / 3</p>
+              </div>
+            )}
             <motion.div
               animate={{ 
                 scale: isPlaying ? [1, 1.15, 1] : 1,
