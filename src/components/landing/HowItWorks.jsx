@@ -36,49 +36,50 @@ function InterestSelector() {
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => toggleInterest(interest.id)}
-            className={`relative flex items-center gap-3 rounded-xl p-4 pr-14 text-left transition-all duration-300 ${
+            className={`relative flex items-center gap-3 rounded-xl p-4 text-left transition-all duration-300 ${
               isSelected
                 ? "glass-card-strong shadow-lg glow-primary"
                 : "glass-card hover:shadow-lg"
             }`}
           >
-            <div
-              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all ${
-                isSelected 
-                  ? "bg-gradient-to-br from-primary to-accent shadow-md" 
-                  : "bg-muted/50"
-              }`}
-            >
-              <IconComponent
-                className={`h-4 w-4 transition-colors ${
-                  isSelected ? "text-primary-foreground" : "text-muted-foreground"
+            {/* Content wrapper with right padding for checkmark space */}
+            <div className="flex items-center gap-3 pr-10">
+              <div
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all ${
+                  isSelected 
+                    ? "bg-gradient-to-br from-primary to-accent shadow-md" 
+                    : "bg-muted/50"
                 }`}
-              />
+              >
+                <IconComponent
+                  className={`h-4 w-4 transition-colors ${
+                    isSelected ? "text-primary-foreground" : "text-muted-foreground"
+                  }`}
+                />
+              </div>
+              <span
+                className={`text-sm font-medium transition-colors ${
+                  isSelected ? "text-foreground" : "text-muted-foreground"
+                }`}
+              >
+                {interest.label}
+              </span>
             </div>
-            <span
-              className={`text-sm font-medium transition-colors ${
-                isSelected ? "text-foreground" : "text-muted-foreground"
-              }`}
-            >
-              {interest.label}
-            </span>
 
-            {/* Check indicator - positioned absolutely with proper spacing */}
-            <div className="absolute right-4 top-1/2 -translate-y-1/2">
-              <AnimatePresence>
-                {isSelected && (
-                  <motion.div
-                    initial={{ scale: 0, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent shadow-md"
-                  >
-                    <Check className="h-3.5 w-3.5 text-primary-foreground" />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+            {/* Check indicator - absolutely positioned, pointer-events-none */}
+            <AnimatePresence>
+              {isSelected && (
+                <motion.div
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0, opacity: 0 }}
+                  transition={{ duration: 0.2, type: "spring", stiffness: 400, damping: 20 }}
+                  className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent shadow-md"
+                >
+                  <Check className="h-3.5 w-3.5 text-primary-foreground" />
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.button>
         )
       })}
@@ -94,10 +95,10 @@ function AnimatedAudioPlayer() {
   useEffect(() => {
     const sequence = async () => {
       // Start from bottom right corner
-      setCursorPosition({ x: 85, y: 85 })
+      setCursorPosition({ x: 82, y: 80 })
       await new Promise(r => setTimeout(r, 1000))
-      // Move smoothly to center of play button
-      setCursorPosition({ x: 47, y: 68 })
+      // Move smoothly to center of play button (adjusted for shorter player)
+      setCursorPosition({ x: 48, y: 78 })
       await new Promise(r => setTimeout(r, 600))
       setIsHovering(true)
       await new Promise(r => setTimeout(r, 400))
@@ -106,7 +107,7 @@ function AnimatedAudioPlayer() {
       setIsPlaying(false)
       setIsHovering(false)
       // Return to bottom right
-      setCursorPosition({ x: 85, y: 85 })
+      setCursorPosition({ x: 82, y: 80 })
     }
     
     sequence()
@@ -121,34 +122,41 @@ function AnimatedAudioPlayer() {
       <div className="absolute inset-0 bg-gradient-to-r from-background/30 via-transparent to-background/30 pointer-events-none z-10 rounded-3xl" />
       
       <motion.div 
-        className="relative mx-auto max-w-md glass-card-strong rounded-3xl p-8"
+        className="relative mx-auto max-w-lg glass-card-strong rounded-2xl p-6"
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
       >
-        {/* Mini waveform */}
-        <div className="mb-6 flex h-20 items-center justify-center gap-1">
-          {[...Array(28)].map((_, i) => {
-            const baseHeight = Math.sin(i * 0.4) * 15 + 25
+        {/* Mini waveform - realistic pattern */}
+        <div className="mb-4 flex h-12 items-center justify-center gap-[2px]">
+          {[...Array(56)].map((_, i) => {
+            const waveformPattern = [
+              0.3, 0.5, 0.7, 0.4, 0.8, 0.6, 0.9, 0.5, 0.7, 0.3, 0.6, 0.8,
+              0.4, 0.7, 0.5, 0.9, 0.6, 0.4, 0.8, 0.5, 0.7, 0.6, 0.4, 0.8,
+              0.5, 0.7, 0.9, 0.4, 0.6, 0.8, 0.3, 0.7, 0.5, 0.9, 0.6, 0.4,
+              0.8, 0.5, 0.7, 0.3, 0.6, 0.8, 0.4, 0.7, 0.5, 0.9, 0.6, 0.3,
+              0.5, 0.7, 0.4, 0.8, 0.6, 0.5, 0.7, 0.4
+            ]
+            const baseHeight = waveformPattern[i] * 32 + 6
             return (
               <motion.div
                 key={i}
-                className="w-1 rounded-full bg-gradient-to-t from-primary to-accent"
+                className="w-[2px] rounded-full bg-gradient-to-t from-primary/80 to-accent/80"
                 animate={
                   isPlaying
                     ? {
                         height: [
-                          baseHeight * 0.6,
-                          baseHeight * 1.8,
-                          baseHeight * 0.6,
+                          baseHeight * 0.4,
+                          baseHeight,
+                          baseHeight * 0.5,
                         ],
                       }
-                    : { height: 20 }
+                    : { height: baseHeight * 0.5 }
                 }
                 transition={{
                   duration: 1.2,
                   repeat: isPlaying ? Infinity : 0,
-                  delay: i * 0.04,
+                  delay: i * 0.015,
                   ease: "easeInOut",
                 }}
               />
@@ -157,15 +165,15 @@ function AnimatedAudioPlayer() {
         </div>
 
         {/* Progress bar */}
-        <div className="mb-6">
-          <div className="h-2 w-full rounded-full bg-muted/50 overflow-hidden glass-border">
+        <div className="mb-4">
+          <div className="h-1.5 w-full rounded-full bg-muted/50 overflow-hidden glass-border">
             <motion.div
               className="h-full rounded-full bg-gradient-to-r from-primary to-accent"
               animate={{ width: isPlaying ? "60%" : "0%" }}
               transition={{ duration: 3, ease: "linear" }}
             />
           </div>
-          <div className="mt-3 flex justify-between text-sm text-muted-foreground font-medium">
+          <div className="mt-2 flex justify-between text-xs text-muted-foreground font-medium">
             <span>{isPlaying ? "1:48" : "0:00"}</span>
             <span>5:00</span>
           </div>
@@ -174,7 +182,7 @@ function AnimatedAudioPlayer() {
         {/* Controls */}
         <div className="flex items-center justify-center">
           <motion.div
-            className={`flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent text-primary-foreground shadow-xl transition-all ${isHovering ? 'scale-110 glow-primary' : ''}`}
+            className={`flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent text-primary-foreground shadow-xl transition-all ${isHovering ? 'scale-110 glow-primary' : ''}`}
           >
             <AnimatePresence mode="wait">
               {isPlaying ? (
@@ -184,7 +192,7 @@ function AnimatedAudioPlayer() {
                   animate={{ scale: 1 }}
                   exit={{ scale: 0 }}
                 >
-                  <Pause className="h-6 w-6" fill="currentColor" />
+                  <Pause className="h-5 w-5" fill="currentColor" />
                 </motion.div>
               ) : (
                 <motion.div
@@ -193,7 +201,7 @@ function AnimatedAudioPlayer() {
                   animate={{ scale: 1 }}
                   exit={{ scale: 0 }}
                 >
-                  <Play className="h-6 w-6 translate-x-0.5" fill="currentColor" />
+                  <Play className="h-5 w-5 translate-x-0.5" fill="currentColor" />
                 </motion.div>
               )}
             </AnimatePresence>

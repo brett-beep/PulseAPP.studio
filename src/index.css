@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Montserrat:wght@300;400;500&display=swap');
 
 /* Magnolia-style font (using Cormorant Garamond as a similar elegant alternative) */
 @font-face {
@@ -129,6 +129,20 @@
 
 .landing-theme .font-magnolia {
   font-family: 'Cormorant Garamond', 'Georgia', serif;
+  font-style: italic;
+  letter-spacing: 0.02em;
+}
+
+.landing-theme .font-montserrat-light {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 300;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+}
+
+.landing-theme .font-bruney {
+  font-family: 'Cormorant Garamond', 'Georgia', serif;
+  font-weight: 500;
   font-style: italic;
   letter-spacing: 0.02em;
 }

@@ -31,8 +31,9 @@ export function ValueProps() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-100px" }}
               transition={{ duration: 0.5, delay: i * 0.1 }}
-              whileHover={{ y: -6, scale: 1.02 }}
-              className="group glass-card rounded-2xl p-8 transition-all duration-300 hover:shadow-xl hover:glow-primary"
+              whileHover={{ y: -6 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              className="group glass-card rounded-2xl p-8 transition-shadow duration-500 ease-out hover:shadow-xl hover:glow-primary"
             >
               <div className="mb-5 inline-flex rounded-xl bg-gradient-to-br from-primary/15 to-accent/10 p-4">
                 <prop.icon className="h-6 w-6 text-primary" />

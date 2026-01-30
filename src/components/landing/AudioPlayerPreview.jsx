@@ -100,35 +100,44 @@ export function AudioPlayerPreview() {
         <div className="glass-card-strong rounded-3xl p-8 glow-primary">
           {/* Greeting */}
           <div className="mb-8 text-center">
-            <p className="font-magnolia text-base text-muted-foreground">Good morning, Alex.</p>
-            <p className="mt-1 text-2xl text-foreground" style={{ fontStyle: 'normal' }}>
-              Here&apos;s your briefing this morning...
+            <p className="font-montserrat-light text-sm text-muted-foreground">Good Morning,</p>
+            <p className="mt-2 font-bruney text-3xl text-foreground">
+              Alex
             </p>
           </div>
 
-          {/* Waveform visualization */}
-          <div className="mb-8 flex h-20 items-center justify-center gap-1">
-            {[...Array(28)].map((_, i) => {
-              const baseHeight = Math.sin(i * 0.4) * 15 + 25
+          {/* Waveform visualization - realistic audio waveform pattern */}
+          <div className="mb-8 flex h-16 items-center justify-center gap-[2px]">
+            {[...Array(48)].map((_, i) => {
+              // Create a more realistic waveform pattern with varied heights
+              const waveformPattern = [
+                0.3, 0.5, 0.7, 0.4, 0.8, 0.6, 0.9, 0.5, 0.7, 0.3, 0.6, 0.8,
+                0.4, 0.7, 0.5, 0.9, 0.6, 0.4, 0.8, 0.5, 0.7, 0.6, 0.4, 0.8,
+                0.5, 0.7, 0.9, 0.4, 0.6, 0.8, 0.3, 0.7, 0.5, 0.9, 0.6, 0.4,
+                0.8, 0.5, 0.7, 0.3, 0.6, 0.8, 0.4, 0.7, 0.5, 0.9, 0.6, 0.3
+              ]
+              const baseHeight = waveformPattern[i] * 40 + 8
               return (
                 <motion.div
                   key={i}
-                  className="w-1 rounded-full bg-gradient-to-t from-primary to-accent"
+                  className="w-[2px] rounded-full bg-gradient-to-t from-primary/80 to-accent/80"
                   animate={
                     isPlaying
                       ? {
                           height: [
+                            baseHeight * 0.4,
+                            baseHeight,
                             baseHeight * 0.6,
-                            baseHeight * 1.8,
-                            baseHeight * 0.6,
+                            baseHeight * 0.9,
+                            baseHeight * 0.4,
                           ],
                         }
-                      : { height: 20 }
+                      : { height: baseHeight * 0.5 }
                   }
                   transition={{
-                    duration: 1.2,
+                    duration: 1.5,
                     repeat: isPlaying ? Infinity : 0,
-                    delay: i * 0.04,
+                    delay: i * 0.02,
                     ease: "easeInOut",
                   }}
                 />

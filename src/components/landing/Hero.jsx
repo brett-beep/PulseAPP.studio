@@ -70,7 +70,7 @@ export function Hero({ onSignIn }) {
               transition={{ duration: 0.6, delay: 0.3 }}
               className="mt-6 text-lg leading-relaxed text-muted-foreground md:text-xl lg:text-xl max-w-xl mx-auto lg:mx-0"
             >
-              <strong className="font-semibold" style={{ color: 'hsl(25, 90%, 58%)' }}>PulseApp</strong> turns financial news into personalized audio briefings you can listen to every morning.
+              <strong className="font-semibold">PulseApp</strong> turns financial news into personalized audio briefings you can listen to every morning.
               <br className="hidden sm:block" />
               <span className="sm:block">Focus on what matters. Cut through market noise.</span>
             </motion.p>
