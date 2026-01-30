@@ -14,10 +14,11 @@ export default function AudioPlayer({
   onGenerate,
   isGenerating = false,
   status = null,
-  statusLabel = null, // NEW: Add this prop
+  statusLabel = null,
   canGenerateNew = true,
   timeUntilNextBriefing = null,
   briefingCount = 0,
+  isPremium = false,
 }) {
   console.log("🎵 [AudioPlayer Component] Rendered with audioUrl:", audioUrl);
   console.log("🎵 [AudioPlayer Component] isGenerating:", isGenerating);
