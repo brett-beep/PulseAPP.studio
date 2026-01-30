@@ -10,8 +10,9 @@ import RealTimeMarketTicker from "@/components/RealTimeMarketTicker";
 import KeyHighlights from "@/components/KeyHighlights";
 import OnboardingWizard from "@/components/OnboardingWizard";
 import AmbientAurora from "@/components/ui/ambient-aurora";
+import UpgradeModal from "@/components/UpgradeModal";
 
-import { Settings, Headphones, Loader2, RefreshCw } from "lucide-react";
+import { Settings, Headphones, Loader2, RefreshCw, Crown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "react-router-dom";
@@ -22,13 +23,17 @@ export default function Home() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [newsCards, setNewsCards] = useState([]);
   const [isLoadingNews, setIsLoadingNews] = useState(true);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   const [lastRefreshTime, setLastRefreshTime] = useState(null);
 
-  // Countdown timer state for briefing limits (3 per day, 3-hour cooldown)
+  // Countdown timer state for briefing limits (3 per day, 3-hour cooldown) - FREE USERS ONLY
   const [timeUntilNextBriefing, setTimeUntilNextBriefing] = useState(null);
   const [canGenerateNew, setCanGenerateNew] = useState(true);
   const [generationStartedAt, setGenerationStartedAt] = useState(null); // Track when generation started
+
+  // Check if user is premium
+  const isPremium = preferences?.is_premium === true;
 
   // Fetch current user
   const { data: user, isLoading: userLoading } = useQuery({
@@ -148,8 +153,16 @@ export default function Home() {
   // - cooldown starts from delivered_at if available
   // =========================================================
   
-  //====ENABLE THIS FOR COOLDOWN====//
+  //====ENABLE THIS FOR COOLDOWN (FREE USERS ONLY)====//
   useEffect(() => {
+    // Premium users bypass all limits
+    if (isPremium) {
+      console.log("👑 [Premium] User has premium access - no limits");
+      setCanGenerateNew(true);
+      setTimeUntilNextBriefing(null);
+      return;
+    }
+
     if (!briefings || !Array.isArray(briefings)) {
       console.log("⏱️ [Countdown] No briefings array, allowing generation");
       setCanGenerateNew(true);
@@ -245,7 +258,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
     checkEligibility();
     const interval = setInterval(checkEligibility, 1000);
     return () => clearInterval(interval);
-  }, [briefings]);
+  }, [briefings, isPremium]);
 
   // Briefing count for UI (DELIVERED only)
   const getBriefingCount = () => {
@@ -558,11 +571,22 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
             <span className="font-semibold text-slate-900 tracking-tight">PulseApp</span>
           </div>
 
-          <Link to={createPageUrl("Settings")}>
-            <Button variant="ghost" size="icon" className="text-slate-400 hover:text-slate-600">
-              <Settings className="h-5 w-5" />
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            {!isPremium && (
+              <Button
+                onClick={() => setShowUpgradeModal(true)}
+                className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white gap-2"
+              >
+                <Crown className="h-4 w-4" />
+                Upgrade
+              </Button>
+            )}
+            <Link to={createPageUrl("Settings")}>
+              <Button variant="ghost" size="icon" className="text-slate-400 hover:text-slate-600">
+                <Settings className="h-5 w-5" />
+              </Button>
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -587,7 +611,8 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
             canGenerateNew={canGenerateNew}
             timeUntilNextBriefing={timeUntilNextBriefing}
             briefingCount={getBriefingCount()}
-          />
+            isPremium={isPremium}
+            />
 
           <div className="mt-6">
             <RealTimeMarketTicker watchlist={userWatchlist} />
@@ -611,6 +636,9 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
             {highlights.length > 0 ? <KeyHighlights highlights={highlights} /> : null}
           </motion.section>
         )}
+
+        {/* UPGRADE MODAL */}
+        <UpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
 
         {/* NEWS CARDS */}
         <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
