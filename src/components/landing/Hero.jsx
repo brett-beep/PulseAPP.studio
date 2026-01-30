@@ -23,11 +23,13 @@ export function Hero({ onSignIn, onJoinWaitlist }) {
           className="flex items-center justify-between py-6"
         >
           <div className="flex items-center gap-3">
-            <img
-              src="/pulse-logo.svg"
-              alt="PulseApp"
-              className="h-12 w-12 object-contain"
-            />
+            <div className="h-12 w-12 flex items-center justify-center overflow-hidden flex-shrink-0">
+              <img
+                src="/pulse-logo.svg"
+                alt="PulseApp"
+                className="h-full w-full object-contain"
+              />
+            </div>
             <span className="font-serif text-2xl font-medium text-foreground">PulseApp</span>
           </div>
           {/* Sign In button hidden for waitlist phase */}
