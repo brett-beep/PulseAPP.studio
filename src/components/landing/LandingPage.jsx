@@ -2,7 +2,6 @@ import { Hero } from "./Hero"
 import { ValueProps } from "./ValueProps"
 import { HowItWorks } from "./HowItWorks"
 import { CTASection } from "./CTASection"
-import { Footer } from "./Footer"
 
 export function LandingPage({ onSignIn }) {
   return (
@@ -12,7 +11,6 @@ export function LandingPage({ onSignIn }) {
         <ValueProps />
         <HowItWorks />
         <CTASection onSignIn={onSignIn} />
-        <Footer />
       </main>
     </div>
   )
