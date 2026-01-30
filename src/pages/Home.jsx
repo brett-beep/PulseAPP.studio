@@ -601,6 +601,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
           <AudioPlayer
             audioUrl={audioUrl}
             duration={todayBriefing?.duration_minutes || 8}
+            onComplete={() => console.log('Audio completed')}
             greeting={greeting()}
             userName={firstName}
             currentDate={format(new Date(), "MM/dd, EEE")}
@@ -684,7 +685,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
               {newsCardStories.map((story, index) => (
-                <NewsCard key={index} story={story} />
+                <NewsCard key={index} story={story} index={index} />
               ))}
             </div>
           )}
