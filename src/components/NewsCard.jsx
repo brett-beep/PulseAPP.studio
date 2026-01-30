@@ -54,8 +54,8 @@ const whyItMattersText = stripLinksAndUrls(story.why_it_matters || '');
                 WebkitBackdropFilter: 'blur(40px) saturate(1.5)',
                 border: '0.5px solid rgba(255, 255, 255, 0.8)',
                 boxShadow: `
-                    0 0 50px -20px hsla(25, 80%, 50%, 0.2),
-                    0 0 35px -15px hsla(15, 70%, 55%, 0.15),
+                    0 0 50px -20px rgba(255, 140, 75, 0.2),
+                    0 0 35px -15px rgba(255, 100, 50, 0.15),
                     0 4px 20px -8px rgba(0, 0, 0, 0.08),
                     inset 0 1px 1px rgba(255, 255, 255, 0.6)
                 `

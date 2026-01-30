@@ -180,8 +180,8 @@ export default function AudioPlayer({
         WebkitBackdropFilter: "blur(60px) saturate(1.5)",
         border: "0.5px solid rgba(255, 255, 255, 0.8)",
         boxShadow: `
-          0 0 80px -20px hsla(25, 80%, 50%, 0.35),
-          0 0 60px -15px hsla(15, 70%, 55%, 0.25),
+          0 0 80px -20px rgba(255, 140, 75, 0.35),
+          0 0 60px -15px rgba(255, 100, 50, 0.25),
           0 0 6px rgba(0,0,0,0.03),
           0 2px 6px rgba(0,0,0,0.08),
           inset 3px 3px 0.5px -3px rgba(0,0,0,0.9),
@@ -229,7 +229,7 @@ export default function AudioPlayer({
           animate={{ opacity: 1 }}
           className="absolute inset-0 flex flex-col items-center justify-center bg-white/5 backdrop-blur-sm rounded-[40px] z-30 gap-4 pointer-events-none"
         >
-          <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'hsl(25, 80%, 50%)' }} />
+          <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
           {statusLabel && (
             <p className="text-slate-700 text-sm font-medium">{statusLabel}</p>
           )}
@@ -288,7 +288,7 @@ export default function AudioPlayer({
             <p className="text-lg" style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 300, letterSpacing: '0.15em' }}>
               <span className="text-slate-800/90 uppercase">{greeting},</span>
               <br />
-              <span className="font-semibold text-slate-900 normal-case" style={{ fontFamily: "'Italianno', 'Sacramento', cursive", fontSize: '3.5rem', letterSpacing: '0.05em', fontWeight: 400, marginTop: '0.5rem', display: 'inline-block' }}>{userName}</span>
+              <span className="font-semibold text-slate-900 normal-case" style={{ fontFamily: "'Italianno', 'Sacramento', cursive", fontSize: '3.5rem', letterSpacing: '0.05em', fontWeight: 400, marginTop: '1rem', display: 'inline-block' }}>{userName}</span>
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -303,7 +303,7 @@ export default function AudioPlayer({
               }}
               transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
               className="w-2.5 h-2.5 rounded-full"
-              style={{ background: "linear-gradient(135deg, rgba(230, 115, 26, 0.95) 0%, rgba(219, 114, 67, 1) 100%)" }}
+              style={{ background: "linear-gradient(135deg, rgba(255, 140, 80, 0.95) 0%, rgba(255, 90, 50, 1) 100%)" }}
             />
           </div>
         </div>
@@ -329,7 +329,7 @@ export default function AudioPlayer({
                 className="w-[3.5px] rounded-full"
                 style={{
                   background: isActive
-                    ? "linear-gradient(180deg, rgba(230, 115, 26, 0.95) 0%, rgba(219, 114, 67, 0.9) 100%)"
+                    ? "linear-gradient(180deg, rgba(255, 150, 85, 0.95) 0%, rgba(255, 95, 55, 0.9) 100%)"
                     : "rgba(120, 120, 120, 0.25)",
                 }}
               />
@@ -389,11 +389,11 @@ export default function AudioPlayer({
             disabled={!audioUrl}
             className="w-24 h-24 rounded-full flex items-center justify-center disabled:opacity-50"
             style={{
-              background: "linear-gradient(135deg, rgba(230, 115, 26, 0.95) 0%, rgba(219, 114, 67, 1) 100%)",
+              background: "linear-gradient(135deg, rgba(255, 140, 75, 0.95) 0%, rgba(255, 85, 45, 1) 100%)",
               border: "1px solid rgba(255, 255, 255, 0.5)",
               boxShadow: `
-                0 12px 32px rgba(230, 115, 26, 0.4),
-                0 4px 12px rgba(230, 115, 26, 0.25),
+                0 12px 32px rgba(255, 100, 50, 0.4),
+                0 4px 12px rgba(255, 100, 50, 0.25),
                 inset 0 2px 2px rgba(255, 255, 255, 0.4),
                 inset 0 -2px 3px rgba(0, 0, 0, 0.15)
               `,
@@ -483,9 +483,9 @@ export default function AudioPlayer({
                         className="px-4 py-2 rounded-xl text-sm font-medium text-left transition-colors"
                         style={{
                           background: playbackRate === speed 
-                            ? "linear-gradient(135deg, rgba(230, 115, 26, 0.2) 0%, rgba(219, 114, 67, 0.2) 100%)"
+                            ? "linear-gradient(135deg, rgba(255, 140, 75, 0.2) 0%, rgba(255, 85, 45, 0.2) 100%)"
                             : "transparent",
-                          color: playbackRate === speed ? "rgb(219, 114, 67)" : "rgb(71, 85, 105)",
+                          color: playbackRate === speed ? "rgb(255, 85, 45)" : "rgb(71, 85, 105)",
                         }}
                       >
                         {speed}x
@@ -529,13 +529,13 @@ export default function AudioPlayer({
                 style={{
                   background: isButtonDisabled
                     ? "linear-gradient(135deg, rgba(180, 180, 180, 0.6) 0%, rgba(150, 150, 150, 0.7) 100%)"
-                    : "linear-gradient(135deg, rgba(230, 115, 26, 0.95) 0%, rgba(219, 114, 67, 1) 100%)",
+                    : "linear-gradient(135deg, rgba(255, 140, 75, 0.95) 0%, rgba(255, 85, 45, 1) 100%)",
                   border: "1px solid rgba(255, 255, 255, 0.5)",
                   boxShadow: isButtonDisabled
                     ? "0 4px 12px rgba(0, 0, 0, 0.1)"
                     : `
-                      0 8px 24px rgba(230, 115, 26, 0.3),
-                      0 4px 12px rgba(230, 115, 26, 0.2),
+                      0 8px 24px rgba(255, 100, 50, 0.3),
+                      0 4px 12px rgba(255, 100, 50, 0.2),
                       inset 0 1px 1px rgba(255, 255, 255, 0.3)
                     `,
                   color: isButtonDisabled ? "rgba(255, 255, 255, 0.8)" : "white",

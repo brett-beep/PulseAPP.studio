@@ -23,9 +23,11 @@ export function Hero({ onSignIn }) {
           className="flex items-center justify-between py-6"
         >
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent shadow-lg glow-primary">
-              <Zap className="h-5 w-5 text-primary-foreground" />
-            </div>
+            <img
+              src="/pulse-logo.png"
+              alt="PulseApp"
+              className="h-10"
+            />
             <span className="font-serif text-2xl font-medium text-foreground">PulseApp</span>
           </div>
           <button
