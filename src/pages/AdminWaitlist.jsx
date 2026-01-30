@@ -60,15 +60,20 @@ export default function AdminWaitlist() {
       .sort((a, b) => new Date(b.signed_up_at) - new Date(a.signed_up_at))
   }, [base44Signups, localSignups])
 
-  // Filter by search
-  const filteredSignups = allSignups.filter((signup) =>
-    signup.email?.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  // Filter by search (email or first name)
+  const filteredSignups = allSignups.filter((signup) => {
+    const term = searchTerm.toLowerCase()
+    return (
+      signup.email?.toLowerCase().includes(term) ||
+      signup.first_name?.toLowerCase().includes(term)
+    )
+  })
 
   // Export to CSV
   const exportToCSV = () => {
-    const headers = ["Email", "Signed Up At", "Source"]
+    const headers = ["First Name", "Email", "Signed Up At", "Source"]
     const rows = allSignups.map((s) => [
+      s.first_name ?? "",
       s.email,
       s.signed_up_at,
       s.source || "landing_page",
@@ -239,7 +244,7 @@ export default function AdminWaitlist() {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by email..."
+              placeholder="Search by name or email..."
               className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 bg-white/80 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/30 focus:border-[#FF6B35] transition-all"
             />
           </div>
@@ -280,6 +285,9 @@ export default function AdminWaitlist() {
                       #
                     </th>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-slate-600">
+                      Name
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-slate-600">
                       Email
                     </th>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-slate-600">
@@ -302,13 +310,16 @@ export default function AdminWaitlist() {
                       <td className="px-6 py-4 text-sm text-slate-400">
                         {index + 1}
                       </td>
+                      <td className="px-6 py-4 text-slate-700">
+                        {signup.first_name || "—"}
+                      </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div 
                             className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium"
                             style={{ background: "linear-gradient(135deg, #FF6B35 0%, #E85A28 100%)" }}
                           >
-                            {signup.email?.charAt(0).toUpperCase()}
+                            {(signup.first_name || signup.email)?.charAt(0).toUpperCase()}
                           </div>
                           <span className="text-slate-900 font-medium">
                             {signup.email}

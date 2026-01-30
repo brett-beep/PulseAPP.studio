@@ -13,12 +13,26 @@ function getBase44ForWaitlist() {
   return createClient({ appId, token });
 }
 
-async function addToLoops(email: string, source: string): Promise<{ success: boolean; error?: string }> {
+async function addToLoops(
+  email: string,
+  source: string,
+  firstName?: string
+): Promise<{ success: boolean; error?: string }> {
   const loopsApiKey = Deno.env.get('LOOPS_API_KEY');
   
   if (!loopsApiKey) {
     console.warn('⚠️ LOOPS_API_KEY not configured, skipping Loops integration');
     return { success: false, error: 'API key not configured' };
+  }
+
+  const body: Record<string, unknown> = {
+    email: email,
+    source: source || 'waitlist',
+    userGroup: 'waitlist',
+    subscribed: true,
+  };
+  if (firstName?.trim()) {
+    body.firstName = firstName.trim();
   }
 
   try {
@@ -28,12 +42,7 @@ async function addToLoops(email: string, source: string): Promise<{ success: boo
         'Authorization': `Bearer ${loopsApiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        email: email,
-        source: source || 'waitlist',
-        userGroup: 'waitlist',
-        subscribed: true,
-      }),
+      body: JSON.stringify(body),
     });
 
     const data = await response.json();
@@ -69,7 +78,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { email, source } = await req.json();
+    const { email, source, firstName } = await req.json();
 
     // Validate email
     if (!email || typeof email !== 'string') {
@@ -83,6 +92,7 @@ Deno.serve(async (req) => {
 
     const normalizedEmail = email.toLowerCase().trim();
     const signupSource = source || 'landing_page';
+    const trimmedFirstName = typeof firstName === 'string' ? firstName.trim() : undefined;
 
     // Base44 client with app credentials (public waitlist has no user token)
     const base44 = getBase44ForWaitlist();
@@ -105,8 +115,9 @@ Deno.serve(async (req) => {
 
     // Run both operations in parallel for speed
     const [loopsResult, base44Result] = await Promise.allSettled([
-      addToLoops(normalizedEmail, signupSource),
+      addToLoops(normalizedEmail, signupSource, trimmedFirstName),
       base44.entities.WaitlistSignup.create({
+        first_name: trimmedFirstName || undefined,
         email: normalizedEmail,
         signed_up_at: new Date().toISOString(),
         source: signupSource,

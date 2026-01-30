@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { X, Mail, CheckCircle, Loader2, Sparkles } from "lucide-react"
+import { X, Mail, User, CheckCircle, Loader2, Sparkles } from "lucide-react"
 import { base44 } from "@/api/base44Client"
 
 export function WaitlistModal({ isOpen, onClose }) {
+  const [firstName, setFirstName] = useState("")
   const [email, setEmail] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
@@ -28,6 +29,7 @@ export function WaitlistModal({ isOpen, onClose }) {
   useEffect(() => {
     if (!isOpen) {
       setTimeout(() => {
+        setFirstName("")
         setEmail("")
         setIsSuccess(false)
         setError("")
@@ -58,6 +60,7 @@ export function WaitlistModal({ isOpen, onClose }) {
     try {
       // Try cloud function first
       const response = await base44.functions.invoke("joinWaitlist", {
+        firstName: firstName.trim() || undefined,
         email: email.toLowerCase().trim(),
         source: "landing_page",
       })
@@ -79,6 +82,7 @@ export function WaitlistModal({ isOpen, onClose }) {
         // Fallback: try direct entity creation
         try {
           await base44.entities.WaitlistSignup.create({
+            first_name: firstName.trim() || undefined,
             email: email.toLowerCase().trim(),
             signed_up_at: new Date().toISOString(),
             source: "landing_page",
@@ -92,6 +96,7 @@ export function WaitlistModal({ isOpen, onClose }) {
               setError("This email is already on the waitlist!")
             } else {
               existing.push({
+                first_name: firstName.trim() || undefined,
                 email: email.toLowerCase().trim(),
                 signed_up_at: new Date().toISOString(),
                 source: "landing_page",
@@ -189,6 +194,20 @@ export function WaitlistModal({ isOpen, onClose }) {
                       <form onSubmit={handleSubmit}>
                         <div className="mb-4">
                           <div className="relative">
+                            <User className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                            <input
+                              type="text"
+                              value={firstName}
+                              onChange={(e) => setFirstName(e.target.value)}
+                              placeholder="First name"
+                              className="w-full pl-12 pr-4 py-4 rounded-2xl border border-slate-200 bg-white/80 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/30 focus:border-[#FF6B35] transition-all"
+                              disabled={isSubmitting}
+                              autoFocus
+                            />
+                          </div>
+                        </div>
+                        <div className="mb-4">
+                          <div className="relative">
                             <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
                             <input
                               type="email"
@@ -197,7 +216,6 @@ export function WaitlistModal({ isOpen, onClose }) {
                               placeholder="Enter your email"
                               className="w-full pl-12 pr-4 py-4 rounded-2xl border border-slate-200 bg-white/80 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/30 focus:border-[#FF6B35] transition-all"
                               disabled={isSubmitting}
-                              autoFocus
                             />
                           </div>
                           {error && (
@@ -271,6 +289,10 @@ export function WaitlistModal({ isOpen, onClose }) {
                         <p className="text-sm text-slate-700">
                           <span className="font-medium">Signed up as:</span>
                           <br />
+                          {firstName.trim() && (
+                            <span className="text-[#FF6B35] font-medium">{firstName.trim()}</span>
+                          )}
+                          {firstName.trim() && <br />}
                           <span className="text-[#FF6B35] font-medium">{email}</span>
                         </p>
                       </div>
