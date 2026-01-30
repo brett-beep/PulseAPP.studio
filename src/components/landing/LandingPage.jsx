@@ -3,6 +3,7 @@ import { Hero } from "./Hero"
 import { ValueProps } from "./ValueProps"
 import { HowItWorks } from "./HowItWorks"
 import { CTASection } from "./CTASection"
+import { Footer } from "./Footer"
 import { WaitlistModal } from "./WaitlistModal"
 
 export function LandingPage({ onSignIn }) {
@@ -18,6 +19,7 @@ export function LandingPage({ onSignIn }) {
         <ValueProps />
         <HowItWorks />
         <CTASection onSignIn={onSignIn} onJoinWaitlist={openWaitlist} />
+        <Footer />
       </main>
 
       <WaitlistModal isOpen={isWaitlistOpen} onClose={closeWaitlist} />

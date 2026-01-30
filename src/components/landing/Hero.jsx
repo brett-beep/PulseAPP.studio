@@ -30,13 +30,7 @@ export function Hero({ onSignIn, onJoinWaitlist }) {
             />
             <span className="font-serif text-2xl font-medium text-foreground">PulseApp</span>
           </div>
-          <button
-            type="button"
-            onClick={onSignIn}
-            className="glass-card rounded-full px-6 py-2.5 text-sm font-medium text-foreground transition-all hover:bg-white/80 hover:shadow-lg"
-          >
-            Sign In
-          </button>
+          {/* Sign In button hidden for waitlist phase */}
         </motion.nav>
 
         {/* Hero content */}
