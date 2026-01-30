@@ -23,7 +23,7 @@ export function Hero({ onSignIn }) {
           transition={{ duration: 0.5 }}
           className="flex items-center justify-between py-6"
         >
-          <Logo height={44} />
+          <Logo height={64} />
           <button
             type="button"
             onClick={onSignIn}

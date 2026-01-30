@@ -4,6 +4,8 @@ import PropTypes from 'prop-types';
 /**
  * PulseApp Logo Component
  * 
+ * A reusable logo component that uses the existing pulse-logo.svg file
+ * 
  * @param {number} height - Height of the logo in pixels (default: 32)
  * @param {boolean} showText - Whether to show "PulseApp" text (default: true)
  * @param {string} className - Additional CSS classes
@@ -13,35 +15,12 @@ export default function Logo({ height = 32, showText = true, className = '' }) {
   
   return (
     <div className={`flex items-center gap-2 ${className}`}>
-      {/* Pulse Icon */}
-      <svg
-        width={height}
-        height={height}
-        viewBox="0 0 48 48"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        aria-label="PulseApp logo"
-      >
-        {/* Circle outline */}
-        <circle
-          cx="24"
-          cy="24"
-          r="20"
-          stroke="#FF6B35"
-          strokeWidth="2"
-          fill="none"
-        />
-        
-        {/* Pulse/heartbeat line */}
-        <path
-          d="M 8 24 L 14 24 L 16 28 L 18 20 L 22 28 L 24 16 L 26 28 L 30 20 L 32 28 L 34 24 L 40 24"
-          stroke="#FF6B35"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          fill="none"
-        />
-      </svg>
+      {/* Logo SVG */}
+      <img
+        src="/pulse-logo.svg"
+        alt="PulseApp logo"
+        style={{ height: `${height}px`, width: 'auto' }}
+      />
       
       {/* Text */}
       {showText && (
