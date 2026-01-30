@@ -74,10 +74,10 @@ Deno.serve(async (req) => {
     const normalizedEmail = email.toLowerCase().trim();
     const signupSource = source || 'landing_page';
 
-    // Create Base44 client with app credentials (no user auth needed for waitlist)
+    // Create Base44 client with service role (no user auth needed for public waitlist)
     const base44 = createClient({
       appId: Deno.env.get('BASE44_APP_ID'),
-      token: Deno.env.get('BASE44_TOKEN'),
+      serviceRoleKey: Deno.env.get('BASE44_SERVICE_ROLE_KEY'),
     });
 
     // Check if email already exists in Base44
