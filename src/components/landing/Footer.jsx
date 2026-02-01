@@ -34,7 +34,7 @@ export function Footer() {
                 "/team/investor-1.png",
                 "/team/investor-2.png",
                 "/team/investor-3.png",
-                "/team/investor-4.jpg",
+                "/team/investor-4.png",
               ].map((photo, i) => (
                 <img
                   key={i}
