@@ -30,12 +30,24 @@ export function Footer() {
           {/* Social proof */}
           <div className="flex items-center gap-3">
             <div className="flex -space-x-2">
-              {[...Array(4)].map((_, i) => (
-                <div
+              {[
+                "/team/investor-1.png",
+                "/team/investor-2.jpg",
+                "/team/investor-3.jpg",
+                "/team/investor-4.jpg",
+              ].map((photo, i) => (
+                <img
                   key={i}
-                  className="h-9 w-9 rounded-full border-2 border-background shadow-md"
-                  style={{
-                    backgroundImage: `linear-gradient(135deg, hsl(${25 + i * 20}, 50%, 65%), hsl(${35 + i * 20}, 40%, 75%))`,
+                  src={photo}
+                  alt={`Investor ${i + 1}`}
+                  className="h-9 w-9 rounded-full border-2 border-background shadow-md object-cover"
+                  onError={(e) => {
+                    // Fallback to gradient if image fails to load
+                    e.target.style.display = 'none'
+                    const fallback = document.createElement('div')
+                    fallback.className = 'h-9 w-9 rounded-full border-2 border-background shadow-md'
+                    fallback.style.backgroundImage = `linear-gradient(135deg, hsl(${25 + i * 20}, 50%, 65%), hsl(${35 + i * 20}, 40%, 75%))`
+                    e.target.parentNode.insertBefore(fallback, e.target)
                   }}
                 />
               ))}
