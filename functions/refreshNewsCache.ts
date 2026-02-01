@@ -1,21 +1,62 @@
 // ============================================================
-// refreshNewsCache.js - Base44 Function (v4 - LLM ANALYSIS)
-// Runs every 15 minutes
-// Now with LLM-powered "why it matters" analysis for top 5 stories
+// refreshNewsCache.ts - Base44 Function (v5 - Alpha Vantage Premium)
+// Runs every 5 minutes
+// Fetches 50 articles from Alpha Vantage across all PulseApp sectors
+// Scores by urgency/relevance, caches top 30 for user filtering
+// Persists high-urgency stories until newer ones take priority
 // ============================================================
 
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
 
 // ============================================================
+// CONFIGURATION
+// ============================================================
+
+const ALPHA_VANTAGE_BASE_URL = "https://www.alphavantage.co/query";
+
+// Topics mapped to PulseApp sectors
+const PULSEAPP_TOPICS = [
+  "technology",           // Tech Stocks
+  "blockchain",           // Crypto
+  "financial_markets",    // Markets
+  "economy_macro",        // Economy
+  "economy_monetary",     // Fed/Interest Rates
+  "real_estate",          // Real Estate
+  "energy_transportation", // Commodities (oil, energy)
+  "earnings",             // Earnings reports
+  "mergers_and_acquisitions", // M&A activity
+  "manufacturing",        // Industrial/Manufacturing
+];
+
+// Map Alpha Vantage topics to PulseApp categories
+const TOPIC_TO_CATEGORY: Record<string, string> = {
+  "technology": "technology",
+  "blockchain": "crypto",
+  "financial_markets": "markets",
+  "economy_macro": "economy",
+  "economy_monetary": "economy",
+  "economy_fiscal": "economy",
+  "real_estate": "real estate",
+  "energy_transportation": "commodities",
+  "earnings": "markets",
+  "mergers_and_acquisitions": "markets",
+  "manufacturing": "markets",
+  "finance": "markets",
+  "life_sciences": "technology",
+  "retail_wholesale": "markets",
+  "ipo": "markets",
+};
+
+// ============================================================
 // UTILITY FUNCTIONS
 // ============================================================
 
-function safeText(input, fallback) {
+function safeText(input: unknown, fallback: string = ""): string {
   const s = typeof input === "string" ? input.trim() : "";
-  return s || (fallback || "");
+  return s || fallback;
 }
 
-function normalizeHeadline(s) {
+function normalizeHeadline(s: string): string {
   return String(s || "")
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, " ")
@@ -23,236 +64,39 @@ function normalizeHeadline(s) {
     .trim();
 }
 
-function tokenSet(s) {
-  const stop = new Set([
-    "the","a","an","and","or","but","to","of","in","on","for","with","as","at","by",
-    "from","is","are","was","were","be","been","it","this","that","these","those",
-    "after","before","over","under","into","about","amid","says","say","report","reports",
-    "news","update","latest","today","week","year","could","would","should","will",
-    "have","has","had","being","its","their","there","where","when","what","which"
-  ]);
-
-  return new Set(
-    normalizeHeadline(s)
-      .split(" ")
-      .filter((w) => w && w.length > 2 && !stop.has(w))
-  );
-}
-
-function jaccard(aSet, bSet) {
-  if (!aSet.size || !bSet.size) return 0;
-  let inter = 0;
-  for (const x of aSet) if (bSet.has(x)) inter++;
-  const union = aSet.size + bSet.size - inter;
-  return union ? inter / union : 0;
-}
-
-// ============================================================
-// NEW: Helper function for LLM invocation
-// ============================================================
-async function invokeLLM(base44Client, prompt, useStreaming = false, context = null) {
+function randomId(): string {
   try {
-    const response = await base44Client.functions.invoke("invokeLLM", {
-      prompt,
-      useStreaming,
-      context,
-    });
-    
-    if (response?.data?.success && response?.data?.response) {
-      return response.data.response;
-    }
-    
-    throw new Error(response?.data?.error || "LLM invocation failed");
-  } catch (error) {
-    console.error("❌ LLM Error:", error.message);
-    throw error;
+    return crypto.randomUUID();
+  } catch {
+    return `id_${Math.random().toString(16).slice(2)}_${Date.now()}`;
   }
 }
 
-// ============================================================
-// NEW: Category-based fallback messages
-// ============================================================
-function getCategoryMessage(category) {
-  const messages = {
-    markets: "Could impact portfolio performance and market sentiment.",
-    crypto: "May signal shifts in digital asset valuations and regulatory landscape.",
-    economy: "Affects broader market conditions and investment strategies.",
-    technology: "Could influence tech sector valuations and growth opportunities.",
-    "real estate": "May impact real estate investments and housing market trends.",
-    commodities: "Could affect commodity prices and inflation hedging strategies."
-  };
-  return messages[category] || "Worth monitoring for potential portfolio implications.";
+function getTimeFromHoursAgo(hours: number): string {
+  const date = new Date(Date.now() - hours * 60 * 60 * 1000);
+  // Alpha Vantage format: YYYYMMDDTHHMM
+  return date.toISOString().replace(/[-:]/g, "").slice(0, 13);
 }
 
-// ============================================================
-// STRICTER DUPLICATE DETECTION
-// ============================================================
-
-function isNearDuplicate(a, b) {
-  const aHeadline = (a?.headline || a?.title || "").toLowerCase();
-  const bHeadline = (b?.headline || b?.title || "").toLowerCase();
-  const aSummary = (a?.summary || "").toLowerCase();
-  const bSummary = (b?.summary || "").toLowerCase();
-  
-  // 1. Extract key entities (people, organizations, specific terms)
-  const extractEntities = (text) => {
-    const entities = new Set();
-    
-    // Named people - common in financial news
-    const people = text.match(/\b(powell|trump|biden|yellen|hassett|cook|musk|bezos|buffett|dimon|gensler|lagarde|bailey)\b/gi) || [];
-    people.forEach(p => entities.add("person:" + p.toLowerCase()));
-    
-    // Organizations
-    const orgs = [
-      { pattern: /\bfed(eral reserve)?\b/gi, key: "org:fed" },
-      { pattern: /\bsupreme court\b/gi, key: "org:scotus" },
-      { pattern: /\bdoj|department of justice\b/gi, key: "org:doj" },
-      { pattern: /\bsec\b/gi, key: "org:sec" },
-      { pattern: /\btreasury\b/gi, key: "org:treasury" },
-      { pattern: /\bfomc\b/gi, key: "org:fomc" },
-    ];
-    orgs.forEach(({ pattern, key }) => {
-      if (pattern.test(text)) entities.add(key);
-    });
-    
-    // Key event terms
-    const events = text.match(/\b(investigation|lawsuit|ruling|hearing|testimony|indictment|resignation|nomination|appointment|impeach|criminal|charged|subpoena)\b/gi) || [];
-    events.forEach(e => entities.add("event:" + e.toLowerCase()));
-    
-    // Tickers/Companies
-    const tickers = text.match(/\b(aapl|googl|msft|amzn|nvda|tsla|meta|nflx)\b/gi) || [];
-    tickers.forEach(t => entities.add("ticker:" + t.toUpperCase()));
-    
-    return entities;
-  };
-  
-  const aEntities = extractEntities(aHeadline + " " + aSummary);
-  const bEntities = extractEntities(bHeadline + " " + bSummary);
-  
-  // Count entity overlap
-  let entityOverlap = 0;
-  const sharedEntities = [];
-  for (const e of aEntities) {
-    if (bEntities.has(e)) {
-      entityOverlap++;
-      sharedEntities.push(e);
-    }
+function parseAlphaVantageDate(dateStr: string): string {
+  // Input: "20240126T143000" -> ISO string
+  if (!dateStr) return new Date().toISOString();
+  try {
+    const year = dateStr.slice(0, 4);
+    const month = dateStr.slice(4, 6);
+    const day = dateStr.slice(6, 8);
+    const hour = dateStr.slice(9, 11) || "00";
+    const min = dateStr.slice(11, 13) || "00";
+    const sec = dateStr.slice(13, 15) || "00";
+    return new Date(`${year}-${month}-${day}T${hour}:${min}:${sec}Z`).toISOString();
+  } catch {
+    return new Date().toISOString();
   }
-  
-  // If 3+ key entities match, these are about the same topic
-  if (entityOverlap >= 3) {
-    console.log(`🔄 DUPE (${entityOverlap} entities: ${sharedEntities.join(", ")})`);
-    console.log(`   A: "${aHeadline.slice(0,50)}..."`);
-    console.log(`   B: "${bHeadline.slice(0,50)}..."`);
-    return true;
-  }
-  
-  // 2. Specific combination checks (known duplicate patterns)
-  const hasPowellFed = (text) => text.includes("powell") && (text.includes("fed") || text.includes("reserve"));
-  const hasScotus = (text) => text.includes("supreme court");
-  const hasInvestigation = (text) => text.includes("investigation") || text.includes("criminal") || text.includes("doj");
-  
-  // Powell + Fed + Investigation = same story cluster
-  if (hasPowellFed(aHeadline) && hasPowellFed(bHeadline)) {
-    if (hasInvestigation(aHeadline + aSummary) && hasInvestigation(bHeadline + bSummary)) {
-      console.log(`🔄 DUPE (Powell+Fed+Investigation pattern)`);
-      return true;
-    }
-    if (hasScotus(aHeadline + aSummary) && hasScotus(bHeadline + bSummary)) {
-      console.log(`🔄 DUPE (Powell+Fed+SCOTUS pattern)`);
-      return true;
-    }
-  }
-  
-  // 3. Headline word overlap check
-  const getSignificantWords = (text) => {
-    return text
-      .toLowerCase()
-      .replace(/[^a-z0-9\s]/g, ' ')
-      .split(/\s+/)
-      .filter(w => w.length > 3)
-      .filter(w => !["this", "that", "with", "from", "have", "been", "will", "could", "would", "about", "after", "their", "there", "which", "what", "when", "says", "said"].includes(w));
-  };
-  
-  const aWords = new Set(getSignificantWords(aHeadline));
-  const bWords = new Set(getSignificantWords(bHeadline));
-  
-  let wordOverlap = 0;
-  for (const w of aWords) {
-    if (bWords.has(w)) wordOverlap++;
-  }
-  
-  const overlapRatio = wordOverlap / Math.min(aWords.size, bWords.size);
-  
-  if (overlapRatio > 0.5 && wordOverlap >= 3) {
-    console.log(`🔄 DUPE (headline overlap: ${wordOverlap} words, ${(overlapRatio*100).toFixed(0)}%)`);
-    return true;
-  }
-  
-  // 4. Full text Jaccard similarity (lower threshold)
-  const aText = `${aHeadline} ${aSummary}`;
-  const bText = `${bHeadline} ${bSummary}`;
-  const sim = jaccard(tokenSet(aText), tokenSet(bText));
-  
-  if (sim >= 0.40) {
-    console.log(`🔄 DUPE (jaccard=${sim.toFixed(2)})`);
-    return true;
-  }
-  
-  return false;
 }
 
-// ============================================================
-// TOPIC CLUSTERING - Prevents multiple stories on same topic
-// ============================================================
-
-function getTopicCluster(headline, summary) {
-  const text = ((headline || "") + " " + (summary || "")).toLowerCase();
-  
-  // Specific topic patterns - only 1 article per cluster allowed
-  const patterns = [
-    { pattern: /powell.*(investigation|criminal|doj|indictment)/i, cluster: "powell_investigation" },
-    { pattern: /(investigation|criminal|doj).*(powell|fed chair)/i, cluster: "powell_investigation" },
-    { pattern: /supreme court.*(fed|federal reserve|powell)/i, cluster: "scotus_fed" },
-    { pattern: /(fed|federal reserve).*(supreme court|independence)/i, cluster: "scotus_fed" },
-    { pattern: /trump.*(powell|fed chair|federal reserve)/i, cluster: "trump_fed" },
-    { pattern: /powell.*(trump|president)/i, cluster: "trump_fed" },
-    { pattern: /bitcoin.*(etf|price|rally|crash)/i, cluster: "bitcoin_price" },
-    { pattern: /ethereum.*(etf|price|rally|crash)/i, cluster: "ethereum_price" },
-    { pattern: /nvidia.*(earnings|stock|shares|revenue)/i, cluster: "nvidia" },
-    { pattern: /apple.*(earnings|stock|shares|revenue|iphone)/i, cluster: "apple" },
-    { pattern: /tesla.*(earnings|stock|shares|musk)/i, cluster: "tesla" },
-    { pattern: /rate (cut|hike|decision).*(fed|fomc)/i, cluster: "fed_rates" },
-    { pattern: /(fed|fomc).*(rate|rates|policy)/i, cluster: "fed_rates" },
-    { pattern: /inflation.*(cpi|report|data)/i, cluster: "inflation_data" },
-    { pattern: /jobs report|employment.*(data|report)/i, cluster: "jobs_data" },
-  ];
-  
-  for (const { pattern, cluster } of patterns) {
-    if (pattern.test(text)) {
-      return cluster;
-    }
-  }
-  
-  return null; // No specific cluster
-}
-
-function detectCategory(headline, summary) {
-  const text = `${headline} ${summary}`.toLowerCase();
-
-  if (text.match(/crypto|bitcoin|ethereum|btc|eth|blockchain|defi|nft|coinbase|binance/)) return "crypto";
-  if (text.match(/real estate|housing|mortgage|property|rent|home price|reits|homebuilder/)) return "real estate";
-  if (text.match(/oil|gold|silver|commodity|commodities|wheat|corn|natural gas|copper|lithium/)) return "commodities";
-  if (text.match(/tech|software|ai|artificial intelligence|chip|semiconductor|apple|google|microsoft|meta|amazon|nvidia|saas/)) return "technology";
-  if (text.match(/fed|inflation|gdp|unemployment|interest rate|economy|economic|recession|jobs report|cpi|ppi|fomc/)) return "economy";
-  if (text.match(/stock|market|s&p|nasdaq|dow|earnings|ipo|merger|acquisition|etf|index/)) return "markets";
-
-  return "markets";
-}
-
-function categoryImageUrl(categoryRaw) {
+function categoryImageUrl(categoryRaw: string): string {
   const cat = safeText(categoryRaw, "default").toLowerCase();
-  const map = {
+  const map: Record<string, string> = {
     markets: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&w=1200&q=70",
     crypto: "https://images.unsplash.com/photo-1621761191319-c6fb62004040?auto=format&fit=crop&w=1200&q=70",
     economy: "https://images.unsplash.com/photo-1520607162513-77705c0f0d4a?auto=format&fit=crop&w=1200&q=70",
@@ -264,255 +108,358 @@ function categoryImageUrl(categoryRaw) {
   return map[cat] || map.default;
 }
 
-function randomId() {
-  try {
-    return crypto.randomUUID();
-  } catch {
-    return `id_${Math.random().toString(16).slice(2)}_${Date.now()}`;
-  }
-}
-
 // ============================================================
-// API FETCHERS
+// DUPLICATE DETECTION
 // ============================================================
 
-async function fetchFinnhub(apiKey) {
-  const categories = ["general", "crypto", "merger"];
-  const allArticles = [];
+function isNearDuplicate(a: any, b: any): boolean {
+  const aHeadline = normalizeHeadline(a?.title || "");
+  const bHeadline = normalizeHeadline(b?.title || "");
   
-  for (const category of categories) {
-    try {
-      console.log(`📡 Finnhub: Fetching ${category}...`);
-      const response = await fetch(
-        `https://finnhub.io/api/v1/news?category=${category}&token=${apiKey}`
-      );
-      
-      if (!response.ok) {
-        console.error(`❌ Finnhub ${category} error:`, response.status);
-        continue;
-      }
-      
-      const data = await response.json();
-      const articles = (data || []).slice(0, 15).map(article => ({
-        headline: article.headline,
-        summary: article.summary,
-        url: article.url,
-        source: article.source || "Finnhub",
-        datetime: article.datetime ? new Date(article.datetime * 1000).toISOString() : new Date().toISOString(),
-        image: article.image,
-        provider: "finnhub",
-        topic: category
-      }));
-      
-      allArticles.push(...articles);
-      console.log(`✅ Finnhub ${category}: ${articles.length} articles`);
-      
-      await new Promise(r => setTimeout(r, 100));
-    } catch (error) {
-      console.error(`❌ Finnhub ${category} error:`, error.message);
-    }
+  if (!aHeadline || !bHeadline) return false;
+  
+  // Extract significant words
+  const getWords = (text: string) => {
+    const stopWords = new Set([
+      "the", "a", "an", "and", "or", "but", "to", "of", "in", "on", "for", 
+      "with", "as", "at", "by", "from", "is", "are", "was", "were", "be",
+      "this", "that", "says", "said", "report", "reports", "news", "update"
+    ]);
+    return new Set(
+      text.split(" ").filter(w => w.length > 2 && !stopWords.has(w))
+    );
+  };
+  
+  const aWords = getWords(aHeadline);
+  const bWords = getWords(bHeadline);
+  
+  if (aWords.size < 3 || bWords.size < 3) return false;
+  
+  let overlap = 0;
+  for (const w of aWords) {
+    if (bWords.has(w)) overlap++;
   }
   
-  console.log(`📊 Finnhub total: ${allArticles.length} articles`);
-  return allArticles;
-}
-
-async function fetchNewsAPI(apiKey) {
-  try {
-    console.log("📡 NewsAPI: Fetching business headlines...");
-    const response = await fetch(
-      `https://newsapi.org/v2/top-headlines?category=business&language=en&pageSize=30&apiKey=${apiKey}`
-    );
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("❌ NewsAPI error:", response.status, errorText);
-      return [];
-    }
-    
-    const data = await response.json();
-    const articles = (data?.articles || []).map(article => ({
-      headline: article.title,
-      summary: article.description || article.content,
-      url: article.url,
-      source: article.source?.name || "NewsAPI",
-      datetime: article.publishedAt || new Date().toISOString(),
-      image: article.urlToImage,
-      provider: "newsapi",
-      topic: "business"
-    }));
-    
-    console.log(`✅ NewsAPI: ${articles.length} articles`);
-    return articles;
-  } catch (error) {
-    console.error("❌ NewsAPI fetch error:", error.message);
-    return [];
-  }
-}
-
-async function fetchMarketaux(apiKey) {
-  try {
-    console.log("📡 Marketaux: Fetching financial news...");
-    const response = await fetch(
-      `https://api.marketaux.com/v1/news/all?filter_entities=true&language=en&limit=30&api_token=${apiKey}`
-    );
-    
-    if (!response.ok) {
-      console.error("❌ Marketaux error:", response.status);
-      return [];
-    }
-    
-    const data = await response.json();
-    const articles = (data?.data || []).map(article => ({
-      headline: article.title,
-      summary: article.description || article.snippet,
-      url: article.url,
-      source: article.source || "Marketaux",
-      datetime: article.published_at || new Date().toISOString(),
-      image: article.image_url,
-      provider: "marketaux",
-      topic: "finance"
-    }));
-    
-    console.log(`✅ Marketaux: ${articles.length} articles`);
-    return articles;
-  } catch (error) {
-    console.error("❌ Marketaux fetch error:", error.message);
-    return [];
-  }
-}
-
-async function fetchPolygon(apiKey) {
-  try {
-    console.log("📡 Polygon: Fetching market news...");
-    const response = await fetch(
-      `https://api.polygon.io/v2/reference/news?limit=25&apiKey=${apiKey}`
-    );
-    
-    if (!response.ok) {
-      console.error("❌ Polygon error:", response.status);
-      return [];
-    }
-    
-    const data = await response.json();
-    const articles = (data?.results || []).map(article => ({
-      headline: article.title,
-      summary: article.description,
-      url: article.article_url,
-      source: article.publisher?.name || "Polygon",
-      datetime: article.published_utc || new Date().toISOString(),
-      image: article.image_url,
-      provider: "polygon",
-      topic: "markets"
-    }));
-    
-    console.log(`✅ Polygon: ${articles.length} articles`);
-    return articles;
-  } catch (error) {
-    console.error("❌ Polygon fetch error:", error.message);
-    return [];
-  }
+  const overlapRatio = overlap / Math.min(aWords.size, bWords.size);
+  return overlapRatio > 0.6;
 }
 
 // ============================================================
-// SCORING & SELECTION
+// URGENCY SCORING
 // ============================================================
 
-function scoreArticle(article) {
+interface ScoredArticle {
+  id: string;
+  title: string;
+  what_happened: string;
+  why_it_matters: string;
+  href: string;
+  imageUrl: string;
+  outlet: string;
+  category: string;
+  datetime: string;
+  provider: string;
+  topics: string[];
+  sentiment_score: number;
+  urgency_score: number;
+  rank?: number;
+}
+
+function calculateUrgencyScore(article: any, nowTimestamp: number): number {
   let score = 0;
-  const now = Date.now();
+  
+  // 1. RECENCY (0-100 points) - Most important factor
   const articleTime = new Date(article.datetime).getTime();
-  const ageMinutes = (now - articleTime) / (1000 * 60);
+  const ageHours = (nowTimestamp - articleTime) / (1000 * 60 * 60);
   
-  // Recency (biggest factor)
-  if (ageMinutes < 15) score += 120;
-  else if (ageMinutes < 30) score += 100;
-  else if (ageMinutes < 60) score += 80;
-  else if (ageMinutes < 120) score += 60;
-  else if (ageMinutes < 240) score += 40;
-  else if (ageMinutes < 480) score += 20;
-  else score += 5;
+  if (ageHours <= 0.5) score += 100;      // Last 30 min
+  else if (ageHours <= 1) score += 90;    // Last hour
+  else if (ageHours <= 2) score += 75;    // Last 2 hours
+  else if (ageHours <= 4) score += 55;    // Last 4 hours
+  else if (ageHours <= 8) score += 35;    // Last 8 hours
+  else if (ageHours <= 12) score += 20;   // Last 12 hours
+  else score += 5;                         // Older
   
-  // Source credibility
-  const premiumSources = [
-    "reuters", "bloomberg", "wsj", "cnbc", "financial times", 
-    "wall street journal", "associated press", "ap", "barrons",
-    "marketwatch", "ft", "economist", "yahoo finance"
+  // 2. SENTIMENT STRENGTH (0-30 points) - Strong sentiment = more urgent
+  const sentimentScore = Math.abs(article.sentiment_score || 0);
+  score += Math.round(sentimentScore * 30);
+  
+  // 3. HIGH-IMPACT KEYWORDS (0-50 points)
+  const text = `${article.title} ${article.what_happened}`.toLowerCase();
+  
+  const BREAKING_KEYWORDS = [
+    // Fed/Monetary - Highest priority
+    { keywords: ["fed", "powell", "fomc", "federal reserve"], points: 50 },
+    { keywords: ["rate cut", "rate hike", "basis points", "bps"], points: 45 },
+    { keywords: ["inflation", "cpi", "ppi", "core inflation"], points: 40 },
+    
+    // Major Economic Data
+    { keywords: ["jobs report", "unemployment", "payroll", "jobless"], points: 40 },
+    { keywords: ["gdp", "recession", "economic growth"], points: 35 },
+    
+    // Market Events
+    { keywords: ["crash", "surge", "plunge", "selloff"], points: 45 },
+    { keywords: ["record high", "record low", "all-time"], points: 35 },
+    { keywords: ["volatility", "vix", "circuit breaker"], points: 40 },
+    
+    // Earnings/Company News
+    { keywords: ["earnings", "revenue", "guidance", "outlook"], points: 25 },
+    { keywords: ["layoffs", "restructuring", "bankruptcy"], points: 35 },
+    
+    // Geopolitical
+    { keywords: ["tariff", "trade war", "sanctions"], points: 40 },
+    { keywords: ["trump", "biden", "white house"], points: 30 },
+    
+    // Crypto-specific
+    { keywords: ["bitcoin", "btc", "ethereum", "eth"], points: 20 },
+    { keywords: ["crypto crash", "crypto surge"], points: 35 },
   ];
-  const sourceLower = (article.source || "").toLowerCase();
-  if (premiumSources.some(s => sourceLower.includes(s))) {
-    score += 35;
+  
+  for (const { keywords, points } of BREAKING_KEYWORDS) {
+    if (keywords.some(kw => text.includes(kw))) {
+      score += points;
+      break; // Only count highest matching category
+    }
   }
   
-  // Content quality
-  if (article.image) score += 10;
-  if (article.summary && article.summary.length > 100) score += 15;
-  if (article.summary && article.summary.length > 200) score += 10;
+  // 4. SOURCE CREDIBILITY (0-20 points)
+  const source = (article.outlet || "").toLowerCase();
+  const premiumSources = [
+    "reuters", "bloomberg", "wsj", "wall street journal", "cnbc",
+    "financial times", "ft", "associated press", "ap", "barrons",
+    "marketwatch", "yahoo finance", "economist"
+  ];
+  if (premiumSources.some(s => source.includes(s))) {
+    score += 20;
+  }
   
-  // Market hours bonus
-  const hour = new Date().getUTCHours() - 5;
-  if (hour >= 6 && hour <= 9) score += 15;
-  if (hour >= 9 && hour <= 16) score += 10;
+  // 5. CATEGORY PRIORITY (0-15 points)
+  const category = (article.category || "").toLowerCase();
+  if (category === "economy") score += 15;
+  else if (category === "markets") score += 12;
+  else if (category === "technology") score += 8;
+  else if (category === "crypto") score += 8;
   
   return score;
 }
 
-function pickTopDiverseArticles(articles, targetCount = 25) {
-  console.log(`\n🎯 Selecting top ${targetCount} from ${articles.length} articles...`);
+// ============================================================
+// ALPHA VANTAGE NEWS FETCHER
+// ============================================================
+
+async function fetchAlphaVantageNews(apiKey: string): Promise<any[]> {
+  const allArticles: any[] = [];
+  const timeFrom = getTimeFromHoursAgo(12); // Last 12 hours
   
-  // Filter and score
-  const scored = articles
-    .filter(a => a.headline && a.headline.length > 10)
-    .map(a => ({ ...a, score: scoreArticle(a) }));
-  scored.sort((a, b) => b.score - a.score);
+  // Fetch news with multiple topic queries for diversity
+  const topicGroups = [
+    "technology,blockchain",                    // Tech & Crypto
+    "financial_markets,economy_macro",          // Markets & Economy
+    "economy_monetary,earnings",                // Fed/Rates & Earnings
+    "real_estate,energy_transportation",        // Real Estate & Commodities
+    "mergers_and_acquisitions,manufacturing",   // M&A & Industrial
+  ];
   
-  const picked = [];
-  const categoryCount = {};
-  const usedClusters = new Set();
-  
-  for (const article of scored) {
-    if (picked.length >= targetCount) break;
-    
-    // Check for duplicates
-    let isDuplicate = false;
-    for (const p of picked) {
-      if (isNearDuplicate(article, p)) {
-        isDuplicate = true;
-        break;
+  for (const topics of topicGroups) {
+    try {
+      console.log(`📡 Alpha Vantage: Fetching topics [${topics}]...`);
+      
+      const url = new URL(ALPHA_VANTAGE_BASE_URL);
+      url.searchParams.set("function", "NEWS_SENTIMENT");
+      url.searchParams.set("topics", topics);
+      url.searchParams.set("time_from", timeFrom);
+      url.searchParams.set("sort", "LATEST");
+      url.searchParams.set("limit", "15"); // 15 per group × 5 groups = 75 max
+      url.searchParams.set("apikey", apiKey);
+      
+      const response = await fetch(url.toString());
+      
+      if (!response.ok) {
+        console.error(`❌ Alpha Vantage error for [${topics}]:`, response.status);
+        continue;
       }
+      
+      const data = await response.json();
+      
+      if (data.Note || data.Information) {
+        console.warn(`⚠️ Alpha Vantage rate limit:`, data.Note || data.Information);
+        continue;
+      }
+      
+      const feed = data.feed || [];
+      console.log(`✅ Alpha Vantage [${topics}]: ${feed.length} articles`);
+      
+      for (const item of feed) {
+        // Determine primary category from topics
+        const itemTopics = (item.topics || []).map((t: any) => t.topic?.toLowerCase());
+        let category = "markets";
+        for (const topic of itemTopics) {
+          if (TOPIC_TO_CATEGORY[topic]) {
+            category = TOPIC_TO_CATEGORY[topic];
+            break;
+          }
+        }
+        
+        // Get overall sentiment
+        const sentimentScore = parseFloat(item.overall_sentiment_score) || 0;
+        
+        allArticles.push({
+          title: item.title || "Breaking News",
+          summary: item.summary || "",
+          url: item.url || "#",
+          source: item.source || "Alpha Vantage",
+          datetime: parseAlphaVantageDate(item.time_published),
+          image: item.banner_image || null,
+          topics: itemTopics,
+          category,
+          sentiment_score: sentimentScore,
+          sentiment_label: item.overall_sentiment_label || "Neutral",
+          provider: "alphavantage",
+          tickers: (item.ticker_sentiment || []).map((t: any) => t.ticker),
+        });
+      }
+      
+      // Small delay between requests to respect rate limits
+      await new Promise(r => setTimeout(r, 300));
+      
+    } catch (error: any) {
+      console.error(`❌ Alpha Vantage fetch error [${topics}]:`, error.message);
     }
-    if (isDuplicate) continue;
-    
-    // Check topic cluster - only 1 per cluster
-    const cluster = getTopicCluster(article.headline, article.summary);
-    if (cluster && usedClusters.has(cluster)) {
-      console.log(`⏭️ SKIP (cluster "${cluster}" used): ${article.headline?.slice(0,50)}...`);
-      continue;
+  }
+  
+  console.log(`📊 Alpha Vantage total: ${allArticles.length} articles`);
+  return allArticles;
+}
+
+// ============================================================
+// STORY SELECTION WITH PERSISTENCE
+// ============================================================
+
+function selectTopStories(
+  newArticles: any[],
+  previousTopStories: any[] = [],
+  targetCount: number = 30
+): ScoredArticle[] {
+  const now = Date.now();
+  
+  console.log(`\n🎯 Selecting top ${targetCount} stories from ${newArticles.length} new articles...`);
+  console.log(`📋 Previous top stories: ${previousTopStories.length}`);
+  
+  // 1. Score all new articles
+  const scoredNew = newArticles.map(article => ({
+    ...article,
+    urgency_score: calculateUrgencyScore(article, now),
+    is_new: true,
+  }));
+  
+  // 2. Re-score previous top stories (recency penalty applies)
+  const rescoredPrevious = previousTopStories.map(article => ({
+    ...article,
+    urgency_score: calculateUrgencyScore(article, now),
+    is_new: false,
+  }));
+  
+  // 3. Combine and deduplicate
+  const allCandidates = [...scoredNew];
+  
+  for (const prev of rescoredPrevious) {
+    const isDupe = allCandidates.some(a => isNearDuplicate(a, prev));
+    if (!isDupe) {
+      allCandidates.push(prev);
     }
+  }
+  
+  // 4. Sort by urgency score (highest first)
+  allCandidates.sort((a, b) => b.urgency_score - a.urgency_score);
+  
+  // 5. Pick top stories with diversity
+  const selected: ScoredArticle[] = [];
+  const categoryCount: Record<string, number> = {};
+  const maxPerCategory = Math.ceil(targetCount * 0.4); // Max 40% per category
+  
+  for (const article of allCandidates) {
+    if (selected.length >= targetCount) break;
     
-    // Category limits (max 35%)
-    const category = detectCategory(article.headline || "", article.summary || "");
-    const maxPerCategory = Math.ceil(targetCount * 0.35);
+    // Skip duplicates
+    if (selected.some(s => isNearDuplicate(s, article))) continue;
     
-    if ((categoryCount[category] || 0) >= maxPerCategory) {
-      const remaining = scored.length - scored.indexOf(article);
-      if (remaining > targetCount - picked.length + 5) {
-        console.log(`⏭️ SKIP (category "${category}" at limit): ${article.headline?.slice(0,50)}...`);
+    // Category limit check
+    const cat = article.category || "markets";
+    if ((categoryCount[cat] || 0) >= maxPerCategory) {
+      // Only skip if we have plenty of candidates left
+      if (allCandidates.indexOf(article) < targetCount * 2) {
         continue;
       }
     }
     
-    // Accept this article
-    console.log(`✅ PICK #${picked.length + 1} [${category}] ${cluster ? `(${cluster})` : ""}: ${article.headline?.slice(0,60)}...`);
-    picked.push({ ...article, category });
-    categoryCount[category] = (categoryCount[category] || 0) + 1;
-    if (cluster) usedClusters.add(cluster);
+    // Format the article
+    const formattedArticle: ScoredArticle = {
+      id: article.id || randomId(),
+      title: safeText(article.title, "Breaking News"),
+      what_happened: safeText(article.summary, "Details emerging..."),
+      why_it_matters: "", // Will be filled by LLM or fetchNewsCards
+      href: safeText(article.url, "#"),
+      imageUrl: article.image || categoryImageUrl(article.category),
+      outlet: safeText(article.source, "Unknown"),
+      category: cat,
+      datetime: article.datetime,
+      provider: article.provider || "alphavantage",
+      topics: article.topics || [],
+      sentiment_score: article.sentiment_score || 0,
+      urgency_score: article.urgency_score,
+      rank: selected.length + 1,
+    };
+    
+    selected.push(formattedArticle);
+    categoryCount[cat] = (categoryCount[cat] || 0) + 1;
+    
+    const statusEmoji = article.is_new ? "🆕" : "📌";
+    console.log(`${statusEmoji} #${selected.length} [${cat}] (score:${article.urgency_score}) ${article.title?.slice(0, 50)}...`);
   }
   
-  console.log("\n📊 Final category distribution:", categoryCount);
-  console.log("📊 Topic clusters covered:", Array.from(usedClusters));
+  console.log("\n📊 Category distribution:", categoryCount);
+  console.log(`📊 New articles: ${selected.filter(s => s.rank === undefined || s.rank <= newArticles.length).length}`);
   
-  return picked;
+  return selected;
+}
+
+// ============================================================
+// CATEGORY FALLBACK MESSAGES
+// ============================================================
+
+function getCategoryMessage(category: string): string {
+  const messages: Record<string, string> = {
+    markets: "Could impact portfolio performance and market sentiment.",
+    crypto: "May signal shifts in digital asset valuations.",
+    economy: "Affects broader market conditions and strategies.",
+    technology: "Could influence tech sector valuations.",
+    "real estate": "May impact real estate investments.",
+    commodities: "Could affect commodity prices and hedging."
+  };
+  return messages[category] || "Worth monitoring for portfolio implications.";
+}
+
+// ============================================================
+// LLM HELPER
+// ============================================================
+
+async function invokeLLM(base44Client: any, prompt: string): Promise<string> {
+  try {
+    const response = await base44Client.functions.invoke("invokeLLM", {
+      prompt,
+      useStreaming: false,
+      context: null,
+    });
+    
+    if (response?.data?.success && response?.data?.response) {
+      return response.data.response;
+    }
+    
+    throw new Error(response?.data?.error || "LLM invocation failed");
+  } catch (error: any) {
+    console.error("❌ LLM Error:", error.message);
+    throw error;
+  }
 }
 
 // ============================================================
@@ -524,171 +471,108 @@ Deno.serve(async (req) => {
   
   try {
     console.log("\n" + "=".repeat(60));
-    console.log("🔄 [refreshNewsCache] Starting v4 (LLM analysis)...");
+    console.log("🔄 [refreshNewsCache] Starting v5 (Alpha Vantage Premium)...");
     console.log(`⏰ Time: ${new Date().toISOString()}`);
     console.log("=".repeat(60));
     
     const base44 = createClientFromRequest(req);
     
-    // Get API keys
-    const finnhubKey = Deno.env.get("FINNHUB_API_KEY");
-    const newsapiKey = Deno.env.get("NEWSAPI_API_KEY");
-    const marketauxKey = Deno.env.get("MARKETAUX_API_KEY");
-    const polygonKey = Deno.env.get("POLYGON_API_KEY");
+    // Get Alpha Vantage API key
+    const alphaVantageKey = Deno.env.get("ALPHA_VANTAGE_API_KEY");
     
-    console.log("🔑 APIs configured:", {
-      finnhub: !!finnhubKey,
-      newsapi: !!newsapiKey,
-      marketaux: !!marketauxKey,
-      polygon: !!polygonKey
-    });
-    
-    const apiCount = [finnhubKey, newsapiKey, marketauxKey, polygonKey].filter(Boolean).length;
-    if (apiCount === 0) {
+    if (!alphaVantageKey) {
+      console.error("❌ ALPHA_VANTAGE_API_KEY not configured");
       return Response.json({ 
-        error: "No API keys configured" 
+        error: "ALPHA_VANTAGE_API_KEY not configured in Base44 secrets" 
       }, { status: 500 });
     }
     
-    // Fetch from all sources
-    const fetchPromises = [];
-    const sourceNames = [];
+    console.log("🔑 Alpha Vantage API key configured ✓");
     
-    if (finnhubKey) {
-      fetchPromises.push(fetchFinnhub(finnhubKey));
-      sourceNames.push("finnhub");
-    }
-    if (newsapiKey) {
-      fetchPromises.push(fetchNewsAPI(newsapiKey));
-      sourceNames.push("newsapi");
-    }
-    if (marketauxKey) {
-      fetchPromises.push(fetchMarketaux(marketauxKey));
-      sourceNames.push("marketaux");
-    }
-    if (polygonKey) {
-      fetchPromises.push(fetchPolygon(polygonKey));
-      sourceNames.push("polygon");
-    }
-    
-    const results = await Promise.allSettled(fetchPromises);
-    
-    // Collect results
-    const allArticles = [];
-    const successfulSources = [];
-    
-    results.forEach((result, index) => {
-      if (result.status === "fulfilled" && result.value.length > 0) {
-        allArticles.push(...result.value);
-        successfulSources.push(sourceNames[index]);
-      } else if (result.status === "rejected") {
-        console.error(`❌ ${sourceNames[index]} failed:`, result.reason);
+    // Get previous cache for persistence logic
+    let previousTopStories: any[] = [];
+    try {
+      const cacheEntries = await base44.entities.NewsCache.filter({});
+      if (cacheEntries && cacheEntries.length > 0) {
+        const latestCache = cacheEntries.sort((a: any, b: any) => 
+          new Date(b.refreshed_at).getTime() - new Date(a.refreshed_at).getTime()
+        )[0];
+        previousTopStories = JSON.parse(latestCache.stories || "[]").slice(0, 10);
+        console.log(`📋 Loaded ${previousTopStories.length} previous top stories for persistence check`);
       }
-    });
+    } catch (e) {
+      console.log("No previous cache found, starting fresh");
+    }
     
-    console.log(`\n📊 Total fetched: ${allArticles.length} from ${successfulSources.join(", ")}`);
+    // Fetch from Alpha Vantage
+    const allArticles = await fetchAlphaVantageNews(alphaVantageKey);
     
     if (allArticles.length === 0) {
+      console.log("⚠️ No articles fetched from Alpha Vantage");
       return Response.json({ 
-        error: "No articles from any source",
-        sources_attempted: sourceNames
+        error: "No articles fetched from Alpha Vantage",
+        hint: "Check API key and rate limits"
       }, { status: 500 });
     }
     
-    // Pick diverse articles with strict dedup
-    const topArticles = pickTopDiverseArticles(allArticles, 30);
+    // Select top stories with persistence
+    const topStories = selectTopStories(allArticles, previousTopStories, 30);
     
-    // ============================================================
-    // NEW: Enhance top 10 with LLM analysis (increased from 5)
-    // ============================================================
-    console.log("\n🤖 Analyzing top 10 stories with LLM for investor insights...");
-    const top10ForAnalysis = topArticles.slice(0, 10);
+    // Enhance top 10 with LLM analysis
+    console.log("\n🤖 Analyzing top 10 stories with LLM...");
     
-    const analyzedTop10 = await Promise.all(
-      top10ForAnalysis.map(async (article, index) => {
+    const enhancedStories = await Promise.all(
+      topStories.map(async (story, index) => {
+        if (index >= 10) {
+          // Use category fallback for stories outside top 10
+          return {
+            ...story,
+            why_it_matters: getCategoryMessage(story.category),
+          };
+        }
+        
         try {
-          // More specific, personalized prompt - STRICT BREVITY
-          const prompt = `Analyze this financial news story and explain why it matters to investors in 1-2 SHORT sentences MAXIMUM.
+          const prompt = `Analyze this financial news for investors in 1-2 SHORT sentences (MAX 45 words).
 
-Headline: "${article.headline}"
-Summary: "${article.summary || "No summary available"}"
-Category: ${article.category}
+Headline: "${story.title}"
+Summary: "${story.what_happened || "No summary"}"
+Category: ${story.category}
+Sentiment: ${story.sentiment_score > 0.1 ? "Bullish" : story.sentiment_score < -0.1 ? "Bearish" : "Neutral"}
 
-CRITICAL REQUIREMENTS:
-- 2 sentences
-- MAXIMUM 30-45 words total
-- Concrete investment mechanism (rates/earnings/credit/oil/USD/regulation)
-- Mention a ticker/asset/sector if obvious
-- No fluff, no generic lines
+REQUIREMENTS:
+- 2 sentences MAX, 45 words MAX
+- Specific investment impact (rates/earnings/sector/ticker)
+- No fluff or hedging words
 
-Respond with brief investor analysis (45 words max):`;
+Respond with brief investor analysis:`;
 
-          const llmResponse = await invokeLLM(base44, prompt, false, null);
-          let whyItMatters = safeText(llmResponse, getCategoryMessage(article.category)).trim();
+          const llmResponse = await invokeLLM(base44, prompt);
+          let whyItMatters = safeText(llmResponse, getCategoryMessage(story.category));
           
-          // Truncate to 2 sentences max if needed
+          // Truncate if needed
           const sentences = whyItMatters.match(/[^.!?]+[.!?]+/g) || [whyItMatters];
           if (sentences.length > 2) {
             whyItMatters = sentences.slice(0, 2).join(' ').trim();
           }
-          
-          // Hard limit: 120 characters max
           if (whyItMatters.length > 120) {
             whyItMatters = whyItMatters.substring(0, 117) + '...';
           }
           
-          // Clean up common prefixes that LLMs add
-          whyItMatters = whyItMatters
-            .replace(/^(This could|This may|This might|This news|This suggests|This indicates)/i, '')
-            .replace(/^[,\s]+/, '')
-            .trim();
-          
-          // Ensure first letter is capitalized
-          whyItMatters = whyItMatters.charAt(0).toUpperCase() + whyItMatters.slice(1);
-          
-          console.log(`✅ Analyzed #${index + 1}: ${article.headline?.slice(0, 40)}...`);
-          console.log(`   → ${whyItMatters}`);
+          console.log(`✅ LLM #${index + 1}: ${story.title?.slice(0, 40)}...`);
           
           return {
-            ...article,
-            why_it_matters: whyItMatters
+            ...story,
+            why_it_matters: whyItMatters,
           };
         } catch (error) {
-          console.error(`❌ LLM analysis failed for story ${index + 1}:`, error.message);
-          // Fallback to category-based message
+          console.error(`❌ LLM failed for #${index + 1}:`, error);
           return {
-            ...article,
-            why_it_matters: getCategoryMessage(article.category)
+            ...story,
+            why_it_matters: getCategoryMessage(story.category),
           };
         }
       })
     );
-    
-    // Merge analyzed top 10 with remaining stories (with category fallbacks)
-    const remainingStories = topArticles.slice(10).map(article => ({
-      ...article,
-      why_it_matters: getCategoryMessage(article.category)
-    }));
-    
-    const allStoriesWithAnalysis = [...analyzedTop10, ...remainingStories];
-    
-    // Format for storage
-    const formattedStories = allStoriesWithAnalysis.map((article, index) => ({
-      id: randomId(),
-      title: safeText(article.headline, "Breaking News"),
-      what_happened: safeText(article.summary, "Details emerging..."),
-      why_it_matters: article.why_it_matters,
-      both_sides: { side_a: "", side_b: "" },
-      href: safeText(article.url, "#"),
-      imageUrl: article.image || categoryImageUrl(article.category),
-      outlet: safeText(article.source, "Unknown"),
-      category: article.category,
-      datetime: article.datetime,
-      provider: article.provider,
-      topic: article.topic,
-      score: article.score,
-      rank: index + 1
-    }));
     
     // Clear old cache
     try {
@@ -698,42 +582,44 @@ Respond with brief investor analysis (45 words max):`;
       }
       console.log(`🗑️ Cleared ${oldCache.length} old cache entries`);
     } catch (e) {
-      console.log("Cache clear note:", e.message);
+      console.log("Cache clear note:", e);
     }
     
     // Save new cache
     const cacheEntry = await base44.entities.NewsCache.create({
-      stories: JSON.stringify(formattedStories),
+      stories: JSON.stringify(enhancedStories),
       refreshed_at: new Date().toISOString(),
-      sources_used: successfulSources.join(","),
+      sources_used: "alphavantage",
       total_fetched: allArticles.length,
-      articles_selected: formattedStories.length
+      articles_selected: enhancedStories.length,
     });
     
     const elapsed = Date.now() - startTime;
     
     console.log("\n" + "=".repeat(60));
     console.log(`✅ COMPLETE in ${elapsed}ms`);
-    console.log(`📰 Cached ${formattedStories.length} diverse stories (top 10 LLM-analyzed)`);
+    console.log(`📰 Cached ${enhancedStories.length} stories (top 10 LLM-analyzed)`);
     console.log("=".repeat(60) + "\n");
     
     return Response.json({
       success: true,
-      message: "News cache refreshed (v4 - LLM analysis)",
-      stories_cached: formattedStories.length,
+      message: "News cache refreshed (v5 - Alpha Vantage Premium)",
+      stories_cached: enhancedStories.length,
       total_fetched: allArticles.length,
-      sources_used: successfulSources,
+      source: "alphavantage",
       refreshed_at: cacheEntry.refreshed_at,
       elapsed_ms: elapsed,
-      llm_analyzed_count: 10,
-      category_breakdown: formattedStories.reduce((acc, s) => {
+      llm_analyzed_count: Math.min(10, enhancedStories.length),
+      category_breakdown: enhancedStories.reduce((acc: Record<string, number>, s) => {
         acc[s.category] = (acc[s.category] || 0) + 1;
         return acc;
       }, {}),
-      top_5_headlines: formattedStories.slice(0, 5).map(s => `[${s.category}] ${s.title}`)
+      top_5_headlines: enhancedStories.slice(0, 5).map(s => 
+        `[${s.category}] (score:${s.urgency_score}) ${s.title}`
+      ),
     });
     
-  } catch (error) {
+  } catch (error: any) {
     console.error("❌ [refreshNewsCache] Error:", error);
     return Response.json(
       { error: error?.message || String(error) },

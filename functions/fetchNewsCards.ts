@@ -1,18 +1,23 @@
 // ============================================================
-// fetchNewsCards.js - Base44 Function (UPDATED v2)
-// Reads from NewsCache (25-30 articles)
-// FILTERS by user's selected interests/topics
-// Enhances with LLM based on user preferences
+// fetchNewsCards.ts - Base44 Function (v3 - Alpha Vantage)
+// Reads from NewsCache (30 articles from Alpha Vantage)
+// FILTERS by user's selected interests/topics/holdings
+// Returns TOP 5 most relevant stories for the user
+// Enhances with LLM personalization
 // ============================================================
 
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
 
-function safeText(input, fallback) {
+// ============================================================
+// UTILITY FUNCTIONS
+// ============================================================
+
+function safeText(input: unknown, fallback: string = ""): string {
   const s = typeof input === "string" ? input.trim() : "";
-  return s || (fallback || "");
+  return s || fallback;
 }
 
-function stripLinksAndUrls(s) {
+function stripLinksAndUrls(s: string): string {
   if (!s) return "";
   let t = String(s);
   t = t.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, "$1");
@@ -25,15 +30,15 @@ function stripLinksAndUrls(s) {
   return t.trim();
 }
 
-function capToTwoSentences(text) {
+function capToTwoSentences(text: string): string {
   const t = safeText(text, "").trim();
   if (!t) return "";
   const parts = t.replace(/\s+/g, " ").split(/(?<=[.!?])\s+/).filter(Boolean);
   return parts.slice(0, 2).join(" ").trim();
 }
 
-function generateFallbackWhyItMatters(category) {
-  const statements = {
+function generateFallbackWhyItMatters(category: string): string {
+  const statements: Record<string, string> = {
     crypto: "Monitor for potential volatility in crypto holdings.",
     "real estate": "May affect REITs and housing-related investments.",
     commodities: "Could impact commodity ETFs and related positions.",
@@ -48,7 +53,7 @@ function generateFallbackWhyItMatters(category) {
 // INTEREST MATCHING - Maps user interests to categories/keywords
 // ============================================================
 
-const INTEREST_TO_CATEGORIES = {
+const INTEREST_TO_CATEGORIES: Record<string, string[]> = {
   // Direct category matches
   "crypto": ["crypto"],
   "cryptocurrency": ["crypto"],
@@ -65,6 +70,7 @@ const INTEREST_TO_CATEGORIES = {
   "gold": ["commodities"],
   "oil": ["commodities"],
   "silver": ["commodities"],
+  "energy": ["commodities"],
   
   "technology": ["technology"],
   "tech": ["technology"],
@@ -98,17 +104,17 @@ const INTEREST_TO_CATEGORIES = {
 };
 
 // Keywords to search in headlines/summaries for each interest
-const INTEREST_KEYWORDS = {
+const INTEREST_KEYWORDS: Record<string, string[]> = {
   "crypto": ["crypto", "bitcoin", "btc", "ethereum", "eth", "blockchain", "defi", "nft", "coinbase", "binance", "altcoin"],
   "real estate": ["real estate", "housing", "mortgage", "property", "rent", "home", "reits", "homebuilder", "zillow", "construction"],
-  "commodities": ["oil", "gold", "silver", "commodity", "wheat", "corn", "natural gas", "copper", "lithium", "metals", "mining"],
+  "commodities": ["oil", "gold", "silver", "commodity", "wheat", "corn", "natural gas", "copper", "lithium", "metals", "mining", "energy"],
   "technology": ["tech", "software", "ai", "chip", "semiconductor", "apple", "google", "microsoft", "meta", "amazon", "nvidia", "saas", "cloud"],
   "economy": ["fed", "inflation", "gdp", "unemployment", "interest rate", "economy", "recession", "jobs", "cpi", "ppi", "fomc", "powell", "treasury"],
   "markets": ["stock", "market", "s&p", "nasdaq", "dow", "earnings", "ipo", "merger", "acquisition", "etf", "index", "rally", "selloff"],
 };
 
-function getMatchingCategories(userInterests) {
-  const categories = new Set();
+function getMatchingCategories(userInterests: string[]): string[] {
+  const categories = new Set<string>();
   
   for (const interest of userInterests) {
     const interestLower = interest.toLowerCase().trim();
@@ -129,8 +135,8 @@ function getMatchingCategories(userInterests) {
   return Array.from(categories);
 }
 
-function getMatchingKeywords(userInterests) {
-  const keywords = new Set();
+function getMatchingKeywords(userInterests: string[]): string[] {
+  const keywords = new Set<string>();
   
   for (const interest of userInterests) {
     const interestLower = interest.toLowerCase().trim();
@@ -149,24 +155,50 @@ function getMatchingKeywords(userInterests) {
   return Array.from(keywords);
 }
 
-function scoreArticleForUser(article, userCategories, userKeywords, userHoldings) {
+// ============================================================
+// PERSONALIZED SCORING
+// ============================================================
+
+interface CachedStory {
+  id: string;
+  title: string;
+  what_happened: string;
+  why_it_matters: string;
+  href: string;
+  imageUrl: string;
+  outlet: string;
+  category: string;
+  datetime: string;
+  provider: string;
+  topics?: string[];
+  sentiment_score?: number;
+  urgency_score?: number;
+  rank?: number;
+}
+
+function scoreArticleForUser(
+  article: CachedStory, 
+  userCategories: string[], 
+  userKeywords: string[], 
+  userHoldings: any[]
+): number {
   let relevanceScore = 0;
   const articleText = `${article.title} ${article.what_happened}`.toLowerCase();
   const articleCategory = (article.category || "").toLowerCase();
   
-  // Category match (high value)
+  // 1. Category match (high value - 50 points)
   if (userCategories.includes(articleCategory)) {
     relevanceScore += 50;
   }
   
-  // Keyword matches in headline/summary
+  // 2. Keyword matches in headline/summary (20 points each)
   for (const keyword of userKeywords) {
     if (articleText.includes(keyword)) {
       relevanceScore += 20;
     }
   }
   
-  // Holdings match (highest value - user owns this!)
+  // 3. Holdings match (highest value - user owns this!)
   for (const holding of userHoldings) {
     const symbol = (typeof holding === "string" ? holding : holding?.symbol || "").toLowerCase();
     const name = (typeof holding === "string" ? "" : holding?.name || "").toLowerCase();
@@ -179,20 +211,33 @@ function scoreArticleForUser(article, userCategories, userKeywords, userHoldings
     }
   }
   
-  return relevanceScore;
+  // 4. Inherit urgency score from cache (provides recency/importance weight)
+  relevanceScore += (article.urgency_score || 0) * 0.5;
+  
+  // 5. Sentiment strength bonus (strong sentiment = more actionable)
+  const sentimentStrength = Math.abs(article.sentiment_score || 0);
+  relevanceScore += sentimentStrength * 20;
+  
+  return Math.round(relevanceScore);
 }
 
-function filterAndRankForUser(cachedStories, preferences, count) {
+function filterAndRankForUser(
+  cachedStories: CachedStory[], 
+  preferences: any, 
+  count: number
+): CachedStory[] {
   const userInterests = preferences?.investment_interests || preferences?.interests || [];
   const userHoldings = preferences?.portfolio_holdings || preferences?.holdings || [];
   
   console.log(`🎯 [Filter] User interests: ${userInterests.join(", ") || "none"}`);
   console.log(`🎯 [Filter] User holdings: ${userHoldings.length} items`);
   
-  // If user has no preferences, return top stories by original rank
+  // If user has no preferences, return top stories by urgency score
   if (userInterests.length === 0 && userHoldings.length === 0) {
-    console.log("📰 [Filter] No preferences - returning top stories by rank");
-    return cachedStories.slice(0, count);
+    console.log("📰 [Filter] No preferences - returning top stories by urgency score");
+    return cachedStories
+      .sort((a, b) => (b.urgency_score || 0) - (a.urgency_score || 0))
+      .slice(0, count);
   }
   
   // Get matching categories and keywords
@@ -208,20 +253,20 @@ function filterAndRankForUser(cachedStories, preferences, count) {
     userRelevanceScore: scoreArticleForUser(article, userCategories, userKeywords, userHoldings)
   }));
   
-  // Sort by user relevance (high relevance first), then by original rank
+  // Sort by user relevance (high relevance first), then by urgency score
   scoredArticles.sort((a, b) => {
     // Primary: relevance score
     if (b.userRelevanceScore !== a.userRelevanceScore) {
       return b.userRelevanceScore - a.userRelevanceScore;
     }
-    // Secondary: original rank (lower is better)
-    return (a.rank || 999) - (b.rank || 999);
+    // Secondary: urgency score
+    return (b.urgency_score || 0) - (a.urgency_score || 0);
   });
   
   // Log what we're returning
   console.log("📰 [Filter] Top picks for user:");
   scoredArticles.slice(0, count).forEach((a, i) => {
-    console.log(`   ${i + 1}. [score:${a.userRelevanceScore}] [${a.category}] ${a.title.slice(0, 50)}...`);
+    console.log(`   ${i + 1}. [relevance:${a.userRelevanceScore}] [urgency:${a.urgency_score}] [${a.category}] ${a.title.slice(0, 50)}...`);
   });
   
   // If top results have 0 relevance, mix in some top-ranked general news
@@ -230,7 +275,9 @@ function filterAndRankForUser(cachedStories, preferences, count) {
   
   if (!hasRelevantNews) {
     console.log("⚠️ [Filter] No highly relevant news found - returning top general news");
-    return cachedStories.slice(0, count);
+    return cachedStories
+      .sort((a, b) => (b.urgency_score || 0) - (a.urgency_score || 0))
+      .slice(0, count);
   }
   
   return topPicks;
@@ -242,7 +289,7 @@ function filterAndRankForUser(cachedStories, preferences, count) {
 
 Deno.serve(async (req) => {
   try {
-    console.log("📰 [fetchNewsCards] Function started");
+    console.log("📰 [fetchNewsCards] Function started (v3 - Alpha Vantage)");
 
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
@@ -252,7 +299,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const count = body?.count || 5;
+    const count = body?.count || 5; // Default to 5 stories
     const preferences = body?.preferences || {};
 
     // =========================================================
@@ -260,16 +307,16 @@ Deno.serve(async (req) => {
     // =========================================================
     console.log("📦 [fetchNewsCards] Reading from NewsCache...");
     
-    let cachedStories = [];
+    let cachedStories: CachedStory[] = [];
     let cacheAge = null;
-    let cacheInfo = {};
+    let cacheInfo: any = {};
     
     try {
       const cacheEntries = await base44.entities.NewsCache.filter({});
       
       if (cacheEntries && cacheEntries.length > 0) {
-        const latestCache = cacheEntries.sort((a, b) => 
-          new Date(b.refreshed_at) - new Date(a.refreshed_at)
+        const latestCache = cacheEntries.sort((a: any, b: any) => 
+          new Date(b.refreshed_at).getTime() - new Date(a.refreshed_at).getTime()
         )[0];
         
         cachedStories = JSON.parse(latestCache.stories || "[]");
@@ -290,7 +337,7 @@ Deno.serve(async (req) => {
           cached: false
         });
       }
-    } catch (cacheError) {
+    } catch (cacheError: any) {
       console.error("❌ [fetchNewsCards] Cache read error:", cacheError);
       return Response.json({
         success: false,
@@ -307,39 +354,36 @@ Deno.serve(async (req) => {
     }
 
     // =========================================================
-    // FILTER BY USER INTERESTS
+    // FILTER BY USER INTERESTS - Get top 5 for this user
     // =========================================================
     const personalizedStories = filterAndRankForUser(cachedStories, preferences, count);
 
     // =========================================================
-    // ENHANCE WITH LLM
+    // ENHANCE WITH LLM (personalized "why it matters")
     // =========================================================
     const userInterests = preferences?.investment_interests || preferences?.interests || [];
     const userHoldings = preferences?.portfolio_holdings || preferences?.holdings || [];
 
-    console.log("🤖 [fetchNewsCards] Enhancing stories with LLM...");
+    console.log("🤖 [fetchNewsCards] Enhancing stories with LLM personalization...");
 
-    const enhancementPrompt = `You are a buy-side market analyst rewriting news blurbs for retail investors.
+    const enhancementPrompt = `You are a buy-side market analyst rewriting news blurbs for a retail investor.
 
-For each story, return:
+For each story, provide a personalized "why_it_matters" explanation:
 
 1) what_happened (2-3 sentences, specific + concrete):
-   - Must include at least ONE concrete anchor:
-     * a number (%, $, bps, yield level, inflation print, EPS, revenue, guidance, etc.), OR
-     * a named company/ticker AND the market move, OR
-     * a clear "channel" to markets (rates, USD, oil, credit spreads, earnings, regulation).
-   - Explain the *mechanism*: WHY markets care.
-   - DO NOT include URLs, markdown links, or citations.
+   - Include at least ONE concrete anchor: a number (%, $, bps), named company/ticker, or clear market mechanism
+   - Explain WHY markets care
+   - NO URLs or citations
 
-2) why_it_matters (CRITICAL: Maximum 35-45 words, roughly 2 sentences):
-   - State specific investment impact only
-   - Mention relevant sector/asset/ticker if user holds it
+2) why_it_matters (CRITICAL: Maximum 35-45 words, 2 sentences):
+   - Specific investment impact only
+   - If the user owns relevant holdings, mention them directly
    - NO hedging words (could/may/might)
-   - Be concise
+   - Be concise and actionable
 
 USER PROFILE:
 - Interests: ${Array.isArray(userInterests) && userInterests.length > 0 ? userInterests.join(", ") : "General markets"}
-- Holdings: ${Array.isArray(userHoldings) && userHoldings.length > 0 ? userHoldings.map((h) => (typeof h === "string" ? h : h?.symbol)).join(", ") : "Not specified"}
+- Holdings: ${Array.isArray(userHoldings) && userHoldings.length > 0 ? userHoldings.map((h: any) => (typeof h === "string" ? h : h?.symbol)).join(", ") : "Not specified"}
 
 NEWS STORIES:
 ${personalizedStories
@@ -349,6 +393,7 @@ STORY ${i + 1}:
 Headline: ${article.title || "No headline"}
 Source: ${article.outlet || "Unknown"}
 Category: ${article.category || "General"}
+Sentiment: ${article.sentiment_score && article.sentiment_score > 0.1 ? "Bullish" : article.sentiment_score && article.sentiment_score < -0.1 ? "Bearish" : "Neutral"}
 Raw Summary: ${article.what_happened || "No summary available"}
 `
   )
@@ -383,20 +428,20 @@ Return JSON only.`;
         response_json_schema: enhancementSchema,
       });
       console.log("✅ [fetchNewsCards] LLM enhancement complete");
-    } catch (llmError) {
+    } catch (llmError: any) {
       console.error("⚠️ [fetchNewsCards] LLM enhancement failed:", llmError.message);
     }
 
     // Build final stories array
     const stories = personalizedStories.map((article, index) => {
       const enhanced =
-        enhancedData?.enhanced_stories?.find((e) => e.story_index === index + 1) ||
+        enhancedData?.enhanced_stories?.find((e: any) => e.story_index === index + 1) ||
         enhancedData?.enhanced_stories?.[index];
 
       const whatHappenedRaw =
         enhanced?.what_happened || safeText(article.what_happened, "Details pending.");
       const whyItMattersRaw =
-        enhanced?.why_it_matters || generateFallbackWhyItMatters(article.category);
+        enhanced?.why_it_matters || article.why_it_matters || generateFallbackWhyItMatters(article.category);
 
       const whatHappened = stripLinksAndUrls(whatHappenedRaw);
       const whyItMatters = capToTwoSentences(stripLinksAndUrls(whyItMattersRaw));
@@ -416,8 +461,10 @@ Return JSON only.`;
         category: article.category,
         datetime: article.datetime,
         provider: article.provider,
+        sentiment_score: article.sentiment_score,
+        urgency_score: article.urgency_score,
         rank: article.rank,
-        userRelevanceScore: article.userRelevanceScore
+        userRelevanceScore: (article as any).userRelevanceScore
       };
     });
 
@@ -434,7 +481,7 @@ Return JSON only.`;
       personalized: true,
       user_interests: userInterests,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("❌ [fetchNewsCards] Error:", error);
     return Response.json(
       { error: error?.message || String(error) },
