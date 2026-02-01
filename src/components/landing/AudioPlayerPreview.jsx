@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import { motion } from "framer-motion"
 import { Pause, Play, SkipBack, SkipForward, Volume2 } from "lucide-react"
-import { trackAudioPlayerAction } from "@/lib/mixpanel"
+import { trackAudioPlayerClick, trackAudioPlayerPlay } from "@/components/lib/mixpanel"
 
 export function AudioPlayerPreview() {
   const audioRef = useRef(null)
@@ -9,6 +9,7 @@ export function AudioPlayerPreview() {
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [volume, setVolume] = useState(0.75)
+  const playStartTimeRef = useRef(null)
 
   const formatTime = (time) => {
     const minutes = Math.floor(time / 60)
@@ -20,18 +21,25 @@ export function AudioPlayerPreview() {
     if (!audioRef.current) return
     try {
       if (isPlaying) {
+        // Track duration played when pausing
+        if (playStartTimeRef.current !== null) {
+          const durationPlayed = audioRef.current.currentTime - playStartTimeRef.current
+          trackAudioPlayerPlay(durationPlayed, duration)
+          playStartTimeRef.current = null
+        }
         audioRef.current.pause()
         setIsPlaying(false)
-        trackAudioPlayerAction('Pause', { current_time: audioRef.current.currentTime })
       } else {
+        // Track click and start tracking play time
+        trackAudioPlayerClick()
+        playStartTimeRef.current = audioRef.current.currentTime
         await audioRef.current.play()
         setIsPlaying(true)
-        trackAudioPlayerAction('Play', { current_time: audioRef.current.currentTime })
       }
     } catch (error) {
       console.error("Audio playback error:", error)
     }
-  }, [isPlaying])
+  }, [isPlaying, duration])
 
   const handleTimeUpdate = () => {
     if (audioRef.current) {
@@ -61,7 +69,6 @@ export function AudioPlayerPreview() {
     const newVolume = Math.max(0, Math.min(1, clickX / rect.width))
     audioRef.current.volume = newVolume
     setVolume(newVolume)
-    trackAudioPlayerAction('Volume Change', { volume: Math.round(newVolume * 100) })
   }
 
   const skip = (seconds) => {
@@ -70,10 +77,6 @@ export function AudioPlayerPreview() {
       0,
       Math.min(duration, audioRef.current.currentTime + seconds)
     )
-    trackAudioPlayerAction(seconds > 0 ? 'Skip Forward' : 'Skip Backward', { 
-      seconds: Math.abs(seconds),
-      new_time: audioRef.current.currentTime 
-    })
   }
 
   useEffect(() => {
@@ -96,7 +99,15 @@ export function AudioPlayerPreview() {
         src="/audio/briefing.mp3"
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
-        onEnded={() => setIsPlaying(false)}
+        onEnded={() => {
+          // Track final duration when audio ends
+          if (playStartTimeRef.current !== null && audioRef.current) {
+            const durationPlayed = audioRef.current.currentTime - playStartTimeRef.current
+            trackAudioPlayerPlay(durationPlayed, duration)
+            playStartTimeRef.current = null
+          }
+          setIsPlaying(false)
+        }}
       />
 
       <motion.div
