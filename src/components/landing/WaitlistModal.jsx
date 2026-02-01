@@ -6,7 +6,7 @@ import {
   trackWaitlistModalOpened,
   trackWaitlistModalClosed,
   trackWaitlistFormSubmit,
-} from "@/components/lib/mixpanel"
+} from "@/lib/mixpanel"
 
 export function WaitlistModal({ isOpen, onClose, onSuccess }) {
   const [firstName, setFirstName] = useState("")

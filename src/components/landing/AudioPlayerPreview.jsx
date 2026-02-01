@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import { motion } from "framer-motion"
 import { Pause, Play, SkipBack, SkipForward, Volume2 } from "lucide-react"
-import { trackAudioPlayerClick, trackAudioPlayerPlay } from "@/components/lib/mixpanel"
+import { trackAudioPlayerAction } from "@/lib/mixpanel"
 import { base44 } from "@/api/base44Client"
 
 export function AudioPlayerPreview() {

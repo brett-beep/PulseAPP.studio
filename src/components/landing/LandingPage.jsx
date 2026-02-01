@@ -10,7 +10,7 @@ import {
   trackLandingPageExit,
   setupSectionTracking,
   trackCTAClick,
-} from "@/components/lib/mixpanel"
+} from "@/lib/mixpanel"
 
 export function LandingPage({ onSignIn }) {
   const [isWaitlistOpen, setIsWaitlistOpen] = useState(false)
