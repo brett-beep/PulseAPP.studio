@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Cpu, Bitcoin, Building2, TrendingUp, Gem, BarChart3, Check, Play, Pause, Calendar, Mail, Briefcase, ArrowRight } from "lucide-react"
-import { trackInterestSelection } from "@/lib/mixpanel"
 
 const interests = [
   { id: "tech", label: "Tech Stocks", icon: Cpu },
@@ -18,9 +17,6 @@ function InterestSelector() {
   const toggleInterest = (id) => {
     setSelected((prev) => {
       const newSelected = prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
-      // Track the new selection
-      const selectedLabels = interests.filter(int => newSelected.includes(int.id)).map(int => int.label)
-      trackInterestSelection(selectedLabels)
       return newSelected
     })
   }

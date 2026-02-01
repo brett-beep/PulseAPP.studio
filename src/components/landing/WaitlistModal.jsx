@@ -2,11 +2,6 @@ import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { X, Mail, User, CheckCircle, Loader2, Sparkles } from "lucide-react"
 import { base44 } from "@/api/base44Client"
-import {
-  trackWaitlistModalOpened,
-  trackWaitlistModalClosed,
-  trackWaitlistFormSubmit,
-} from "@/lib/mixpanel"
 
 export function WaitlistModal({ isOpen, onClose, onSuccess }) {
   const [firstName, setFirstName] = useState("")
@@ -15,18 +10,10 @@ export function WaitlistModal({ isOpen, onClose, onSuccess }) {
   const [isSuccess, setIsSuccess] = useState(false)
   const [error, setError] = useState("")
 
-  // Track modal opened
-  useEffect(() => {
-    if (isOpen) {
-      trackWaitlistModalOpened('CTA Button')
-    }
-  }, [isOpen])
-
   // Handle ESC key
   useEffect(() => {
     const handleEscape = (e) => {
       if (e.key === "Escape") {
-        trackWaitlistModalClosed('esc', isSuccess)
         onClose()
       }
     }
@@ -38,7 +25,7 @@ export function WaitlistModal({ isOpen, onClose, onSuccess }) {
       document.removeEventListener("keydown", handleEscape)
       document.body.style.overflow = "unset"
     }
-  }, [isOpen, onClose, isSuccess])
+  }, [isOpen, onClose])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -82,11 +69,9 @@ export function WaitlistModal({ isOpen, onClose, onSuccess }) {
 
       if (response.data?.success) {
         setIsSuccess(true)
-        trackWaitlistFormSubmit('success')
         if (onSuccess) onSuccess()
       } else if (response.data?.alreadyExists) {
         setError("This email is already on the waitlist!")
-        trackWaitlistFormSubmit('already_exists')
       } else {
         throw new Error(response.data?.error || "Failed to join waitlist")
       }
@@ -96,7 +81,6 @@ export function WaitlistModal({ isOpen, onClose, onSuccess }) {
       // Check if it's a duplicate email error
       if (err.message?.includes("duplicate") || err.message?.includes("already exists") || err.message?.includes("already on the waitlist")) {
         setError("This email is already on the waitlist!")
-        trackWaitlistFormSubmit('already_exists')
       } else {
         // Fallback: try direct entity creation
         try {
@@ -107,7 +91,6 @@ export function WaitlistModal({ isOpen, onClose, onSuccess }) {
             source: "landing_page",
           })
           setIsSuccess(true)
-          trackWaitlistFormSubmit('success')
           if (onSuccess) onSuccess()
         } catch (entityErr) {
           // Final fallback: save to localStorage
@@ -115,7 +98,6 @@ export function WaitlistModal({ isOpen, onClose, onSuccess }) {
             const existing = JSON.parse(localStorage.getItem("waitlist") || "[]")
             if (existing.some((e) => e.email === email.toLowerCase().trim())) {
               setError("This email is already on the waitlist!")
-              trackWaitlistFormSubmit('already_exists')
             } else {
               existing.push({
                 first_name: firstName.trim() || undefined,
@@ -125,12 +107,10 @@ export function WaitlistModal({ isOpen, onClose, onSuccess }) {
               })
               localStorage.setItem("waitlist", JSON.stringify(existing))
               setIsSuccess(true)
-              trackWaitlistFormSubmit('success')
               if (onSuccess) onSuccess()
             }
           } catch {
             setError("Something went wrong. Please try again.")
-            trackWaitlistFormSubmit('error', 'localStorage fallback failed')
           }
         }
       }
@@ -149,10 +129,7 @@ export function WaitlistModal({ isOpen, onClose, onSuccess }) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            onClick={() => {
-              trackWaitlistModalClosed('outside_click', isSuccess)
-              onClose()
-            }}
+            onClick={onClose}
             className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50"
           />
 
@@ -178,10 +155,7 @@ export function WaitlistModal({ isOpen, onClose, onSuccess }) {
             >
               {/* Close button */}
               <button
-                onClick={() => {
-                  trackWaitlistModalClosed('x_button', isSuccess)
-                  onClose()
-                }}
+                onClick={onClose}
                 className="absolute top-4 right-4 p-2 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors z-10"
               >
                 <X className="h-5 w-5" />
@@ -329,10 +303,7 @@ export function WaitlistModal({ isOpen, onClose, onSuccess }) {
                       </div>
 
                       <button
-                        onClick={() => {
-                          trackWaitlistModalClosed('submitted', true)
-                          onClose()
-                        }}
+                        onClick={onClose}
                         className="text-slate-600 hover:text-slate-900 font-medium transition-colors"
                       >
                         Close
