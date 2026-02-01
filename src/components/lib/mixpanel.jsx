@@ -126,6 +126,27 @@ export const trackWaitlistFormSubmit = (status, errorMessage = null) => {
   }
 };
 
+// Track audio player interaction
+export const trackAudioPlayerClick = () => {
+  mixpanel.track('Audio Player Clicked', {
+    session_id: getSessionId(),
+    time_on_page_seconds: getSessionDuration(),
+  });
+};
+
+// Track audio player play duration
+export const trackAudioPlayerPlay = (durationSeconds, totalDuration) => {
+  const completionPercent = totalDuration > 0 ? Math.round((durationSeconds / totalDuration) * 100) : 0;
+  
+  mixpanel.track('Audio Player Played', {
+    session_id: getSessionId(),
+    duration_seconds: Math.round(durationSeconds),
+    total_duration_seconds: Math.round(totalDuration),
+    completion_percent: completionPercent,
+    time_on_page_seconds: getSessionDuration(),
+  });
+};
+
 // Track page exit (call on unmount or beforeunload)
 export const trackLandingPageExit = (converted = false) => {
   const sessionDuration = getSessionDuration();
