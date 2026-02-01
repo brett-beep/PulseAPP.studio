@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Cpu, Bitcoin, Building2, TrendingUp, Gem, BarChart3, Check } from "lucide-react"
+import { base44 } from "@/api/base44Client"
 
 const interests = [
   { id: "tech", label: "Tech Stocks", icon: Cpu },
@@ -15,9 +16,20 @@ export function InterestSelection() {
   const [selected, setSelected] = useState(["tech", "markets"])
 
   const toggleInterest = (id) => {
+    const wasSelected = selected.includes(id)
     setSelected((prev) =>
       prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
     )
+    
+    // Track interest button clicks
+    base44.analytics.track({
+      eventName: "interest_button_clicked",
+      properties: {
+        interest_id: id,
+        interest_label: interests.find(i => i.id === id)?.label,
+        action: wasSelected ? "unselected" : "selected"
+      }
+    })
   }
 
   return (
