@@ -8,6 +8,7 @@ export function AudioPlayerPreview() {
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [volume, setVolume] = useState(0.75)
+  const playStartTimeRef = useRef(null)
 
   const formatTime = (time) => {
     const minutes = Math.floor(time / 60)
@@ -19,16 +20,20 @@ export function AudioPlayerPreview() {
     if (!audioRef.current) return
     try {
       if (isPlaying) {
+        if (playStartTimeRef.current !== null) {
+          playStartTimeRef.current = null
+        }
         audioRef.current.pause()
         setIsPlaying(false)
       } else {
+        playStartTimeRef.current = audioRef.current.currentTime
         await audioRef.current.play()
         setIsPlaying(true)
       }
     } catch (error) {
       console.error("Audio playback error:", error)
     }
-  }, [isPlaying])
+  }, [isPlaying, duration])
 
   const handleTimeUpdate = () => {
     if (audioRef.current) {
@@ -88,7 +93,12 @@ export function AudioPlayerPreview() {
         src="/audio/briefing.mp3"
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
-        onEnded={() => setIsPlaying(false)}
+        onEnded={() => {
+          if (playStartTimeRef.current !== null && audioRef.current) {
+            playStartTimeRef.current = null
+          }
+          setIsPlaying(false)
+        }}
       />
 
       <motion.div
@@ -163,47 +173,51 @@ export function AudioPlayerPreview() {
           </div>
 
           {/* Controls */}
-          <div className="flex items-center justify-center gap-2">
+          <div className="flex items-center justify-center gap-8">
             <button
+              type="button"
               onClick={() => skip(-10)}
-              className="flex h-10 w-10 items-center justify-center rounded-full glass-card-strong hover:glow-primary transition-all"
+              className="text-muted-foreground transition-all hover:text-foreground hover:scale-110"
             >
-              <SkipBack className="h-4 w-4 text-foreground" />
+              <SkipBack className="h-6 w-6" />
             </button>
-
             <button
+              type="button"
               onClick={togglePlayPause}
-              className="flex h-14 w-14 items-center justify-center rounded-full glass-card-strong glow-primary hover:scale-105 transition-all"
+              className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent text-primary-foreground shadow-xl glow-primary transition-all hover:scale-105 hover:shadow-2xl"
             >
               {isPlaying ? (
-                <Pause className="h-6 w-6 text-foreground" />
+                <Pause className="h-7 w-7" fill="currentColor" />
               ) : (
-                <Play className="h-6 w-6 text-foreground ml-0.5" />
+                <Play className="h-7 w-7 translate-x-0.5" fill="currentColor" />
               )}
             </button>
-
             <button
+              type="button"
               onClick={() => skip(10)}
-              className="flex h-10 w-10 items-center justify-center rounded-full glass-card-strong hover:glow-primary transition-all"
+              className="text-muted-foreground transition-all hover:text-foreground hover:scale-110"
             >
-              <SkipForward className="h-4 w-4 text-foreground" />
+              <SkipForward className="h-6 w-6" />
             </button>
           </div>
 
-          {/* Volume control */}
+          {/* Volume */}
           <div className="mt-6 flex items-center justify-center gap-3">
             <Volume2 className="h-4 w-4 text-muted-foreground" />
             <div
-              className="h-1.5 w-32 cursor-pointer overflow-hidden rounded-full bg-muted/50 glass-border"
+              className="h-2 w-24 cursor-pointer rounded-full bg-muted/50 glass-border"
               onClick={handleVolumeClick}
             >
               <div
-                className="h-full rounded-full bg-gradient-to-r from-primary to-accent"
+                className="h-full rounded-full bg-muted-foreground/50 transition-all"
                 style={{ width: `${volume * 100}%` }}
               />
             </div>
           </div>
         </div>
+
+        {/* Decorative glow */}
+        <div className="absolute -inset-6 -z-10 rounded-[2.5rem] bg-gradient-to-br from-primary/25 to-accent/25 opacity-60 blur-3xl" />
       </motion.div>
     </motion.div>
   )
