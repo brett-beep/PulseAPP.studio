@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import { motion } from "framer-motion"
 import { Pause, Play, SkipBack, SkipForward, Volume2 } from "lucide-react"
+import { trackAudioPlayerAction } from "@/lib/mixpanel"
 
 export function AudioPlayerPreview() {
   const audioRef = useRef(null)
@@ -21,9 +22,11 @@ export function AudioPlayerPreview() {
       if (isPlaying) {
         audioRef.current.pause()
         setIsPlaying(false)
+        trackAudioPlayerAction('Pause', { current_time: audioRef.current.currentTime })
       } else {
         await audioRef.current.play()
         setIsPlaying(true)
+        trackAudioPlayerAction('Play', { current_time: audioRef.current.currentTime })
       }
     } catch (error) {
       console.error("Audio playback error:", error)
@@ -58,6 +61,7 @@ export function AudioPlayerPreview() {
     const newVolume = Math.max(0, Math.min(1, clickX / rect.width))
     audioRef.current.volume = newVolume
     setVolume(newVolume)
+    trackAudioPlayerAction('Volume Change', { volume: Math.round(newVolume * 100) })
   }
 
   const skip = (seconds) => {
@@ -66,6 +70,10 @@ export function AudioPlayerPreview() {
       0,
       Math.min(duration, audioRef.current.currentTime + seconds)
     )
+    trackAudioPlayerAction(seconds > 0 ? 'Skip Forward' : 'Skip Backward', { 
+      seconds: Math.abs(seconds),
+      new_time: audioRef.current.currentTime 
+    })
   }
 
   useEffect(() => {

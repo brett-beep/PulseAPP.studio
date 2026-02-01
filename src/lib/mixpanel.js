@@ -54,7 +54,8 @@ export const trackSectionView = (sectionName) => {
   if (!sectionViewTimes[sectionName]) {
     sectionViewTimes[sectionName] = Date.now();
     
-    mixpanel.track('Section Viewed', {
+    // Use section name in event name for clarity in Mixpanel
+    mixpanel.track(`Section Viewed: ${sectionName}`, {
       session_id: getSessionId(),
       section: sectionName,
       time_to_view_seconds: timeOnPage,
@@ -65,9 +66,30 @@ export const trackSectionView = (sectionName) => {
 
 // Track CTA click
 export const trackCTAClick = (ctaLocation) => {
-  mixpanel.track('CTA Clicked', {
+  // Use location in event name for clarity
+  mixpanel.track(`CTA Clicked: ${ctaLocation}`, {
     session_id: getSessionId(),
     cta_location: ctaLocation,
+    time_on_page_seconds: getSessionDuration(),
+  });
+};
+
+// Track audio player interactions
+export const trackAudioPlayerAction = (action, details = {}) => {
+  mixpanel.track(`Audio Player: ${action}`, {
+    session_id: getSessionId(),
+    action,
+    time_on_page_seconds: getSessionDuration(),
+    ...details,
+  });
+};
+
+// Track interest selection
+export const trackInterestSelection = (interests = []) => {
+  mixpanel.track('Interests Selected', {
+    session_id: getSessionId(),
+    interests_count: interests.length,
+    interests: interests.join(', '),
     time_on_page_seconds: getSessionDuration(),
   });
 };
