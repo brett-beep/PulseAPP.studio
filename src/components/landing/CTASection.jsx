@@ -1,5 +1,6 @@
 import { motion } from "framer-motion"
 import { ArrowRight, Sparkles } from "lucide-react"
+import { base44 } from "@/api/base44Client"
 
 export function CTASection({ onSignIn, onJoinWaitlist }) {
   return (
@@ -32,7 +33,13 @@ export function CTASection({ onSignIn, onJoinWaitlist }) {
           
           <motion.button
             type="button"
-            onClick={onJoinWaitlist}
+            onClick={() => {
+              base44.analytics.track({
+                eventName: "cta_button_clicked",
+                properties: { location: "cta_section_bottom" }
+              })
+              onJoinWaitlist()
+            }}
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.98 }}
             className="group relative mt-10 inline-flex items-center gap-3 overflow-hidden rounded-full bg-gradient-to-r from-primary to-accent px-10 py-5 text-lg font-semibold text-primary-foreground shadow-xl glow-primary transition-all hover:shadow-2xl"

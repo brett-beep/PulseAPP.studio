@@ -15,6 +15,7 @@ import {
 export function LandingPage({ onSignIn }) {
   const [isWaitlistOpen, setIsWaitlistOpen] = useState(false)
   const [hasConverted, setHasConverted] = useState(false)
+  const pageStartTimeRef = useRef(Date.now())
   
   // Refs for section tracking
   const heroRef = useRef(null)
@@ -26,17 +27,34 @@ export function LandingPage({ onSignIn }) {
   // Track page view on mount
   useEffect(() => {
     trackLandingPageView()
+    pageStartTimeRef.current = Date.now()
     
     // Track page exit on unmount or beforeunload
     const handleBeforeUnload = () => {
+      const durationSeconds = Math.round((Date.now() - pageStartTimeRef.current) / 1000)
       trackLandingPageExit(hasConverted)
+      base44.analytics.track({
+        eventName: "landing_page_visit_duration",
+        properties: {
+          duration_seconds: durationSeconds,
+          converted: hasConverted
+        }
+      })
     }
     
     window.addEventListener('beforeunload', handleBeforeUnload)
     
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload)
+      const durationSeconds = Math.round((Date.now() - pageStartTimeRef.current) / 1000)
       trackLandingPageExit(hasConverted)
+      base44.analytics.track({
+        eventName: "landing_page_visit_duration",
+        properties: {
+          duration_seconds: durationSeconds,
+          converted: hasConverted
+        }
+      })
     }
   }, [hasConverted])
   
