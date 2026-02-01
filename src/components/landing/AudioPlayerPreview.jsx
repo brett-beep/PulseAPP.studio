@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react"
 import { motion } from "framer-motion"
 import { Pause, Play, SkipBack, SkipForward, Volume2 } from "lucide-react"
 import { trackAudioPlayerClick, trackAudioPlayerPlay } from "@/components/lib/mixpanel"
+import { base44 } from "@/api/base44Client"
 
 export function AudioPlayerPreview() {
   const audioRef = useRef(null)
@@ -25,6 +26,14 @@ export function AudioPlayerPreview() {
         if (playStartTimeRef.current !== null) {
           const durationPlayed = audioRef.current.currentTime - playStartTimeRef.current
           trackAudioPlayerPlay(durationPlayed, duration)
+          base44.analytics.track({
+            eventName: "audio_player_played",
+            properties: {
+              duration_seconds: Math.round(durationPlayed),
+              total_duration: Math.round(duration),
+              completion_percent: Math.round((durationPlayed / duration) * 100)
+            }
+          })
           playStartTimeRef.current = null
         }
         audioRef.current.pause()
@@ -32,6 +41,10 @@ export function AudioPlayerPreview() {
       } else {
         // Track click and start tracking play time
         trackAudioPlayerClick()
+        base44.analytics.track({
+          eventName: "audio_player_clicked",
+          properties: { location: "landing_page" }
+        })
         playStartTimeRef.current = audioRef.current.currentTime
         await audioRef.current.play()
         setIsPlaying(true)
@@ -104,6 +117,15 @@ export function AudioPlayerPreview() {
           if (playStartTimeRef.current !== null && audioRef.current) {
             const durationPlayed = audioRef.current.currentTime - playStartTimeRef.current
             trackAudioPlayerPlay(durationPlayed, duration)
+            base44.analytics.track({
+              eventName: "audio_player_played",
+              properties: {
+                duration_seconds: Math.round(durationPlayed),
+                total_duration: Math.round(duration),
+                completion_percent: 100,
+                completed: true
+              }
+            })
             playStartTimeRef.current = null
           }
           setIsPlaying(false)
