@@ -1,7 +1,7 @@
 // ============================================================
-// refreshNewsCache.ts - Base44 Function (v6 - Raw Storage)
-// Runs every 5 minutes (0 LLM credits)
-// Fetches 50 articles from Alpha Vantage across all PulseApp sectors
+// refreshNewsCache.ts - Base44 Function (v7 - Multi-Source)
+// Runs every 15 minutes (0 LLM credits)
+// Fetches from Finnhub, NewsAPI, and Marketaux
 // Scores by urgency/relevance, caches top 30 RAW articles
 // LLM analysis happens in generateCategoryCards instead
 // ============================================================
@@ -12,40 +12,31 @@ import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
 // CONFIGURATION
 // ============================================================
 
-const ALPHA_VANTAGE_BASE_URL = "https://www.alphavantage.co/query";
+const FINNHUB_BASE_URL = "https://finnhub.io/api/v1/news";
+const NEWSAPI_BASE_URL = "https://newsapi.org/v2/everything";
+const MARKETAUX_BASE_URL = "https://api.marketaux.com/v1/news/all";
 
-// Topics mapped to PulseApp sectors
-const PULSEAPP_TOPICS = [
-  "technology",           // Tech Stocks
-  "blockchain",           // Crypto
-  "financial_markets",    // Markets
-  "economy_macro",        // Economy
-  "economy_monetary",     // Fed/Interest Rates
-  "real_estate",          // Real Estate
-  "energy_transportation", // Commodities (oil, energy)
-  "earnings",             // Earnings reports
-  "mergers_and_acquisitions", // M&A activity
-  "manufacturing",        // Industrial/Manufacturing
-];
-
-// Map Alpha Vantage topics to PulseApp categories
-const TOPIC_TO_CATEGORY: Record<string, string> = {
-  "technology": "technology",
-  "blockchain": "crypto",
-  "financial_markets": "markets",
-  "economy_macro": "economy",
-  "economy_monetary": "economy",
-  "economy_fiscal": "economy",
-  "real_estate": "real estate",
-  "energy_transportation": "commodities",
-  "earnings": "markets",
-  "mergers_and_acquisitions": "markets",
-  "manufacturing": "markets",
-  "finance": "markets",
-  "life_sciences": "technology",
-  "retail_wholesale": "markets",
-  "ipo": "markets",
+// Category mapping keywords
+const CATEGORY_KEYWORDS: Record<string, string[]> = {
+  markets: ["stock", "market", "trading", "wall street", "nasdaq", "dow jones", "s&p", "equity"],
+  crypto: ["bitcoin", "ethereum", "crypto", "blockchain", "nft", "defi", "web3"],
+  economy: ["fed", "interest rate", "inflation", "gdp", "unemployment", "economy", "recession"],
+  technology: ["tech", "ai", "software", "apple", "google", "microsoft", "meta", "tesla"],
+  "real estate": ["housing", "real estate", "mortgage", "property", "reits"],
+  commodities: ["oil", "gold", "silver", "commodity", "energy", "natural gas"],
 };
+
+function categorizeArticle(title: string, description: string): string {
+  const text = `${title} ${description}`.toLowerCase();
+  
+  for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+    if (keywords.some(kw => text.includes(kw))) {
+      return category;
+    }
+  }
+  
+  return "markets"; // Default category
+}
 
 // ============================================================
 // UTILITY FUNCTIONS
@@ -73,25 +64,7 @@ function randomId(): string {
 }
 
 function getTimeFromHoursAgo(hours: number): string {
-  const date = new Date(Date.now() - hours * 60 * 60 * 1000);
-  // Alpha Vantage format: YYYYMMDDTHHMM
-  return date.toISOString().replace(/[-:]/g, "").slice(0, 13);
-}
-
-function parseAlphaVantageDate(dateStr: string): string {
-  // Input: "20240126T143000" -> ISO string
-  if (!dateStr) return new Date().toISOString();
-  try {
-    const year = dateStr.slice(0, 4);
-    const month = dateStr.slice(4, 6);
-    const day = dateStr.slice(6, 8);
-    const hour = dateStr.slice(9, 11) || "00";
-    const min = dateStr.slice(11, 13) || "00";
-    const sec = dateStr.slice(13, 15) || "00";
-    return new Date(`${year}-${month}-${day}T${hour}:${min}:${sec}Z`).toISOString();
-  } catch {
-    return new Date().toISOString();
-  }
+  return new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
 }
 
 function categoryImageUrl(categoryRaw: string): string {
@@ -244,91 +217,114 @@ function calculateUrgencyScore(article: any, nowTimestamp: number): number {
 }
 
 // ============================================================
-// ALPHA VANTAGE NEWS FETCHER
+// MULTI-SOURCE NEWS FETCHERS
 // ============================================================
 
-async function fetchAlphaVantageNews(apiKey: string): Promise<any[]> {
-  const allArticles: any[] = [];
-  const timeFrom = getTimeFromHoursAgo(12); // Last 12 hours
-  
-  // Fetch news with multiple topic queries for diversity
-  const topicGroups = [
-    "technology,blockchain",                    // Tech & Crypto
-    "financial_markets,economy_macro",          // Markets & Economy
-    "economy_monetary,earnings",                // Fed/Rates & Earnings
-    "real_estate,energy_transportation",        // Real Estate & Commodities
-    "mergers_and_acquisitions,manufacturing",   // M&A & Industrial
-  ];
-  
-  for (const topics of topicGroups) {
-    try {
-      console.log(`📡 Alpha Vantage: Fetching topics [${topics}]...`);
-      
-      const url = new URL(ALPHA_VANTAGE_BASE_URL);
-      url.searchParams.set("function", "NEWS_SENTIMENT");
-      url.searchParams.set("topics", topics);
-      url.searchParams.set("time_from", timeFrom);
-      url.searchParams.set("sort", "LATEST");
-      url.searchParams.set("limit", "15"); // 15 per group × 5 groups = 75 max
-      url.searchParams.set("apikey", apiKey);
-      
-      const response = await fetch(url.toString());
-      
-      if (!response.ok) {
-        console.error(`❌ Alpha Vantage error for [${topics}]:`, response.status);
-        continue;
-      }
-      
-      const data = await response.json();
-      
-      if (data.Note || data.Information) {
-        console.warn(`⚠️ Alpha Vantage rate limit:`, data.Note || data.Information);
-        continue;
-      }
-      
-      const feed = data.feed || [];
-      console.log(`✅ Alpha Vantage [${topics}]: ${feed.length} articles`);
-      
-      for (const item of feed) {
-        // Determine primary category from topics
-        const itemTopics = (item.topics || []).map((t: any) => t.topic?.toLowerCase());
-        let category = "markets";
-        for (const topic of itemTopics) {
-          if (TOPIC_TO_CATEGORY[topic]) {
-            category = TOPIC_TO_CATEGORY[topic];
-            break;
-          }
-        }
-        
-        // Get overall sentiment
-        const sentimentScore = parseFloat(item.overall_sentiment_score) || 0;
-        
-        allArticles.push({
-          title: item.title || "Breaking News",
-          summary: item.summary || "",
-          url: item.url || "#",
-          source: item.source || "Alpha Vantage",
-          datetime: parseAlphaVantageDate(item.time_published),
-          image: item.banner_image || null,
-          topics: itemTopics,
-          category,
-          sentiment_score: sentimentScore,
-          sentiment_label: item.overall_sentiment_label || "Neutral",
-          provider: "alphavantage",
-          tickers: (item.ticker_sentiment || []).map((t: any) => t.ticker),
-        });
-      }
-      
-      // Small delay between requests to respect rate limits
-      await new Promise(r => setTimeout(r, 300));
-      
-    } catch (error: any) {
-      console.error(`❌ Alpha Vantage fetch error [${topics}]:`, error.message);
+async function fetchFinnhubNews(apiKey: string): Promise<any[]> {
+  try {
+    console.log("📡 Fetching from Finnhub...");
+    const url = `${FINNHUB_BASE_URL}?category=general&token=${apiKey}`;
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      console.error("❌ Finnhub error:", response.status);
+      return [];
     }
+    
+    const articles = await response.json();
+    console.log(`✅ Finnhub: ${articles.length} articles`);
+    
+    return articles.map((item: any) => ({
+      title: item.headline || "Breaking News",
+      summary: item.summary || "",
+      url: item.url || "#",
+      source: item.source || "Finnhub",
+      datetime: new Date(item.datetime * 1000).toISOString(),
+      image: item.image || null,
+      category: categorizeArticle(item.headline, item.summary),
+      sentiment_score: 0,
+      provider: "finnhub",
+    }));
+  } catch (error: any) {
+    console.error("❌ Finnhub fetch error:", error.message);
+    return [];
   }
-  
-  console.log(`📊 Alpha Vantage total: ${allArticles.length} articles`);
-  return allArticles;
+}
+
+async function fetchNewsAPI(apiKey: string): Promise<any[]> {
+  try {
+    console.log("📡 Fetching from NewsAPI...");
+    const from = getTimeFromHoursAgo(12);
+    const url = new URL(NEWSAPI_BASE_URL);
+    url.searchParams.set("q", "stock OR market OR economy OR crypto OR bitcoin");
+    url.searchParams.set("from", from);
+    url.searchParams.set("sortBy", "publishedAt");
+    url.searchParams.set("language", "en");
+    url.searchParams.set("pageSize", "30");
+    url.searchParams.set("apiKey", apiKey);
+    
+    const response = await fetch(url.toString());
+    
+    if (!response.ok) {
+      console.error("❌ NewsAPI error:", response.status);
+      return [];
+    }
+    
+    const data = await response.json();
+    const articles = data.articles || [];
+    console.log(`✅ NewsAPI: ${articles.length} articles`);
+    
+    return articles.map((item: any) => ({
+      title: item.title || "Breaking News",
+      summary: item.description || "",
+      url: item.url || "#",
+      source: item.source?.name || "NewsAPI",
+      datetime: item.publishedAt || new Date().toISOString(),
+      image: item.urlToImage || null,
+      category: categorizeArticle(item.title, item.description),
+      sentiment_score: 0,
+      provider: "newsapi",
+    }));
+  } catch (error: any) {
+    console.error("❌ NewsAPI fetch error:", error.message);
+    return [];
+  }
+}
+
+async function fetchMarketaux(apiKey: string): Promise<any[]> {
+  try {
+    console.log("📡 Fetching from Marketaux...");
+    const url = new URL(MARKETAUX_BASE_URL);
+    url.searchParams.set("api_token", apiKey);
+    url.searchParams.set("language", "en");
+    url.searchParams.set("limit", "30");
+    
+    const response = await fetch(url.toString());
+    
+    if (!response.ok) {
+      console.error("❌ Marketaux error:", response.status);
+      return [];
+    }
+    
+    const data = await response.json();
+    const articles = data.data || [];
+    console.log(`✅ Marketaux: ${articles.length} articles`);
+    
+    return articles.map((item: any) => ({
+      title: item.title || "Breaking News",
+      summary: item.description || "",
+      url: item.url || "#",
+      source: item.source || "Marketaux",
+      datetime: item.published_at || new Date().toISOString(),
+      image: item.image_url || null,
+      category: categorizeArticle(item.title, item.description),
+      sentiment_score: 0,
+      provider: "marketaux",
+    }));
+  } catch (error: any) {
+    console.error("❌ Marketaux fetch error:", error.message);
+    return [];
+  }
 }
 
 // ============================================================
@@ -528,29 +524,26 @@ Deno.serve(async (req) => {
   
   try {
     console.log("\n" + "=".repeat(60));
-    console.log("🔄 [refreshNewsCache] Starting v5 (Alpha Vantage Premium)...");
+    console.log("🔄 [refreshNewsCache] Starting v7 (Multi-Source)...");
     console.log(`⏰ Time: ${new Date().toISOString()}`);
     console.log("=".repeat(60));
     
     const base44 = createClientFromRequest(req);
     
-    // Get Alpha Vantage API key - check environment variable
-    const alphaVantageKey = Deno.env.get("ALPHA_VANTAGE_API_KEY");
+    // Get API keys
+    const finnhubKey = Deno.env.get("FINNHUB_API_KEY");
+    const newsapiKey = Deno.env.get("NEWSAPI_API_KEY");
+    const marketauxKey = Deno.env.get("MARKETAUX_API_KEY");
     
-    console.log("🔍 Checking for ALPHA_VANTAGE_API_KEY...");
-    console.log("🔍 Available env vars:", Object.keys(Deno.env.toObject()).filter(k => k.includes('ALPHA') || k.includes('API')));
-    
-    if (!alphaVantageKey) {
-      console.error("❌ ALPHA_VANTAGE_API_KEY not found in environment");
-      console.error("Available keys:", Object.keys(Deno.env.toObject()).join(", "));
+    if (!finnhubKey || !newsapiKey || !marketauxKey) {
+      console.error("❌ Missing API keys");
       return Response.json({ 
-        error: "ALPHA_VANTAGE_API_KEY not configured in Base44 secrets",
-        hint: "Secret may not be synced to backend functions. Check Base44 dashboard secrets settings.",
-        available_keys: Object.keys(Deno.env.toObject()).filter(k => k.includes('API')).length
+        error: "Missing required API keys (FINNHUB, NEWSAPI, MARKETAUX)",
+        hint: "Check Base44 secrets configuration"
       }, { status: 500 });
     }
     
-    console.log("🔑 Alpha Vantage API key found ✓");
+    console.log("🔑 All API keys found ✓");
     
     // Get previous cache for persistence logic
     let previousTopStories: any[] = [];
@@ -567,15 +560,23 @@ Deno.serve(async (req) => {
       console.log("No previous cache found, starting fresh");
     }
     
-    // Fetch from Alpha Vantage
-    const rawArticles = await fetchAlphaVantageNews(alphaVantageKey);
+    // Fetch from multiple sources in parallel
+    const [finnhubArticles, newsapiArticles, marketauxArticles] = await Promise.all([
+      fetchFinnhubNews(finnhubKey),
+      fetchNewsAPI(newsapiKey),
+      fetchMarketaux(marketauxKey),
+    ]);
+    
+    const rawArticles = [...finnhubArticles, ...newsapiArticles, ...marketauxArticles];
+    console.log(`📊 Total fetched: ${rawArticles.length} articles from all sources`);
+    
     const allArticles = filterLowQualityArticles(rawArticles);
     
     if (allArticles.length === 0) {
-      console.log("⚠️ No articles fetched from Alpha Vantage (or all filtered out)");
+      console.log("⚠️ No articles fetched (or all filtered out)");
       return Response.json({ 
-        error: "No articles fetched from Alpha Vantage",
-        hint: "Check API key and rate limits"
+        error: "No articles fetched from news sources",
+        hint: "Check API keys and rate limits"
       }, { status: 500 });
     }
     
@@ -606,8 +607,8 @@ Deno.serve(async (req) => {
     const cacheEntry = await base44.asServiceRole.entities.NewsCache.create({
       stories: JSON.stringify(enhancedStories),
       refreshed_at: new Date().toISOString(),
-      sources_used: "alphavantage",
-      total_fetched: allArticles.length,
+      sources_used: "finnhub,newsapi,marketaux",
+      total_fetched: rawArticles.length,
       articles_selected: enhancedStories.length,
     });
     
@@ -620,10 +621,10 @@ Deno.serve(async (req) => {
     
     return Response.json({
       success: true,
-      message: "News cache refreshed (v6 - Raw Storage, 0 LLM credits)",
+      message: "News cache refreshed (v7 - Multi-Source, 0 LLM credits)",
       stories_cached: enhancedStories.length,
-      total_fetched: allArticles.length,
-      source: "alphavantage",
+      total_fetched: rawArticles.length,
+      sources_used: "finnhub,newsapi,marketaux",
       refreshed_at: cacheEntry.refreshed_at,
       elapsed_ms: elapsed,
       llm_credits_used: 0,
