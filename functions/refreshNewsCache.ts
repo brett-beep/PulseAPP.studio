@@ -534,20 +534,23 @@ Deno.serve(async (req) => {
     
     const base44 = createClientFromRequest(req);
     
-    // Get Alpha Vantage API key from Base44 secrets
-    let alphaVantageKey: string;
-    try {
-      alphaVantageKey = await base44.asServiceRole.getSecret("ALPHA_VANTAGE_API_KEY");
-      if (!alphaVantageKey) {
-        throw new Error("ALPHA_VANTAGE_API_KEY is empty");
-      }
-      console.log("🔑 Alpha Vantage API key retrieved from Base44 secrets ✓");
-    } catch (error: any) {
-      console.error("❌ Failed to retrieve ALPHA_VANTAGE_API_KEY:", error.message);
+    // Get Alpha Vantage API key - check environment variable
+    const alphaVantageKey = Deno.env.get("ALPHA_VANTAGE_API_KEY");
+    
+    console.log("🔍 Checking for ALPHA_VANTAGE_API_KEY...");
+    console.log("🔍 Available env vars:", Object.keys(Deno.env.toObject()).filter(k => k.includes('ALPHA') || k.includes('API')));
+    
+    if (!alphaVantageKey) {
+      console.error("❌ ALPHA_VANTAGE_API_KEY not found in environment");
+      console.error("Available keys:", Object.keys(Deno.env.toObject()).join(", "));
       return Response.json({ 
-        error: "ALPHA_VANTAGE_API_KEY not configured in Base44 secrets" 
+        error: "ALPHA_VANTAGE_API_KEY not configured in Base44 secrets",
+        hint: "Secret may not be synced to backend functions. Check Base44 dashboard secrets settings.",
+        available_keys: Object.keys(Deno.env.toObject()).filter(k => k.includes('API')).length
       }, { status: 500 });
     }
+    
+    console.log("🔑 Alpha Vantage API key found ✓");
     
     // Get previous cache for persistence logic
     let previousTopStories: any[] = [];
