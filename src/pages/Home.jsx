@@ -12,7 +12,7 @@ import OnboardingWizard from "@/components/OnboardingWizard";
 import AmbientAurora from "@/components/ui/ambient-aurora";
 import UpgradeModal from "@/components/UpgradeModal";
 
-import { Settings, Headphones, Loader2, RefreshCw, Crown } from "lucide-react";
+import { Settings, Headphones, Loader2, RefreshCw, Crown, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "react-router-dom";
@@ -21,9 +21,12 @@ import { createPageUrl } from "@/utils";
 export default function Home() {
   const queryClient = useQueryClient();
   const [isGenerating, setIsGenerating] = useState(false);
-  const [newsCards, setNewsCards] = useState([]);
+  const [marketNews, setMarketNews] = useState(null); // { summary, stories, updated_at }
+  const [portfolioNews, setPortfolioNews] = useState(null); // { summary, stories, updated_at }
   const [isLoadingNews, setIsLoadingNews] = useState(true);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [marketSectionOpen, setMarketSectionOpen] = useState(true);
+  const [portfolioSectionOpen, setPortfolioSectionOpen] = useState(true);
 
   const [lastRefreshTime, setLastRefreshTime] = useState(null);
 
@@ -266,78 +269,115 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
     return briefings.filter((b) => b && (b.status === "ready" || b.status === "script_ready")).length;
   };
 
-  // Fetch news cards with better refresh logic
+  // Fetch news cards on load (independent of briefing; always available)
   useEffect(() => {
     if (!user || !preferences?.onboarding_completed) return;
 
     const CACHE_KEY = `newsCards:${user.email}`;
     const TIMESTAMP_KEY = `newsCardsTimestamp:${user.email}`;
-    const SESSION_FLAG = `newsCardsSessionInit:${user.email}`;
     const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes
 
     async function loadNewsCards() {
-      // one-time cleanup of old global keys
-      localStorage.removeItem("newsCards");
-      localStorage.removeItem("newsCardsTimestamp");
-      sessionStorage.removeItem("newsCardsSessionInit");
-
       const now = Date.now();
-      const cachedNews = localStorage.getItem(CACHE_KEY);
+      const cached = localStorage.getItem(CACHE_KEY);
       const cacheTimestamp = localStorage.getItem(TIMESTAMP_KEY);
-      const isNewSession = !sessionStorage.getItem(SESSION_FLAG);
-
-      sessionStorage.setItem(SESSION_FLAG, "true");
-
       const cacheAge = cacheTimestamp ? now - parseInt(cacheTimestamp) : Infinity;
       const cacheValid = cacheAge < CACHE_DURATION;
 
-      const shouldRefresh = !cacheValid || isNewSession || !cachedNews;
-
-      if (!shouldRefresh && cachedNews) {
-        console.log("✅ Using cached news cards (age:", Math.round(cacheAge / 60000), "minutes)");
-        setNewsCards(JSON.parse(cachedNews));
-        setLastRefreshTime(new Date(parseInt(cacheTimestamp)));
+      if (cacheValid && cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (parsed.market_news != null || parsed.portfolio_news != null) {
+            setMarketNews(parsed.market_news ?? null);
+            setPortfolioNews(parsed.portfolio_news ?? null);
+          } else if (Array.isArray(parsed)) {
+            const half = Math.ceil(parsed.length / 2);
+            setMarketNews({ summary: "Market News", stories: parsed.slice(0, half), updated_at: null });
+            setPortfolioNews({ summary: "Your Portfolio", stories: parsed.slice(half), updated_at: null });
+          }
+          setLastRefreshTime(new Date(parseInt(cacheTimestamp)));
+          console.log("✅ Using cached news cards (age:", Math.round(cacheAge / 60000), "min)");
+        } catch (_) {
+          localStorage.removeItem(CACHE_KEY);
+          localStorage.removeItem(TIMESTAMP_KEY);
+        }
         setIsLoadingNews(false);
         return;
       }
 
       try {
         setIsLoadingNews(true);
-        console.log("📦 Reading news cards from cache via fetchNewsCards...");
+        console.log("📦 Loading news cards via fetchNewsCards...");
 
         const resp = await base44.functions.invoke("fetchNewsCards", {
-          count: 10,
           preferences: preferences,
         });
 
         if (resp?.data?.success) {
-          const stories = Array.isArray(resp.data.stories) ? resp.data.stories : [];
+          // New shape: market_news + portfolio_news
+          const market = resp.data.market_news;
+          const portfolio = resp.data.portfolio_news;
 
-          setNewsCards(stories);
-
-          if (resp.data.cache_age) {
-            setLastRefreshTime(new Date(resp.data.cache_age));
+          if (market || portfolio) {
+            setMarketNews(market ?? { summary: "Market News", stories: [], updated_at: null });
+            setPortfolioNews(portfolio ?? { summary: "Your Portfolio", stories: [], updated_at: null });
+            const updatedAt = market?.updated_at || portfolio?.updated_at;
+            setLastRefreshTime(updatedAt ? new Date(updatedAt) : new Date());
+            localStorage.setItem(
+              CACHE_KEY,
+              JSON.stringify({ market_news: market, portfolio_news: portfolio })
+            );
+            localStorage.setItem(TIMESTAMP_KEY, now.toString());
+            console.log(
+              "✅ Loaded news: market",
+              market?.stories?.length ?? 0,
+              "portfolio",
+              portfolio?.stories?.length ?? 0
+            );
           } else {
-            setLastRefreshTime(new Date());
+            // Legacy shape: flat stories array
+            const stories = Array.isArray(resp.data.stories) ? resp.data.stories : [];
+            if (stories.length > 0) {
+              const half = Math.ceil(stories.length / 2);
+              setMarketNews({
+                summary: "Market News",
+                stories: stories.slice(0, half),
+                updated_at: resp.data.cache_age || null,
+              });
+              setPortfolioNews({
+                summary: "Your Portfolio",
+                stories: stories.slice(half),
+                updated_at: resp.data.cache_age || null,
+              });
+              setLastRefreshTime(resp.data.cache_age ? new Date(resp.data.cache_age) : new Date());
+              localStorage.setItem(
+                CACHE_KEY,
+                JSON.stringify({
+                  market_news: { summary: "Market News", stories: stories.slice(0, half) },
+                  portfolio_news: { summary: "Your Portfolio", stories: stories.slice(half) },
+                })
+              );
+              localStorage.setItem(TIMESTAMP_KEY, now.toString());
+            }
           }
-
-          localStorage.setItem(CACHE_KEY, JSON.stringify(stories));
-          localStorage.setItem(TIMESTAMP_KEY, now.toString());
-
-          console.log(`✅ Loaded ${stories.length} stories via fetchNewsCards (source=${resp.data.source})`);
         } else {
-          console.error("Failed to load stories:", resp?.data?.error);
-          if (cachedNews) {
-            console.log("⚠️ Using stale localStorage cache as fallback");
-            setNewsCards(JSON.parse(cachedNews));
+          console.error("Failed to load news:", resp?.data?.error);
+          if (cached) {
+            try {
+              const parsed = JSON.parse(cached);
+              setMarketNews(parsed.market_news ?? null);
+              setPortfolioNews(parsed.portfolio_news ?? null);
+            } catch (_) {}
           }
         }
       } catch (error) {
         console.error("Error loading news cards:", error);
-
-        if (cachedNews) {
-          console.log("⚠️ Error occurred - using stale cache");
-          setNewsCards(JSON.parse(cachedNews));
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            setMarketNews(parsed.market_news ?? null);
+            setPortfolioNews(parsed.portfolio_news ?? null);
+          } catch (_) {}
         }
       } finally {
         setIsLoadingNews(false);
@@ -347,7 +387,6 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
     loadNewsCards();
 
     const refreshInterval = setInterval(() => {
-      console.log("🔄 Auto-refreshing news cards...");
       localStorage.removeItem(CACHE_KEY);
       localStorage.removeItem(TIMESTAMP_KEY);
       loadNewsCards();
@@ -356,7 +395,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
     return () => clearInterval(refreshInterval);
   }, [user, preferences?.onboarding_completed]);
 
-  // Manual refresh function for news cards
+  // Manual refresh for news cards (always available; independent of briefing)
   const refreshNewsCards = async () => {
     if (!user || !preferences?.onboarding_completed) return;
 
@@ -364,33 +403,36 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
     const TIMESTAMP_KEY = `newsCardsTimestamp:${user.email}`;
 
     setIsLoadingNews(true);
-    console.log("🔄 Manual refresh triggered - FORCING CACHE REGENERATION...");
-
     try {
-      console.log("🔄 Manual refresh - bypassing localStorage, reading via fetchNewsCards...");
-
       const resp = await base44.functions.invoke("fetchNewsCards", {
-        count: 10,
         preferences: preferences,
       });
 
       if (resp?.data?.success) {
-        const stories = Array.isArray(resp.data.stories) ? resp.data.stories : [];
+        const market = resp.data.market_news;
+        const portfolio = resp.data.portfolio_news;
 
-        setNewsCards(stories);
-
-        if (resp.data.cache_age) {
-          setLastRefreshTime(new Date(resp.data.cache_age));
-        } else {
-          setLastRefreshTime(new Date());
+        if (market || portfolio) {
+          setMarketNews(market ?? { summary: "Market News", stories: [], updated_at: null });
+          setPortfolioNews(portfolio ?? { summary: "Your Portfolio", stories: [], updated_at: null });
+          const updatedAt = market?.updated_at || portfolio?.updated_at;
+          setLastRefreshTime(updatedAt ? new Date(updatedAt) : new Date());
+          localStorage.setItem(
+            CACHE_KEY,
+            JSON.stringify({ market_news: market, portfolio_news: portfolio })
+          );
+          localStorage.setItem(TIMESTAMP_KEY, Date.now().toString());
+        } else if (Array.isArray(resp.data.stories) && resp.data.stories.length > 0) {
+          const stories = resp.data.stories;
+          const half = Math.ceil(stories.length / 2);
+          const mn = { summary: "Market News", stories: stories.slice(0, half), updated_at: resp.data.cache_age };
+          const pn = { summary: "Your Portfolio", stories: stories.slice(half), updated_at: resp.data.cache_age };
+          setMarketNews(mn);
+          setPortfolioNews(pn);
+          setLastRefreshTime(resp.data.cache_age ? new Date(resp.data.cache_age) : new Date());
+          localStorage.setItem(CACHE_KEY, JSON.stringify({ market_news: mn, portfolio_news: pn }));
+          localStorage.setItem(TIMESTAMP_KEY, Date.now().toString());
         }
-
-        localStorage.setItem(CACHE_KEY, JSON.stringify(stories));
-        localStorage.setItem(TIMESTAMP_KEY, Date.now().toString());
-
-        console.log(`✅ Manual refresh loaded ${stories.length} stories (source=${resp.data.source})`);
-      } else {
-        console.error("Manual refresh failed:", resp?.data?.error);
       }
     } catch (error) {
       console.error("Error refreshing news cards:", error);
@@ -528,7 +570,9 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
   const status = todayBriefing?.status || null;
 
   const briefingStories = parseJsonArray(todayBriefing?.news_stories);
-  const newsCardStories = newsCards.slice(0, 5);
+  const marketStories = marketNews?.stories ?? [];
+  const portfolioStories = portfolioNews?.stories ?? [];
+  const hasAnyNews = marketStories.length > 0 || portfolioStories.length > 0;
 
   // Show proper status based on briefing state
   const getStatusLabel = () => {
@@ -643,10 +687,15 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
         {/* UPGRADE MODAL */}
         <UpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
 
-        {/* NEWS CARDS */}
-        <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold text-slate-900">Breaking News</h2>
+        {/* NEWS CARDS – Market News + Your Portfolio (always available; independent of briefing) */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="space-y-6"
+        >
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-slate-900">News</h2>
             <div className="flex items-center gap-4">
               {lastRefreshTime && (
                 <span className="text-xs text-slate-400">
@@ -662,33 +711,124 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
                 Refresh
               </button>
               <span className="text-sm text-slate-400">
-                {newsCardStories.length} {newsCardStories.length === 1 ? "story" : "stories"}
+                {marketStories.length + portfolioStories.length} stories
               </span>
             </div>
           </div>
 
           {isLoadingNews ? (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="bg-white/70 rounded-2xl p-6 border border-slate-100">
-                  <Skeleton className="h-4 w-3/4 mb-3" />
-                  <Skeleton className="h-3 w-full mb-2" />
-                  <Skeleton className="h-3 w-5/6" />
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-slate-100 bg-white/70 overflow-hidden">
+                <div className="p-4 border-b border-slate-100">
+                  <Skeleton className="h-5 w-40" />
                 </div>
-              ))}
+                <div className="p-6 grid gap-4 md:grid-cols-2">
+                  {[1, 2, 3, 4].map((i) => (
+                    <Skeleton key={i} className="h-24 rounded-xl" />
+                  ))}
+                </div>
+              </div>
             </div>
-          ) : newsCardStories.length === 0 ? (
-            <div className="bg-white/70 rounded-2xl p-6 border border-slate-100 text-center">
+          ) : !hasAnyNews ? (
+            <div className="rounded-2xl border border-slate-100 bg-white/70 p-8 text-center">
               <p className="text-slate-600">
-                No news available. Please try refreshing the page or click{" "}
-                <span className="font-semibold">Generate</span> to create your briefing.
+                No news available yet. Check back in a few minutes or try refreshing.
+              </p>
+              <p className="text-sm text-slate-400 mt-2">
+                News is loaded automatically based on your interests and portfolio—no need to generate a briefing.
               </p>
             </div>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
-              {newsCardStories.map((story, index) => (
-                <NewsCard key={index} story={story} index={index} />
-              ))}
+            <div className="space-y-4">
+              {/* Market News – expandable */}
+              <motion.div
+                layout
+                className="rounded-2xl border border-slate-100 bg-white/80 backdrop-blur-sm overflow-hidden shadow-sm"
+                initial={false}
+              >
+                <button
+                  type="button"
+                  onClick={() => setMarketSectionOpen((o) => !o)}
+                  className="w-full flex items-center justify-between p-4 text-left hover:bg-slate-50/50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <motion.span
+                      animate={{ rotate: marketSectionOpen ? 0 : -90 }}
+                      transition={{ duration: 0.2 }}
+                      className="text-slate-400"
+                    >
+                      <ChevronDown className="w-5 h-5" />
+                    </motion.span>
+                    <span className="font-semibold text-slate-900">Market News</span>
+                    {marketNews?.summary && (
+                      <span className="text-sm text-slate-500 font-normal truncate max-w-[280px]">
+                        {marketNews.summary}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-sm text-slate-400">{marketStories.length} stories</span>
+                </button>
+                <motion.div
+                  initial={false}
+                  animate={{
+                    opacity: marketSectionOpen ? 1 : 0,
+                    height: marketSectionOpen ? "auto" : 0,
+                  }}
+                  transition={{ duration: 0.25, ease: "easeInOut" }}
+                  className="overflow-hidden"
+                >
+                  <div className="px-4 pb-4 pt-0 grid gap-4 md:grid-cols-2">
+                    {marketStories.map((story, index) => (
+                      <NewsCard key={`market-${index}`} story={story} index={index} />
+                    ))}
+                  </div>
+                </motion.div>
+              </motion.div>
+
+              {/* Your Portfolio – expandable */}
+              <motion.div
+                layout
+                className="rounded-2xl border border-slate-100 bg-white/80 backdrop-blur-sm overflow-hidden shadow-sm"
+                initial={false}
+              >
+                <button
+                  type="button"
+                  onClick={() => setPortfolioSectionOpen((o) => !o)}
+                  className="w-full flex items-center justify-between p-4 text-left hover:bg-slate-50/50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <motion.span
+                      animate={{ rotate: portfolioSectionOpen ? 0 : -90 }}
+                      transition={{ duration: 0.2 }}
+                      className="text-slate-400"
+                    >
+                      <ChevronDown className="w-5 h-5" />
+                    </motion.span>
+                    <span className="font-semibold text-slate-900">Your Portfolio</span>
+                    {portfolioNews?.summary && (
+                      <span className="text-sm text-slate-500 font-normal truncate max-w-[280px]">
+                        {portfolioNews.summary}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-sm text-slate-400">{portfolioStories.length} stories</span>
+                </button>
+                <motion.div
+                  initial={false}
+                  animate={{
+                    opacity: portfolioSectionOpen ? 1 : 0,
+                    height: portfolioSectionOpen ? "auto" : 0,
+                  }}
+                  transition={{ duration: 0.25, ease: "easeInOut" }}
+                  className="overflow-hidden"
+                >
+                  <div className="px-4 pb-4 pt-0 grid gap-4 md:grid-cols-2">
+                    {portfolioStories.map((story, index) => (
+                      <NewsCard key={`portfolio-${index}`} story={story} index={index} />
+                    ))}
+                  </div>
+                </motion.div>
+              </motion.div>
             </div>
           )}
         </motion.section>
