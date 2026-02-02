@@ -534,17 +534,20 @@ Deno.serve(async (req) => {
     
     const base44 = createClientFromRequest(req);
     
-    // Get Alpha Vantage API key
-    const alphaVantageKey = Deno.env.get("ALPHA_VANTAGE_API_KEY");
-    
-    if (!alphaVantageKey) {
-      console.error("❌ ALPHA_VANTAGE_API_KEY not configured");
+    // Get Alpha Vantage API key from Base44 secrets
+    let alphaVantageKey: string;
+    try {
+      alphaVantageKey = await base44.asServiceRole.getSecret("ALPHA_VANTAGE_API_KEY");
+      if (!alphaVantageKey) {
+        throw new Error("ALPHA_VANTAGE_API_KEY is empty");
+      }
+      console.log("🔑 Alpha Vantage API key retrieved from Base44 secrets ✓");
+    } catch (error: any) {
+      console.error("❌ Failed to retrieve ALPHA_VANTAGE_API_KEY:", error.message);
       return Response.json({ 
         error: "ALPHA_VANTAGE_API_KEY not configured in Base44 secrets" 
       }, { status: 500 });
     }
-    
-    console.log("🔑 Alpha Vantage API key configured ✓");
     
     // Get previous cache for persistence logic
     let previousTopStories: any[] = [];
