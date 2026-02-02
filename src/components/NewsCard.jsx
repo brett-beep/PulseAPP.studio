@@ -38,11 +38,14 @@ export default function NewsCard({ story, index }) {
         return categoryColors[cat] || categoryColors.default;
     };
 
- const descriptionText = stripLinksAndUrls(story.what_happened || story.summary || '');
-const whyItMattersText = stripLinksAndUrls(story.why_it_matters || '');
+    const descriptionText = stripLinksAndUrls(story.what_happened || story.summary || '');
+    const whyItMattersText = stripLinksAndUrls(story.why_it_matters || '');
 
-    
-    const needsExpansion = descriptionText.length > 150;
+    const EXPANDED_MAX_CHARS = 450;
+    const expandedText = descriptionText.length > EXPANDED_MAX_CHARS
+      ? descriptionText.slice(0, EXPANDED_MAX_CHARS).trim() + '…'
+      : descriptionText;
+    const needsExpansion = descriptionText.length > 200;
 
     return (
         <article
@@ -69,7 +72,9 @@ const whyItMattersText = stripLinksAndUrls(story.why_it_matters || '');
                 >
                     {story.category || 'News'}
                 </Badge>
-                <span className="text-xs text-slate-400 font-medium whitespace-nowrap">{story.outlet || story.source}</span>
+                <span className="text-xs text-slate-400 font-medium whitespace-nowrap truncate max-w-[140px]" title={story.outlet || story.source}>
+                    {story.outlet || story.source}
+                </span>
             </div>
 
             {/* Title */}
@@ -77,30 +82,30 @@ const whyItMattersText = stripLinksAndUrls(story.why_it_matters || '');
                 {story.title}
             </h3>
 
-            {/* Description (What Happened) - TRUNCATED until expanded */}
+            {/* Description: collapsed = first 3 lines (consistent card height); expanded = up to 450 chars */}
             <div className="mb-4">
                 {isExpanded ? (
-                    <p className="text-slate-600 text-sm leading-relaxed">{descriptionText}</p>
+                    <p className="text-slate-600 text-sm leading-relaxed">{expandedText}</p>
                 ) : (
                     <p className="text-slate-600 text-sm leading-relaxed line-clamp-3">{descriptionText}</p>
                 )}
-                
                 {needsExpansion && (
                     <button
+                        type="button"
                         onClick={() => setIsExpanded(!isExpanded)}
-                        className="text-xs font-medium text-amber-600 hover:text-amber-700 transition-colors mt-2"
+                        className="text-sm font-medium text-amber-600 hover:text-amber-700 transition-colors mt-2"
                     >
                         {isExpanded ? '← Show less' : 'Read more →'}
                     </button>
                 )}
             </div>
 
-            {/* Why It Matters - NEVER TRUNCATED */}
+            {/* Why It Matters – one sentence, 150–200 chars, never truncated */}
             {whyItMattersText && (
                 <div className="pt-4 border-t border-slate-100 mt-auto">
                     <div className="flex items-start gap-2">
                         <div className="w-1 h-1 bg-amber-400 rounded-full mt-2 flex-shrink-0" />
-                        <p className="text-xs text-slate-500 italic leading-relaxed">
+                        <p className="text-sm text-slate-600 leading-relaxed">
                             {whyItMattersText}
                         </p>
                     </div>

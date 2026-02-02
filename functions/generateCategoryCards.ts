@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: "Not enough stories in cache", count: allStories.length }, { status: 503 });
     }
 
-    // Schema for LLM response - returns indices and summary only
+    // Schema for LLM response - indices, summary, and per-story description + takeaway
     const selectionSchema = {
       type: "object",
       additionalProperties: false,
@@ -65,14 +65,39 @@ Deno.serve(async (req) => {
           maxItems: 5,
           items: { type: "number" },
         },
+        story_details: {
+          type: "array",
+          minItems: 5,
+          maxItems: 5,
+          items: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              story_index: { type: "number" },
+              description_short: { type: "string" },
+              why_it_matters: { type: "string" },
+            },
+            required: ["story_index", "description_short", "why_it_matters"],
+          },
+        },
       },
-      required: ["summary", "selected_indices"],
+      required: ["summary", "selected_indices", "story_details"],
     };
 
-    // Build numbered story list for LLM
+    // Build numbered story list for LLM (include raw summary snippet for rewriting)
     const storyList = allStories
-      .map((s: any, i: number) => `${i + 1}. [${s.category || "general"}] ${s.title} (${s.outlet || "Unknown"})`)
-      .join("\n");
+      .map(
+        (s: any, i: number) =>
+          `${i + 1}. [${s.category || "general"}] ${s.title} (${s.outlet || "Unknown"})\n   Raw: ${(s.what_happened || s.summary || "").slice(0, 200)}...`
+      )
+      .join("\n\n");
+
+    const storyDetailsInstruction = `
+For EACH of the 5 stories you select, you MUST also provide:
+- description_short: 2-3 sentences, 400-500 characters MAX. Clean, factual summary in English. No thank-yous, no fluff. Focus on what happened and why it matters to markets.
+- why_it_matters: ONE sentence investor takeaway, 150-200 characters. Specific (e.g. "Rising rates could pressure growth multiples; consider shortening duration in bond funds."). NOT generic phrases like "Could impact portfolio performance."
+
+Return story_details as an array of 5 objects with story_index (1-${allStories.length}), description_short, and why_it_matters.`;
 
     // Category definitions with prompts
     const categories = [
@@ -100,7 +125,8 @@ ${storyList}
 
 Return JSON with:
 - summary: 10-15 word overview (e.g., "Fed holds rates, tech rallies on AI optimism, oil drops 3%")
-- selected_indices: Array of exactly 5 story numbers (1-${allStories.length})`,
+- selected_indices: Array of exactly 5 story numbers (1-${allStories.length})
+${storyDetailsInstruction}`,
       },
       {
         name: "TECH_PORTFOLIO",
@@ -120,7 +146,8 @@ ${storyList}
 
 Return JSON with:
 - summary: 10-15 word overview (e.g., "Apple beats earnings, Microsoft AI spending accelerates")
-- selected_indices: Array of exactly 5 story numbers (1-${allStories.length})`,
+- selected_indices: Array of exactly 5 story numbers (1-${allStories.length})
+${storyDetailsInstruction}`,
       },
       {
         name: "GROWTH_PORTFOLIO",
@@ -140,7 +167,8 @@ ${storyList}
 
 Return JSON with:
 - summary: 10-15 word overview (e.g., "Tesla FSD update, Shopify merchant growth accelerates")
-- selected_indices: Array of exactly 5 story numbers (1-${allStories.length})`,
+- selected_indices: Array of exactly 5 story numbers (1-${allStories.length})
+${storyDetailsInstruction}`,
       },
       {
         name: "ENERGY_PORTFOLIO",
@@ -160,7 +188,8 @@ ${storyList}
 
 Return JSON with:
 - summary: 10-15 word overview (e.g., "Oil surges on OPEC cuts, Chevron raises dividend")
-- selected_indices: Array of exactly 5 story numbers (1-${allStories.length})`,
+- selected_indices: Array of exactly 5 story numbers (1-${allStories.length})
+${storyDetailsInstruction}`,
       },
       {
         name: "CRYPTO_PORTFOLIO",
@@ -180,7 +209,8 @@ ${storyList}
 
 Return JSON with:
 - summary: 10-15 word overview (e.g., "Bitcoin breaks $60k, Coinbase volume spikes on ETF inflows")
-- selected_indices: Array of exactly 5 story numbers (1-${allStories.length})`,
+- selected_indices: Array of exactly 5 story numbers (1-${allStories.length})
+${storyDetailsInstruction}`,
       },
       {
         name: "MIXED_PORTFOLIO",
@@ -200,7 +230,8 @@ ${storyList}
 
 Return JSON with:
 - summary: 10-15 word overview (e.g., "Banks rally on rate outlook, healthcare defensive in selloff")
-- selected_indices: Array of exactly 5 story numbers (1-${allStories.length})`,
+- selected_indices: Array of exactly 5 story numbers (1-${allStories.length})
+${storyDetailsInstruction}`,
       },
     ];
 
@@ -228,17 +259,33 @@ Return JSON with:
           response_json_schema: selectionSchema,
         });
 
-        // Map indices back to full story objects
+        // Map indices back to full story objects; merge LLM-written description + takeaway
+        const detailsByIndex = (result.story_details || []).reduce(
+          (acc: Record<number, any>, d: any) => {
+            if (d && typeof d.story_index === "number") acc[d.story_index] = d;
+            return acc;
+          },
+          {}
+        );
+
         const selectedStories = (result.selected_indices || [])
           .filter((idx: number) => idx >= 1 && idx <= allStories.length)
           .slice(0, 5)
           .map((idx: number) => {
-            const story = allStories[idx - 1]; // Convert 1-indexed to 0-indexed
+            const story = allStories[idx - 1];
+            const details = detailsByIndex[idx];
+            const whatHappened =
+              details?.description_short?.trim?.() ||
+              story.what_happened ||
+              (story.summary && story.summary.slice(0, 500)) ||
+              "";
+            const whyItMatters =
+              details?.why_it_matters?.trim?.() || story.why_it_matters || "";
             return {
               id: story.id || randomId(),
               title: story.title,
-              what_happened: story.what_happened,
-              why_it_matters: story.why_it_matters || "",
+              what_happened: whatHappened.slice(0, 500),
+              why_it_matters: whyItMatters.slice(0, 220),
               href: story.href,
               outlet: story.outlet,
               category: story.category,

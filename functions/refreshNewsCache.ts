@@ -332,6 +332,56 @@ async function fetchAlphaVantageNews(apiKey: string): Promise<any[]> {
 }
 
 // ============================================================
+// FILTER LOW-QUALITY / JUNK ARTICLES
+// ============================================================
+
+const LOW_QUALITY_SOURCES = [
+  "blogspot", "wordpress.com", "tumblr.com", "medium.com/personal",
+  "substack.com/thank", "patreon.com", "ko-fi.com",
+];
+
+const JUNK_PATTERNS = [
+  /thank\s+you\s+for\s+(your\s+)?(superbly\s+)?(generous\s+)?subscription/i,
+  /thank\s+you\s+.*\s+subscription\s+to\s+this\s+site/i,
+  /greatly\s+honored\s+by\s+your\s+support/i,
+  /subscription\s+to\s+this\s+site/i,
+  /^\s*thank\s+you[,.]/i,
+];
+
+function isLikelyNonEnglish(text: string): boolean {
+  if (!text || text.length < 20) return false;
+  const sample = text.slice(0, 300);
+  const nonLatin = (sample.match(/[^\x00-\x7F\s]/g) || []).length;
+  return nonLatin > sample.length * 0.15;
+}
+
+function filterLowQualityArticles(articles: any[]): any[] {
+  const filtered = articles.filter((article) => {
+    const source = (article.source || "").toLowerCase();
+    const url = (article.url || "").toLowerCase();
+    const title = (article.title || "").trim();
+    const summary = (article.summary || "").trim();
+    const combined = `${title} ${summary}`.slice(0, 500);
+
+    if (LOW_QUALITY_SOURCES.some((d) => source.includes(d) || url.includes(d))) {
+      return false;
+    }
+    if (JUNK_PATTERNS.some((p) => p.test(combined))) {
+      return false;
+    }
+    if (isLikelyNonEnglish(title) || isLikelyNonEnglish(summary)) {
+      return false;
+    }
+    return true;
+  });
+  const removed = articles.length - filtered.length;
+  if (removed > 0) {
+    console.log(`🧹 Filtered ${removed} low-quality/non-English articles → ${filtered.length} remaining`);
+  }
+  return filtered;
+}
+
+// ============================================================
 // STORY SELECTION WITH PERSISTENCE
 // ============================================================
 
@@ -505,10 +555,11 @@ Deno.serve(async (req) => {
     }
     
     // Fetch from Alpha Vantage
-    const allArticles = await fetchAlphaVantageNews(alphaVantageKey);
+    const rawArticles = await fetchAlphaVantageNews(alphaVantageKey);
+    const allArticles = filterLowQualityArticles(rawArticles);
     
     if (allArticles.length === 0) {
-      console.log("⚠️ No articles fetched from Alpha Vantage");
+      console.log("⚠️ No articles fetched from Alpha Vantage (or all filtered out)");
       return Response.json({ 
         error: "No articles fetched from Alpha Vantage",
         hint: "Check API key and rate limits"
