@@ -194,7 +194,21 @@ function getBreakingScore(story, nowTimestamp) {
     if (sentimentStrength > 0.3) score += 15; // Strong sentiment
     else if (sentimentStrength > 0.15) score += 8; // Moderate sentiment
   }
-  
+
+  // 8. PENALIZE COMPANY-SPECIFIC NEWS (should go to personalized, not breaking)
+  const COMPANY_SIGNALS = [
+    "earnings", "quarterly", "q1", "q2", "q3", "q4", "quarter",
+    "guidance", "revenue beat", "revenue miss", "profit",
+    "ceo", "cfo", "executive", "management",
+    "ipo", "merger", "acquisition", "m&a",
+    "layoffs", "restructuring", "spinoff",
+    "dividend", "buyback", "stock split"
+  ];
+  const hasCompanyNews = COMPANY_SIGNALS.some(kw => fullText.includes(kw));
+  if (hasCompanyNews) {
+    score -= 60; // Strong penalty - we want macro news only
+  }
+
   return { score, ageHours };
 }
 
@@ -269,8 +283,40 @@ function getPersonalizationScore(story, userCategories, userKeywords, userHoldin
     if (symbol && storyText.includes(symbol)) relevanceScore += 100;
     if (name && name.length > 3 && storyText.includes(name)) relevanceScore += 80;
   }
-  
+
+  // BOOST COMPANY-SPECIFIC NEWS (opposite of breaking score)
+  const COMPANY_SIGNALS = [
+    "earnings", "quarterly", "q1", "q2", "q3", "q4",
+    "guidance", "revenue", "profit",
+    "ceo", "cfo", "management",
+    "ipo", "merger", "acquisition",
+    "layoffs", "restructuring",
+    "dividend", "buyback"
+  ];
+  const hasCompanyNews = COMPANY_SIGNALS.some(kw => storyText.includes(kw));
+  if (hasCompanyNews) {
+    relevanceScore += 40;
+  }
+
   return relevanceScore;
+}
+
+function detectRelevantHoldings(story, userHoldings) {
+  const storyText = `${story.title} ${story.what_happened}`.toLowerCase();
+  const relevantHoldings = [];
+
+  for (const holding of userHoldings) {
+    const symbol = (typeof holding === "string" ? holding : holding?.symbol || "").toLowerCase();
+    const name = (typeof holding === "string" ? "" : holding?.name || "").toLowerCase();
+
+    if (symbol && storyText.includes(symbol)) {
+      relevantHoldings.push(typeof holding === "string" ? holding : holding.symbol);
+    } else if (name && name.length > 3 && storyText.includes(name)) {
+      relevantHoldings.push(typeof holding === "string" ? holding : holding.symbol || holding.name);
+    }
+  }
+
+  return relevantHoldings.length > 0 ? relevantHoldings.join(", ") : "none";
 }
 
 function generateFallbackWhyItMatters(category) {
@@ -323,6 +369,38 @@ async function generateAudioFile(script, date, elevenLabsApiKey) {
 
   const audioBlob = await ttsResponse.blob();
   return new File([audioBlob], `briefing-${date}.mp3`, { type: "audio/mpeg" });
+}
+
+async function fetchMarketSnapshot() {
+  const apiKey = Deno.env.get("FINNHUB_API_KEY");
+  if (!apiKey) {
+    console.warn("⚠️ FINNHUB_API_KEY not set; using default snapshot");
+    return { sp500_pct: "0.0%", nasdaq_pct: "0.0%", dow_pct: "0.0%" };
+  }
+  const symbols = ["SPY", "QQQ", "DIA"];
+  try {
+    const results = await Promise.all(
+      symbols.map(async (symbol) => {
+        const url = `https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${apiKey}`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`Finnhub error: ${response.status}`);
+        const data = await response.json();
+        const changePct = data.dp ?? 0;
+        return {
+          symbol,
+          change_pct: `${changePct > 0 ? "+" : ""}${Number(changePct).toFixed(1)}%`,
+        };
+      })
+    );
+    return {
+      sp500_pct: results[0].change_pct,
+      nasdaq_pct: results[1].change_pct,
+      dow_pct: results[2].change_pct,
+    };
+  } catch (error) {
+    console.error("⚠️ Finnhub failed:", error?.message);
+    return { sp500_pct: "0.0%", nasdaq_pct: "0.0%", dow_pct: "0.0%" };
+  }
 }
 
 Deno.serve(async (req) => {
@@ -562,105 +640,18 @@ Deno.serve(async (req) => {
     });
 
     // =========================================================
-    // STEP 2: Get Market Snapshot via LLM (quick call, no web search)
+    // STEP 2: Get Market Snapshot via Finnhub (0 credits)
     // =========================================================
-    console.log("📈 [generateBriefing] Fetching market snapshot...");
-    
-    const marketPrompt = `
-Provide the current market snapshot for ${date} (today).
-Return the approximate percentage change for:
-- S&P 500
-- Nasdaq
-- Dow Jones
-
-If markets are closed, provide the most recent close percentages.
-Return JSON only.
-`;
-
-    const marketSchema = {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        sp500_pct: { type: "string" },
-        nasdaq_pct: { type: "string" },
-        dow_pct: { type: "string" },
-      },
-      required: ["sp500_pct", "nasdaq_pct", "dow_pct"],
-    };
-
-    let marketSnapshot = { sp500_pct: "0.0%", nasdaq_pct: "0.0%", dow_pct: "0.0%" };
-    try {
-      const marketData = await invokeLLM(base44, marketPrompt, true, marketSchema);
-      marketSnapshot = {
-        sp500_pct: normalizePct(marketData?.sp500_pct),
-        nasdaq_pct: normalizePct(marketData?.nasdaq_pct),
-        dow_pct: normalizePct(marketData?.dow_pct),
-      };
-      console.log("✅ [generateBriefing] Market snapshot:", marketSnapshot);
-    } catch (marketError) {
-      console.error("⚠️ [generateBriefing] Market snapshot failed, using defaults:", marketError.message);
-    }
+    console.log("📈 [generateBriefing] Fetching market snapshot from Finnhub...");
+    const marketSnapshot = await fetchMarketSnapshot();
+    console.log("✅ [generateBriefing] Market snapshot:", marketSnapshot);
 
     // =========================================================
-    // STEP 3: Generate Metadata
+    // STEP 3: Generate Combined Metadata + Script (1 credit)
     // =========================================================
-    // Split stories for prompt formatting
     const rapidFireForPrompt = allStories.filter(s => s.isRapidFire);
     const personalizedForPrompt = allStories.filter(s => !s.isRapidFire);
 
-    const metaPrompt = `
-Create briefing metadata for ${date}.
-
-LISTENER: ${name}
-
-BREAKING NEWS (Rapid Fire):
-${rapidFireForPrompt.map((s, i) => `${i + 1}. ${s.title} - ${s.what_happened}`).join("\n")}
-
-PERSONALIZED STORIES:
-${personalizedForPrompt.map((s, i) => `${i + 1}. ${s.title} - ${s.what_happened}`).join("\n")}
-
-MARKET SNAPSHOT:
-- S&P: ${marketSnapshot.sp500_pct}
-- Nasdaq: ${marketSnapshot.nasdaq_pct}
-- Dow: ${marketSnapshot.dow_pct}
-
-Return JSON with:
-- summary: 2-3 sentence overview focusing on the breaking news headlines
-- key_highlights: 3-5 bullets (lead with news, not markets)
-- market_sentiment: { label: "bullish"|"bearish"|"neutral"|"mixed", description: one sentence }
-`;
-
-    const metaSchema = {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        summary: { type: "string" },
-        key_highlights: { type: "array", minItems: 3, maxItems: 5, items: { type: "string" } },
-        market_sentiment: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            label: { type: "string" },
-            description: { type: "string" },
-          },
-          required: ["label", "description"],
-        },
-      },
-      required: ["summary", "key_highlights", "market_sentiment"],
-    };
-
-    const meta = await invokeLLM(base44, metaPrompt, false, metaSchema);
-
-    const uiSummary = safeText(meta?.summary, "");
-    const uiHighlights = Array.isArray(meta?.key_highlights)
-      ? meta.key_highlights.map((x) => safeText(x, "")).filter(Boolean)
-      : [];
-    const uiSentiment = meta?.market_sentiment || { label: "neutral", description: "" };
-
-    // =========================================================
-    // STEP 4: Generate Script with Hybrid Framework + Personal Opening
-    // (timezone-aware)
-    // =========================================================
     const now = new Date();
     const { hour, dayOfWeek, month, day } = getZonedParts(timeZone, now);
 
@@ -681,22 +672,48 @@ Return JSON with:
     if (month === 5 && dayOfWeek === 1 && day >= 25) holidayGreeting = "Happy Memorial Day";
     if (month === 9 && dayOfWeek === 1 && day <= 7) holidayGreeting = "Happy Labor Day";
 
-    // Build user interests string for prompt
     const userInterestsStr = userInterests.length > 0 ? userInterests.join(", ") : "general markets";
-    const userHoldingsStr = userHoldings.length > 0 
-      ? userHoldings.map(h => typeof h === "string" ? h : h?.symbol).filter(Boolean).join(", ") 
+    const userHoldingsStr = userHoldings.length > 0
+      ? userHoldings.map(h => (typeof h === "string" ? h : h?.symbol)).filter(Boolean).join(", ")
       : "not specified";
 
-    const scriptPrompt = `
-Write the spoken script for "Pulse" - a news-first investor briefing.
+    const breakingNewsRelevance = rapidFireForPrompt.map(story => ({
+      ...story,
+      relevantToUserHoldings: detectRelevantHoldings(story, userHoldings),
+    }));
 
-LISTENER: ${name}
-DATE: ${date}
-TIME OF DAY: ${timeGreeting}
-${holidayGreeting ? `HOLIDAY: ${holidayGreeting}` : ""}
-${isWeekend ? "CONTEXT: Weekend" : ""}
-${isMonday ? "CONTEXT: Monday (start of week)" : ""}
-${isFriday ? "CONTEXT: Friday (end of week)" : ""}
+    console.log("✍️ [generateBriefing] Generating metadata + script in one call...");
+
+    const combinedPrompt = `
+You are writing a complete audio briefing package for "Pulse" - a personalized financial news briefing.
+
+LISTENER PROFILE:
+- Name: ${name}
+- Date: ${date}
+- Time of Day: ${timeGreeting}
+${holidayGreeting ? `- Holiday: ${holidayGreeting}` : ""}
+${isWeekend ? "- Context: Weekend" : ""}
+${isMonday ? "- Context: Monday (start of week)" : ""}
+${isFriday ? "- Context: Friday (end of week)" : ""}
+- Investment Interests: ${userInterestsStr}
+- Portfolio Holdings: ${userHoldingsStr}
+
+MARKET SNAPSHOT:
+- S&P 500: ${marketSnapshot.sp500_pct}
+- Nasdaq: ${marketSnapshot.nasdaq_pct}
+- Dow Jones: ${marketSnapshot.dow_pct}
+
+---
+
+PART 1: GENERATE METADATA
+Create briefing metadata with:
+- summary: 2-3 sentence overview focusing on the top breaking headlines
+- key_highlights: 3-5 bullets (prioritize breaking news, not just market moves)
+- market_sentiment: { label: "bullish"|"bearish"|"neutral"|"mixed", description: one sentence }
+
+---
+
+PART 2: GENERATE AUDIO SCRIPT
 
 TARGET LENGTH: 5 MINUTES (650-750 words total)
 
@@ -704,62 +721,79 @@ SCRIPT STRUCTURE - TWO-TIER FORMAT:
 
 1. PERSONAL OPENING (20-30 words):
    - Start with: "${timeGreeting}, ${name}"
-   ${holidayGreeting ? `- Include holiday greeting: "${holidayGreeting}"` : ""}
-   ${isWeekend ? "- Add: \"Hope you're enjoying your weekend\" or similar weekend acknowledgment" : ""}
-   ${isMonday ? "- Add: \"Hope you had a great weekend\" or \"Let's start the week strong\"" : ""}
-   ${isFriday ? "- Add: \"Let's wrap up the week\" or similar end-of-week sentiment" : ""}
-   - Make it feel like talking to a friend
-   - Transition: "First, let's catch you up on what's breaking" or "Let's start with the headlines"
+   ${holidayGreeting ? `- Include: "${holidayGreeting}"` : ""}
+   ${isWeekend ? "- Add weekend acknowledgment" : ""}
+   ${isMonday ? "- Add: 'Hope you had a great weekend' or 'Let's start the week strong'" : ""}
+   ${isFriday ? "- Add: 'Let's wrap up the week' or similar end-of-week sentiment" : ""}
+   - Transition with conversational anchor:
+     Examples: "Let me catch you up on what happened in the markets overnight..."
+     "Here's what you need to know to start your day..."
+     "Let's dive into what's moving markets today..."
 
-2. RAPID FIRE BREAKING NEWS (Stories 1-3) - ~150-180 words total (~50-60 words each):
-   
-   STYLE: Quick, punchy, Bloomberg/CNBC-style push notification format
-   For EACH story:
-   - State the headline clearly
-   - What happened (1-2 sentences with key facts/numbers)
-   - Investor impact (1 sentence)
-   - Move on quickly
-   
-   DO NOT use narrative structure. Be direct and factual.
-   After all 3, transition: "Now, let's dive deeper into stories that matter for your portfolio..."
+2. RAPID FIRE BREAKING NEWS (Stories 1-3) - ~180 words total:
+   STYLE: Conversational Bloomberg/CNBC format with personality
+   For EACH story (~60 words):
+   - Lead with the headline using natural language
+   - What happened (facts + numbers, 2-3 sentences)
+   - **CONDITIONAL INVESTOR TAKEAWAY**:
+     ${userHoldings.length > 0 ? `
+     IF story affects user's holdings (${userHoldingsStr}):
+       "For your [HOLDING], this means [SPECIFIC IMPACT]"
+     ELSE:
+       Brief general context
+     ` : "General investor context"}
+   NO section headers. Keep momentum with natural transitions.
 
-3. PERSONALIZED DEEP DIVES (Stories 4-6) - ~400-450 words total (~130-150 words each):
-   
-   STYLE: Full narrative using HYBRID FRAMEWORK (but DON'T label sections):
-   • HOOK: Grab attention with stakes or surprise
-   • FACTS: Detailed explanation with specifics (numbers, mechanisms, context)
-   • DEEPER MEANING: Connect to portfolio implications, sector impact
-   
-   ${userInterests.length > 0 ? `CONNECT TO USER'S INTERESTS: ${userInterestsStr}` : ""}
-   ${userHoldings.length > 0 ? `MENTION USER'S HOLDINGS WHERE RELEVANT: ${userHoldingsStr}` : ""}
+3. PORTFOLIO TRANSITION (10-15 words):
+   Re-engage user by name before personalized section.
+   Examples: "Alright, now let's zoom in on your portfolio, ${name}."
+   "Now, here's what matters for your holdings, ${name}."
 
-4. MARKET SNAPSHOT (30-40 words):
-   - S&P, Nasdaq, Dow % moves only (no absolute levels)
-   - One-sentence context on market direction
+4. PERSONALIZED DEEP DIVES (Stories 4-6) - ~400-450 words total:
+   STYLE: Deeper narrative, portfolio-focused
+   For EACH holding-related story (~130-150 words):
+   - Start with the news hook (what happened)
+   - Add context and background (why it happened)
+   - **Portfolio implications** (what it means for ${name}'s holdings)
+   - Include forward-looking element: "The two risks to watch are..." "What matters going forward is..."
+   Use conversational connectors: "Since you also hold [TICKER]..." "Because you're exposed to [SECTOR]..."
 
-5. CLOSING (30-40 words):
-   - Synthesize the day's themes
-   - One actionable insight or question to consider
-   - Sign off naturally
+5. PORTFOLIO SNAPSHOT (40-50 words):
+   - Overall portfolio context if relevant
+   - Market snapshot: "Markets: S&P ${marketSnapshot.sp500_pct}, Nasdaq ${marketSnapshot.nasdaq_pct}, Dow ${marketSnapshot.dow_pct}"
+   - Brief sentiment/context (1 sentence)
+
+6. FORWARD-LOOKING "WHAT TO WATCH" (30-40 words):
+   Set up the user for what matters next. Format as conversational guidance (NOT bullets).
+   Examples: "Here's what to watch: [THEME 1], [THEME 2], and [THEME 3]."
+
+7. CLOSING (20-30 words):
+   - Quick wrap synthesizing the day
+   - Re-use name for personal touch
+   - Sign off with energy: "That's your Pulse for ${date}. Go crush it today, ${name}."
+   Avoid generic closings like "Thanks for listening"
 
 CRITICAL VOICE RULES:
-- Conversational but authoritative
-- Direct address ("you", "your portfolio")
-- NO section labels in the output (don't say "RAPID FIRE", "DEEP DIVE", "HOOK", "FACTS", etc.)
-- NO filler phrases or hedging
-- Percent moves ONLY for indices (never absolute levels)
-- Write as continuous spoken narration
+- Write like you're talking to a friend who's smart about markets
+- Use ${name} at least 3 times total (opening, portfolio transition, closing)
+- Conversational asides ("So quite a bit of uncertainty"), colloquialisms ("The Street's worried", "got crushed")
+- NO section labels visible in script. NO robotic transitions.
+- Percent moves ONLY for indices (never point values)
 
-DATA FOR RAPID FIRE (Stories 1-3 - Breaking News):
-${rapidFireForPrompt
+---
+
+DATA FOR RAPID FIRE (Stories 1-3):
+${breakingNewsRelevance
   .map(
     (s, i) => `
 Story ${i + 1}:
-Headline: ${s.title}
-What happened: ${s.what_happened}
+Title: ${s.title}
+What Happened: ${s.what_happened}
 Source: ${s.outlet}
 Category: ${s.category}
-Age: ${(s.ageHours || 0).toFixed(1)} hours old
+Age: ${(s.ageHours || 0).toFixed(1)}h
+Relevant to User's Holdings: ${s.relevantToUserHoldings}
+${s.relevantToUserHoldings !== "none" ? `→ Add specific takeaway for: ${s.relevantToUserHoldings}` : "→ Add general market context only"}
 `
   )
   .join("\n")}
@@ -769,35 +803,77 @@ ${personalizedForPrompt
   .map(
     (s, i) => `
 Story ${i + 4}:
-Headline: ${s.title}
-What happened: ${s.what_happened}
-Why it matters: ${s.why_it_matters || "Connect to investor implications"}
+Title: ${s.title}
+What Happened: ${s.what_happened}
+Why It Matters: ${s.why_it_matters || "Connect to investor implications"}
 Source: ${s.outlet}
 Category: ${s.category}
+Relevant to User's Holdings: ${detectRelevantHoldings(s, userHoldings)}
 `
   )
   .join("\n")}
 
-MARKET SNAPSHOT:
-- S&P: ${marketSnapshot.sp500_pct}
-- Nasdaq: ${marketSnapshot.nasdaq_pct}
-- Dow: ${marketSnapshot.dow_pct}
+---
 
-Return JSON: { "script": "..." }
+RETURN JSON FORMAT:
+{
+  "metadata": {
+    "summary": "...",
+    "key_highlights": ["...", "...", "..."],
+    "market_sentiment": {
+      "label": "bullish"|"bearish"|"neutral"|"mixed",
+      "description": "..."
+    }
+  },
+  "script": "Full audio script here (650-750 words)..."
+}
 `;
 
-    const scriptSchema = {
+    const combinedSchema = {
       type: "object",
       additionalProperties: false,
-      properties: { script: { type: "string" } },
-      required: ["script"],
+      properties: {
+        metadata: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            summary: { type: "string" },
+            key_highlights: {
+              type: "array",
+              minItems: 3,
+              maxItems: 5,
+              items: { type: "string" },
+            },
+            market_sentiment: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                label: { type: "string" },
+                description: { type: "string" },
+              },
+              required: ["label", "description"],
+            },
+          },
+          required: ["summary", "key_highlights", "market_sentiment"],
+        },
+        script: { type: "string" },
+      },
+      required: ["metadata", "script"],
     };
 
-    const scriptData = await invokeLLM(base44, scriptPrompt, false, scriptSchema);
-    const script = sanitizeForAudio(scriptData?.script || "");
+    const combined = await invokeLLM(base44, combinedPrompt, false, combinedSchema);
 
+    const uiSummary = safeText(combined?.metadata?.summary, "");
+    const uiHighlights = Array.isArray(combined?.metadata?.key_highlights)
+      ? combined.metadata.key_highlights.map((x) => safeText(x, "")).filter(Boolean)
+      : [];
+    const uiSentiment = combined?.metadata?.market_sentiment || { label: "neutral", description: "" };
+
+    const script = sanitizeForAudio(combined?.script || "");
     const wc = wordCount(script);
     const estimatedMinutes = Math.max(1, Math.round(wc / 150));
+
+    console.log(`✅ [generateBriefing] Generated script: ${wc} words (~${estimatedMinutes} min)`);
 
     // =========================================================
     // STEP 5: Save Briefing (ALWAYS CREATE NEW)
