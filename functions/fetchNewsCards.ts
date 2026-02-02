@@ -1,9 +1,7 @@
 // ============================================================
-// fetchNewsCards.ts - Base44 Function (v3 - Alpha Vantage)
-// Reads from NewsCache (30 articles from Alpha Vantage)
-// FILTERS by user's selected interests/topics/holdings
-// Returns TOP 5 most relevant stories for the user
-// Enhances with LLM personalization
+// fetchNewsCards.ts - Base44 Function (v4 - Category-Based)
+// Reads pre-generated cards from NewsCardCache (0 LLM credits per call)
+// Returns: { market_news: [5], portfolio_news: [5] }
 // ============================================================
 
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
@@ -17,270 +15,66 @@ function safeText(input: unknown, fallback: string = ""): string {
   return s || fallback;
 }
 
-function stripLinksAndUrls(s: string): string {
-  if (!s) return "";
-  let t = String(s);
-  t = t.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, "$1");
-  t = t.replace(/https?:\/\/\S+/gi, "");
-  t = t.replace(/\(\s*[a-z0-9-]+\.(com|net|org|io|co|ca|ai|app)(?:\/[^)]*)?s*\)/gi, "");
-  t = t.replace(/\butm_[a-z0-9_]+\b/gi, "");
-  t = t.replace(/[*_`>#]/g, "");
-  t = t.replace(/[ \t]{2,}/g, " ");
-  t = t.replace(/\n{3,}/g, "\n\n");
-  return t.trim();
+function getTimeVariant(): string {
+  const hour = new Date().getUTCHours();
+  // Adjust for US Eastern (UTC-5 or UTC-4 DST)
+  const etHour = (hour - 5 + 24) % 24;
+
+  if (etHour >= 4 && etHour < 12) return "MORNING";
+  if (etHour >= 12 && etHour < 18) return "AFTERNOON";
+  return "EVENING";
 }
 
-function capToTwoSentences(text: string): string {
-  const t = safeText(text, "").trim();
-  if (!t) return "";
-  const parts = t.replace(/\s+/g, " ").split(/(?<=[.!?])\s+/).filter(Boolean);
-  return parts.slice(0, 2).join(" ").trim();
+// ============================================================
+// PORTFOLIO CATEGORY DETECTION
+// ============================================================
+
+const TECH_TICKERS = ["AAPL", "MSFT", "GOOGL", "GOOG", "META", "AMZN", "NVDA", "INTC", "AMD", "CRM", "ORCL", "ADBE", "CSCO"];
+const GROWTH_TICKERS = ["TSLA", "SHOP", "SQ", "ABNB", "UBER", "LYFT", "PLTR", "SNOW", "RBLX", "DKNG", "HOOD", "RIVN", "LCID", "SOFI"];
+const ENERGY_TICKERS = ["XLE", "CVX", "XOM", "COP", "SLB", "OXY", "HAL", "MPC", "PSX", "VLO", "EOG", "PXD"];
+const CRYPTO_TICKERS = ["COIN", "MARA", "RIOT", "MSTR", "CLSK", "HUT", "BITF", "HIVE"];
+
+function classifyHolding(ticker: string): string {
+  const t = ticker.toUpperCase();
+  if (TECH_TICKERS.includes(t)) return "TECH";
+  if (GROWTH_TICKERS.includes(t)) return "GROWTH";
+  if (ENERGY_TICKERS.includes(t)) return "ENERGY";
+  if (CRYPTO_TICKERS.includes(t)) return "CRYPTO";
+  return "MIXED";
 }
 
-function generateFallbackWhyItMatters(category: string): string {
-  const statements: Record<string, string> = {
-    crypto: "Monitor for potential volatility in crypto holdings.",
-    "real estate": "May affect REITs and housing-related investments.",
-    commodities: "Could impact commodity ETFs and related positions.",
-    technology: "Consider implications for tech sector holdings.",
-    economy: "May influence broader market sentiment and Fed policy expectations.",
-    markets: "Factor into overall portfolio strategy.",
+function determineUserPortfolioCategory(holdings: any[]): string {
+  if (!holdings || holdings.length === 0) return "MIXED";
+
+  const categoryCounts: Record<string, number> = {
+    TECH: 0,
+    GROWTH: 0,
+    ENERGY: 0,
+    CRYPTO: 0,
+    MIXED: 0,
   };
-  return statements[category] || statements.markets;
-}
 
-// ============================================================
-// INTEREST MATCHING - Maps user interests to categories/keywords
-// ============================================================
+  for (const holding of holdings) {
+    const ticker = typeof holding === "string" ? holding : holding?.symbol || holding?.ticker || "";
+    if (!ticker) continue;
 
-const INTEREST_TO_CATEGORIES: Record<string, string[]> = {
-  // Direct category matches
-  "crypto": ["crypto"],
-  "cryptocurrency": ["crypto"],
-  "bitcoin": ["crypto"],
-  "ethereum": ["crypto"],
-  "blockchain": ["crypto"],
-  
-  "real estate": ["real estate"],
-  "reits": ["real estate"],
-  "housing": ["real estate"],
-  "property": ["real estate"],
-  
-  "commodities": ["commodities"],
-  "gold": ["commodities"],
-  "oil": ["commodities"],
-  "silver": ["commodities"],
-  "energy": ["commodities"],
-  
-  "technology": ["technology"],
-  "tech": ["technology"],
-  "ai": ["technology"],
-  "artificial intelligence": ["technology"],
-  "software": ["technology"],
-  "semiconductors": ["technology"],
-  
-  "economy": ["economy"],
-  "macro": ["economy"],
-  "federal reserve": ["economy"],
-  "fed": ["economy"],
-  "interest rates": ["economy"],
-  "inflation": ["economy"],
-  
-  "markets": ["markets"],
-  "stocks": ["markets"],
-  "equities": ["markets"],
-  "etfs": ["markets"],
-  "index funds": ["markets"],
-  "s&p 500": ["markets"],
-  "nasdaq": ["markets"],
-  
-  // Broader interests that span multiple categories
-  "growth stocks": ["technology", "markets"],
-  "value investing": ["markets", "economy"],
-  "dividends": ["markets", "real estate"],
-  "passive income": ["real estate", "markets"],
-  "retirement": ["markets", "economy"],
-  "trading": ["markets", "crypto"],
-};
-
-// Keywords to search in headlines/summaries for each interest
-const INTEREST_KEYWORDS: Record<string, string[]> = {
-  "crypto": ["crypto", "bitcoin", "btc", "ethereum", "eth", "blockchain", "defi", "nft", "coinbase", "binance", "altcoin"],
-  "real estate": ["real estate", "housing", "mortgage", "property", "rent", "home", "reits", "homebuilder", "zillow", "construction"],
-  "commodities": ["oil", "gold", "silver", "commodity", "wheat", "corn", "natural gas", "copper", "lithium", "metals", "mining", "energy"],
-  "technology": ["tech", "software", "ai", "chip", "semiconductor", "apple", "google", "microsoft", "meta", "amazon", "nvidia", "saas", "cloud"],
-  "economy": ["fed", "inflation", "gdp", "unemployment", "interest rate", "economy", "recession", "jobs", "cpi", "ppi", "fomc", "powell", "treasury"],
-  "markets": ["stock", "market", "s&p", "nasdaq", "dow", "earnings", "ipo", "merger", "acquisition", "etf", "index", "rally", "selloff"],
-};
-
-function getMatchingCategories(userInterests: string[]): string[] {
-  const categories = new Set<string>();
-  
-  for (const interest of userInterests) {
-    const interestLower = interest.toLowerCase().trim();
-    
-    // Check direct mapping
-    if (INTEREST_TO_CATEGORIES[interestLower]) {
-      INTEREST_TO_CATEGORIES[interestLower].forEach(c => categories.add(c));
-    }
-    
-    // Also do partial matching
-    for (const [key, cats] of Object.entries(INTEREST_TO_CATEGORIES)) {
-      if (interestLower.includes(key) || key.includes(interestLower)) {
-        cats.forEach(c => categories.add(c));
-      }
+    // Check if holding already has a portfolio_category field
+    const existingCategory = holding?.portfolio_category;
+    if (existingCategory && categoryCounts[existingCategory] !== undefined) {
+      categoryCounts[existingCategory]++;
+    } else {
+      // Classify based on ticker
+      const category = classifyHolding(ticker);
+      categoryCounts[category]++;
     }
   }
-  
-  return Array.from(categories);
-}
 
-function getMatchingKeywords(userInterests: string[]): string[] {
-  const keywords = new Set<string>();
-  
-  for (const interest of userInterests) {
-    const interestLower = interest.toLowerCase().trim();
-    
-    // Add the interest itself as a keyword
-    keywords.add(interestLower);
-    
-    // Add related keywords
-    for (const [category, kws] of Object.entries(INTEREST_KEYWORDS)) {
-      if (interestLower.includes(category) || category.includes(interestLower)) {
-        kws.forEach(k => keywords.add(k));
-      }
-    }
-  }
-  
-  return Array.from(keywords);
-}
+  // Crypto gets priority if user has 2+ crypto holdings (they're probably a crypto investor)
+  if (categoryCounts.CRYPTO >= 2) return "CRYPTO";
 
-// ============================================================
-// PERSONALIZED SCORING
-// ============================================================
-
-interface CachedStory {
-  id: string;
-  title: string;
-  what_happened: string;
-  why_it_matters: string;
-  href: string;
-  imageUrl: string;
-  outlet: string;
-  category: string;
-  datetime: string;
-  provider: string;
-  topics?: string[];
-  sentiment_score?: number;
-  urgency_score?: number;
-  rank?: number;
-}
-
-function scoreArticleForUser(
-  article: CachedStory, 
-  userCategories: string[], 
-  userKeywords: string[], 
-  userHoldings: any[]
-): number {
-  let relevanceScore = 0;
-  const articleText = `${article.title} ${article.what_happened}`.toLowerCase();
-  const articleCategory = (article.category || "").toLowerCase();
-  
-  // 1. Category match (high value - 50 points)
-  if (userCategories.includes(articleCategory)) {
-    relevanceScore += 50;
-  }
-  
-  // 2. Keyword matches in headline/summary (20 points each)
-  for (const keyword of userKeywords) {
-    if (articleText.includes(keyword)) {
-      relevanceScore += 20;
-    }
-  }
-  
-  // 3. Holdings match (highest value - user owns this!)
-  for (const holding of userHoldings) {
-    const symbol = (typeof holding === "string" ? holding : holding?.symbol || "").toLowerCase();
-    const name = (typeof holding === "string" ? "" : holding?.name || "").toLowerCase();
-    
-    if (symbol && articleText.includes(symbol)) {
-      relevanceScore += 100; // Very high - directly about their holding
-    }
-    if (name && name.length > 3 && articleText.includes(name)) {
-      relevanceScore += 80;
-    }
-  }
-  
-  // 4. Inherit urgency score from cache (provides recency/importance weight)
-  relevanceScore += (article.urgency_score || 0) * 0.5;
-  
-  // 5. Sentiment strength bonus (strong sentiment = more actionable)
-  const sentimentStrength = Math.abs(article.sentiment_score || 0);
-  relevanceScore += sentimentStrength * 20;
-  
-  return Math.round(relevanceScore);
-}
-
-function filterAndRankForUser(
-  cachedStories: CachedStory[], 
-  preferences: any, 
-  count: number
-): CachedStory[] {
-  const userInterests = preferences?.investment_interests || preferences?.interests || [];
-  const userHoldings = preferences?.portfolio_holdings || preferences?.holdings || [];
-  
-  console.log(`🎯 [Filter] User interests: ${userInterests.join(", ") || "none"}`);
-  console.log(`🎯 [Filter] User holdings: ${userHoldings.length} items`);
-  
-  // If user has no preferences, return top stories by urgency score
-  if (userInterests.length === 0 && userHoldings.length === 0) {
-    console.log("📰 [Filter] No preferences - returning top stories by urgency score");
-    return cachedStories
-      .sort((a, b) => (b.urgency_score || 0) - (a.urgency_score || 0))
-      .slice(0, count);
-  }
-  
-  // Get matching categories and keywords
-  const userCategories = getMatchingCategories(userInterests);
-  const userKeywords = getMatchingKeywords(userInterests);
-  
-  console.log(`🎯 [Filter] Matching categories: ${userCategories.join(", ")}`);
-  console.log(`🎯 [Filter] Keywords to match: ${userKeywords.slice(0, 10).join(", ")}...`);
-  
-  // Score each article for this user
-  const scoredArticles = cachedStories.map(article => ({
-    ...article,
-    userRelevanceScore: scoreArticleForUser(article, userCategories, userKeywords, userHoldings)
-  }));
-  
-  // Sort by user relevance (high relevance first), then by urgency score
-  scoredArticles.sort((a, b) => {
-    // Primary: relevance score
-    if (b.userRelevanceScore !== a.userRelevanceScore) {
-      return b.userRelevanceScore - a.userRelevanceScore;
-    }
-    // Secondary: urgency score
-    return (b.urgency_score || 0) - (a.urgency_score || 0);
-  });
-  
-  // Log what we're returning
-  console.log("📰 [Filter] Top picks for user:");
-  scoredArticles.slice(0, count).forEach((a, i) => {
-    console.log(`   ${i + 1}. [relevance:${a.userRelevanceScore}] [urgency:${a.urgency_score}] [${a.category}] ${a.title.slice(0, 50)}...`);
-  });
-  
-  // If top results have 0 relevance, mix in some top-ranked general news
-  const topPicks = scoredArticles.slice(0, count);
-  const hasRelevantNews = topPicks.some(a => a.userRelevanceScore > 0);
-  
-  if (!hasRelevantNews) {
-    console.log("⚠️ [Filter] No highly relevant news found - returning top general news");
-    return cachedStories
-      .sort((a, b) => (b.urgency_score || 0) - (a.urgency_score || 0))
-      .slice(0, count);
-  }
-  
-  return topPicks;
+  // Otherwise return the most common category
+  const sorted = Object.entries(categoryCounts).sort((a, b) => b[1] - a[1]);
+  return sorted[0][0] || "MIXED";
 }
 
 // ============================================================
@@ -289,7 +83,7 @@ function filterAndRankForUser(
 
 Deno.serve(async (req) => {
   try {
-    console.log("📰 [fetchNewsCards] Function started (v3 - Alpha Vantage)");
+    console.log("📰 [fetchNewsCards] Function started (v4 - Category-Based, 0 LLM credits)");
 
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
@@ -299,193 +93,146 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const count = body?.count || 5; // Default to 5 stories
     const preferences = body?.preferences || {};
-
-    // =========================================================
-    // READ FROM CACHE
-    // =========================================================
-    console.log("📦 [fetchNewsCards] Reading from NewsCache...");
-    
-    let cachedStories: CachedStory[] = [];
-    let cacheAge = null;
-    let cacheInfo: any = {};
-    
-    try {
-      const cacheEntries = await base44.entities.NewsCache.filter({});
-      
-      if (cacheEntries && cacheEntries.length > 0) {
-        const latestCache = cacheEntries.sort((a: any, b: any) => 
-          new Date(b.refreshed_at).getTime() - new Date(a.refreshed_at).getTime()
-        )[0];
-        
-        cachedStories = JSON.parse(latestCache.stories || "[]");
-        cacheAge = latestCache.refreshed_at;
-        cacheInfo = {
-          sources: latestCache.sources_used,
-          total: latestCache.total_fetched,
-          selected: latestCache.articles_selected
-        };
-        
-        console.log(`✅ [fetchNewsCards] Found ${cachedStories.length} cached stories from ${cacheAge}`);
-      } else {
-        console.log("⚠️ [fetchNewsCards] No cache found");
-        return Response.json({
-          success: false,
-          error: "News cache is empty. Please wait for the next refresh cycle.",
-          stories: [],
-          cached: false
-        });
-      }
-    } catch (cacheError: any) {
-      console.error("❌ [fetchNewsCards] Cache read error:", cacheError);
-      return Response.json({
-        success: false,
-        error: "Failed to read news cache: " + cacheError.message,
-        stories: []
-      });
-    }
-
-    // Check cache age
-    if (cacheAge) {
-      const ageMs = Date.now() - new Date(cacheAge).getTime();
-      const ageMinutes = Math.round(ageMs / 60000);
-      console.log(`⏱️ [fetchNewsCards] Cache age: ${ageMinutes} minutes`);
-    }
-
-    // =========================================================
-    // FILTER BY USER INTERESTS - Get top 5 for this user
-    // =========================================================
-    const personalizedStories = filterAndRankForUser(cachedStories, preferences, count);
-
-    // =========================================================
-    // ENHANCE WITH LLM (personalized "why it matters")
-    // =========================================================
-    const userInterests = preferences?.investment_interests || preferences?.interests || [];
     const userHoldings = preferences?.portfolio_holdings || preferences?.holdings || [];
 
-    console.log("🤖 [fetchNewsCards] Enhancing stories with LLM personalization...");
+    const timeVariant = getTimeVariant();
+    const portfolioCategory = determineUserPortfolioCategory(userHoldings);
 
-    const enhancementPrompt = `You are a buy-side market analyst rewriting news blurbs for a retail investor.
+    console.log(`⏰ Time variant: ${timeVariant}`);
+    console.log(`📊 User portfolio category: ${portfolioCategory}`);
+    console.log(`📈 User holdings: ${userHoldings.length} items`);
 
-For each story, provide a personalized "why_it_matters" explanation:
+    // =========================================================
+    // FETCH MARKET NEWS (same for everyone)
+    // =========================================================
+    const marketCacheKey = `MARKET_${timeVariant}`;
+    let marketNews: any = null;
 
-1) what_happened (2-3 sentences, specific + concrete):
-   - Include at least ONE concrete anchor: a number (%, $, bps), named company/ticker, or clear market mechanism
-   - Explain WHY markets care
-   - NO URLs or citations
-
-2) why_it_matters (CRITICAL: Maximum 35-45 words, 2 sentences):
-   - Specific investment impact only
-   - If the user owns relevant holdings, mention them directly
-   - NO hedging words (could/may/might)
-   - Be concise and actionable
-
-USER PROFILE:
-- Interests: ${Array.isArray(userInterests) && userInterests.length > 0 ? userInterests.join(", ") : "General markets"}
-- Holdings: ${Array.isArray(userHoldings) && userHoldings.length > 0 ? userHoldings.map((h: any) => (typeof h === "string" ? h : h?.symbol)).join(", ") : "Not specified"}
-
-NEWS STORIES:
-${personalizedStories
-  .map(
-    (article, i) => `
-STORY ${i + 1}:
-Headline: ${article.title || "No headline"}
-Source: ${article.outlet || "Unknown"}
-Category: ${article.category || "General"}
-Sentiment: ${article.sentiment_score && article.sentiment_score > 0.1 ? "Bullish" : article.sentiment_score && article.sentiment_score < -0.1 ? "Bearish" : "Neutral"}
-Raw Summary: ${article.what_happened || "No summary available"}
-`
-  )
-  .join("\n")}
-
-Return JSON only.`;
-
-    const enhancementSchema = {
-      type: "object",
-      properties: {
-        enhanced_stories: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              story_index: { type: "number" },
-              what_happened: { type: "string" },
-              why_it_matters: { type: "string" },
-            },
-            required: ["story_index", "what_happened", "why_it_matters"],
-          },
-        },
-      },
-      required: ["enhanced_stories"],
-    };
-
-    let enhancedData = null;
     try {
-      enhancedData = await base44.integrations.Core.InvokeLLM({
-        prompt: enhancementPrompt,
-        add_context_from_internet: true,
-        response_json_schema: enhancementSchema,
+      const marketCache = await base44.entities.NewsCardCache.filter({
+        category: marketCacheKey,
       });
-      console.log("✅ [fetchNewsCards] LLM enhancement complete");
-    } catch (llmError: any) {
-      console.error("⚠️ [fetchNewsCards] LLM enhancement failed:", llmError.message);
+
+      if (marketCache && marketCache.length > 0) {
+        const latest = marketCache.sort(
+          (a: any, b: any) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+        )[0];
+
+        marketNews = {
+          summary: latest.summary,
+          stories: typeof latest.stories === "string" ? JSON.parse(latest.stories) : latest.stories,
+          updated_at: latest.updated_at,
+        };
+        console.log(`✅ Market news: "${marketNews.summary}" (${marketNews.stories?.length || 0} stories)`);
+      }
+    } catch (e: any) {
+      console.error("❌ Failed to fetch market news:", e.message);
     }
 
-    // Build final stories array
-    const stories = personalizedStories.map((article, index) => {
-      const enhanced =
-        enhancedData?.enhanced_stories?.find((e: any) => e.story_index === index + 1) ||
-        enhancedData?.enhanced_stories?.[index];
+    // =========================================================
+    // FETCH PORTFOLIO NEWS (based on user's category)
+    // =========================================================
+    const portfolioCacheKey = `${portfolioCategory}_PORTFOLIO_${timeVariant}`;
+    let portfolioNews: any = null;
 
-      const whatHappenedRaw =
-        enhanced?.what_happened || safeText(article.what_happened, "Details pending.");
-      const whyItMattersRaw =
-        enhanced?.why_it_matters || article.why_it_matters || generateFallbackWhyItMatters(article.category);
+    try {
+      const portfolioCache = await base44.entities.NewsCardCache.filter({
+        category: portfolioCacheKey,
+      });
 
-      const whatHappened = stripLinksAndUrls(whatHappenedRaw);
-      const whyItMatters = capToTwoSentences(stripLinksAndUrls(whyItMattersRaw));
+      if (portfolioCache && portfolioCache.length > 0) {
+        const latest = portfolioCache.sort(
+          (a: any, b: any) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+        )[0];
 
-      return {
-        id: article.id,
-        href: article.href,
-        imageUrl: article.imageUrl,
-        title: article.title,
-        what_happened: whatHappened,
-        why_it_matters: whyItMatters,
-        both_sides: {
-          side_a: whyItMatters,
-          side_b: "",
+        portfolioNews = {
+          summary: latest.summary,
+          stories: typeof latest.stories === "string" ? JSON.parse(latest.stories) : latest.stories,
+          updated_at: latest.updated_at,
+        };
+        console.log(`✅ Portfolio news (${portfolioCategory}): "${portfolioNews.summary}" (${portfolioNews.stories?.length || 0} stories)`);
+      }
+    } catch (e: any) {
+      console.error("❌ Failed to fetch portfolio news:", e.message);
+    }
+
+    // =========================================================
+    // FALLBACK: If NewsCardCache is empty, fall back to NewsCache
+    // =========================================================
+    if (!marketNews || !portfolioNews) {
+      console.log("⚠️ NewsCardCache not populated, falling back to NewsCache...");
+
+      try {
+        const cacheEntries = await base44.entities.NewsCache.filter({});
+        if (cacheEntries && cacheEntries.length > 0) {
+          const latestCache = cacheEntries.sort(
+            (a: any, b: any) => new Date(b.refreshed_at).getTime() - new Date(a.refreshed_at).getTime()
+          )[0];
+
+          const allStories = JSON.parse(latestCache.stories || "[]");
+
+          if (!marketNews && allStories.length >= 5) {
+            // Take first 5 as market news
+            marketNews = {
+              summary: "Today's top market stories",
+              stories: allStories.slice(0, 5),
+              updated_at: latestCache.refreshed_at,
+              fallback: true,
+            };
+          }
+
+          if (!portfolioNews && allStories.length >= 10) {
+            // Take next 5 as portfolio news
+            portfolioNews = {
+              summary: "Stories relevant to your portfolio",
+              stories: allStories.slice(5, 10),
+              updated_at: latestCache.refreshed_at,
+              fallback: true,
+            };
+          }
+
+          console.log("✅ Fallback to NewsCache successful");
+        }
+      } catch (fallbackError: any) {
+        console.error("❌ Fallback failed:", fallbackError.message);
+      }
+    }
+
+    // =========================================================
+    // RETURN RESPONSE
+    // =========================================================
+    if (!marketNews && !portfolioNews) {
+      return Response.json(
+        {
+          success: false,
+          error: "News cards not yet generated. Please wait a few minutes.",
+          hint: "Run generateCategoryCards to populate the cache.",
         },
-        outlet: article.outlet,
-        category: article.category,
-        datetime: article.datetime,
-        provider: article.provider,
-        sentiment_score: article.sentiment_score,
-        urgency_score: article.urgency_score,
-        rank: article.rank,
-        userRelevanceScore: (article as any).userRelevanceScore
-      };
-    });
+        { status: 503 }
+      );
+    }
 
-    console.log(`✅ [fetchNewsCards] Returning ${stories.length} personalized stories`);
+    console.log(`✅ [fetchNewsCards] Returning news (0 LLM credits)`);
 
     return Response.json({
       success: true,
-      stories,
-      count: stories.length,
-      source: "cache",
-      cache_age: cacheAge,
-      cache_info: cacheInfo,
-      enhanced: !!enhancedData,
-      personalized: true,
-      user_interests: userInterests,
+      time_variant: timeVariant,
+      portfolio_category: portfolioCategory,
+      market_news: marketNews || {
+        summary: "Market news unavailable",
+        stories: [],
+        updated_at: null,
+      },
+      portfolio_news: portfolioNews || {
+        summary: "Portfolio news unavailable",
+        stories: [],
+        updated_at: null,
+      },
+      credits_used: 0,
     });
   } catch (error: any) {
     console.error("❌ [fetchNewsCards] Error:", error);
-    return Response.json(
-      { error: error?.message || String(error) },
-      { status: 500 }
-    );
+    return Response.json({ error: error?.message || String(error) }, { status: 500 });
   }
 });

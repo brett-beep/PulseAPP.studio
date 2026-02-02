@@ -1,9 +1,9 @@
 // ============================================================
-// refreshNewsCache.ts - Base44 Function (v5 - Alpha Vantage Premium)
-// Runs every 5 minutes
+// refreshNewsCache.ts - Base44 Function (v6 - Raw Storage)
+// Runs every 5 minutes (0 LLM credits)
 // Fetches 50 articles from Alpha Vantage across all PulseApp sectors
-// Scores by urgency/relevance, caches top 30 for user filtering
-// Persists high-urgency stories until newer ones take priority
+// Scores by urgency/relevance, caches top 30 RAW articles
+// LLM analysis happens in generateCategoryCards instead
 // ============================================================
 
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
@@ -518,61 +518,14 @@ Deno.serve(async (req) => {
     // Select top stories with persistence
     const topStories = selectTopStories(allArticles, previousTopStories, 30);
     
-    // Enhance top 10 with LLM analysis
-    console.log("\n🤖 Analyzing top 10 stories with LLM...");
+    // Store RAW articles (0 LLM credits)
+    // LLM analysis happens in generateCategoryCards instead
+    console.log("\n📦 Storing raw articles (no LLM analysis - 0 credits)...");
     
-    const enhancedStories = await Promise.all(
-      topStories.map(async (story, index) => {
-        if (index >= 10) {
-          // Use category fallback for stories outside top 10
-          return {
-            ...story,
-            why_it_matters: getCategoryMessage(story.category),
-          };
-        }
-        
-        try {
-          const prompt = `Analyze this financial news for investors in 1-2 SHORT sentences (MAX 45 words).
-
-Headline: "${story.title}"
-Summary: "${story.what_happened || "No summary"}"
-Category: ${story.category}
-Sentiment: ${story.sentiment_score > 0.1 ? "Bullish" : story.sentiment_score < -0.1 ? "Bearish" : "Neutral"}
-
-REQUIREMENTS:
-- 2 sentences MAX, 45 words MAX
-- Specific investment impact (rates/earnings/sector/ticker)
-- No fluff or hedging words
-
-Respond with brief investor analysis:`;
-
-          const llmResponse = await invokeLLM(base44, prompt);
-          let whyItMatters = safeText(llmResponse, getCategoryMessage(story.category));
-          
-          // Truncate if needed
-          const sentences = whyItMatters.match(/[^.!?]+[.!?]+/g) || [whyItMatters];
-          if (sentences.length > 2) {
-            whyItMatters = sentences.slice(0, 2).join(' ').trim();
-          }
-          if (whyItMatters.length > 120) {
-            whyItMatters = whyItMatters.substring(0, 117) + '...';
-          }
-          
-          console.log(`✅ LLM #${index + 1}: ${story.title?.slice(0, 40)}...`);
-          
-          return {
-            ...story,
-            why_it_matters: whyItMatters,
-          };
-        } catch (error) {
-          console.error(`❌ LLM failed for #${index + 1}:`, error);
-          return {
-            ...story,
-            why_it_matters: getCategoryMessage(story.category),
-          };
-        }
-      })
-    );
+    const enhancedStories = topStories.map((story) => ({
+      ...story,
+      why_it_matters: getCategoryMessage(story.category), // Category fallback only
+    }));
     
     // Clear old cache
     try {
@@ -598,18 +551,18 @@ Respond with brief investor analysis:`;
     
     console.log("\n" + "=".repeat(60));
     console.log(`✅ COMPLETE in ${elapsed}ms`);
-    console.log(`📰 Cached ${enhancedStories.length} stories (top 10 LLM-analyzed)`);
+    console.log(`📰 Cached ${enhancedStories.length} raw stories (0 LLM credits)`);
     console.log("=".repeat(60) + "\n");
     
     return Response.json({
       success: true,
-      message: "News cache refreshed (v5 - Alpha Vantage Premium)",
+      message: "News cache refreshed (v6 - Raw Storage, 0 LLM credits)",
       stories_cached: enhancedStories.length,
       total_fetched: allArticles.length,
       source: "alphavantage",
       refreshed_at: cacheEntry.refreshed_at,
       elapsed_ms: elapsed,
-      llm_analyzed_count: Math.min(10, enhancedStories.length),
+      llm_credits_used: 0,
       category_breakdown: enhancedStories.reduce((acc: Record<string, number>, s) => {
         acc[s.category] = (acc[s.category] || 0) + 1;
         return acc;
