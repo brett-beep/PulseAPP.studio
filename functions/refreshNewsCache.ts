@@ -502,7 +502,7 @@ function getCategoryMessage(category: string): string {
 
 async function invokeLLM(base44Client: any, prompt: string): Promise<string> {
   try {
-    const response = await base44Client.functions.invoke("invokeLLM", {
+    const response = await base44Client.asServiceRole.functions.invoke("invokeLLM", {
       prompt,
       useStreaming: false,
       context: null,
@@ -549,7 +549,7 @@ Deno.serve(async (req) => {
     // Get previous cache for persistence logic
     let previousTopStories: any[] = [];
     try {
-      const cacheEntries = await base44.entities.NewsCache.filter({});
+      const cacheEntries = await base44.asServiceRole.entities.NewsCache.filter({});
       if (cacheEntries && cacheEntries.length > 0) {
         const latestCache = cacheEntries.sort((a: any, b: any) => 
           new Date(b.refreshed_at).getTime() - new Date(a.refreshed_at).getTime()
@@ -587,9 +587,9 @@ Deno.serve(async (req) => {
     
     // Clear old cache
     try {
-      const oldCache = await base44.entities.NewsCache.filter({});
+      const oldCache = await base44.asServiceRole.entities.NewsCache.filter({});
       for (const entry of oldCache) {
-        await base44.entities.NewsCache.delete(entry.id);
+        await base44.asServiceRole.entities.NewsCache.delete(entry.id);
       }
       console.log(`🗑️ Cleared ${oldCache.length} old cache entries`);
     } catch (e) {
@@ -597,7 +597,7 @@ Deno.serve(async (req) => {
     }
     
     // Save new cache
-    const cacheEntry = await base44.entities.NewsCache.create({
+    const cacheEntry = await base44.asServiceRole.entities.NewsCache.create({
       stories: JSON.stringify(enhancedStories),
       refreshed_at: new Date().toISOString(),
       sources_used: "alphavantage",
