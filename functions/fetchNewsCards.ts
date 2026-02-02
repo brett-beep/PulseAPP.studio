@@ -25,6 +25,25 @@ function getTimeVariant(): string {
   return "EVENING";
 }
 
+// Filter junk when serving fallback (raw NewsCache) so we never show blog thank-yous or low-quality sources
+function isJunkStory(story: any): boolean {
+  const href = (story.href || story.url || "").toLowerCase();
+  const outlet = (story.outlet || story.source || "").toLowerCase();
+  const title = (story.title || "").toLowerCase();
+  const body = (story.what_happened || story.summary || "").toLowerCase();
+  const combined = `${title} ${body}`.slice(0, 600);
+
+  if (/blogspot|wordpress\.com|tumblr\.com|patreon|ko-fi|substack\.com\/thank/i.test(href) || /blogspot|wordpress|tumblr|patreon|ko-fi/i.test(outlet)) {
+    return true;
+  }
+  if (/thank\s+you\s+for\s+(your\s+)?(superbly\s+)?(generous\s+)?subscription/i.test(combined)) return true;
+  if (/thank\s+you\s+.*\s+subscription\s+to\s+this\s+site/i.test(combined)) return true;
+  if (/greatly\s+honored\s+by\s+your\s+support/i.test(combined)) return true;
+  if (/^\s*thank\s+you[,.]/i.test(combined)) return true;
+
+  return false;
+}
+
 // ============================================================
 // PORTFOLIO CATEGORY DETECTION
 // ============================================================
@@ -159,6 +178,9 @@ Deno.serve(async (req) => {
 
     // =========================================================
     // FALLBACK: If NewsCardCache is empty, fall back to NewsCache
+    // When on fallback you get RAW Alpha Vantage summaries (short, 1–2 sentences)
+    // and generic "Why It Matters". Run generateCategoryCards on a schedule to get
+    // LLM-written 400–500 char descriptions and 150–200 char takeaways instead.
     // =========================================================
     if (!marketNews || !portfolioNews) {
       console.log("⚠️ NewsCardCache not populated, falling back to NewsCache...");
@@ -170,10 +192,14 @@ Deno.serve(async (req) => {
             (a: any, b: any) => new Date(b.refreshed_at).getTime() - new Date(a.refreshed_at).getTime()
           )[0];
 
-          const allStories = JSON.parse(latestCache.stories || "[]");
+          let allStories = JSON.parse(latestCache.stories || "[]");
+          const before = allStories.length;
+          allStories = allStories.filter((s: any) => !isJunkStory(s));
+          if (before !== allStories.length) {
+            console.log(`🧹 Fallback: filtered ${before - allStories.length} junk stories → ${allStories.length} remaining`);
+          }
 
           if (!marketNews && allStories.length >= 5) {
-            // Take first 5 as market news
             marketNews = {
               summary: "Today's top market stories",
               stories: allStories.slice(0, 5),
@@ -183,7 +209,6 @@ Deno.serve(async (req) => {
           }
 
           if (!portfolioNews && allStories.length >= 10) {
-            // Take next 5 as portfolio news
             portfolioNews = {
               summary: "Stories relevant to your portfolio",
               stories: allStories.slice(5, 10),

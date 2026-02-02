@@ -340,6 +340,10 @@ const LOW_QUALITY_SOURCES = [
   "substack.com/thank", "patreon.com", "ko-fi.com",
 ];
 
+const JUNK_OUTLETS = [
+  "charleshughsmith", "blogspot", "wordpress", "tumblr", "patreon", "ko-fi",
+];
+
 const JUNK_PATTERNS = [
   /thank\s+you\s+for\s+(your\s+)?(superbly\s+)?(generous\s+)?subscription/i,
   /thank\s+you\s+.*\s+subscription\s+to\s+this\s+site/i,
@@ -358,12 +362,15 @@ function isLikelyNonEnglish(text: string): boolean {
 function filterLowQualityArticles(articles: any[]): any[] {
   const filtered = articles.filter((article) => {
     const source = (article.source || "").toLowerCase();
-    const url = (article.url || "").toLowerCase();
+    const url = (article.url || article.link || article.href || "").toLowerCase();
     const title = (article.title || "").trim();
     const summary = (article.summary || "").trim();
     const combined = `${title} ${summary}`.slice(0, 500);
 
     if (LOW_QUALITY_SOURCES.some((d) => source.includes(d) || url.includes(d))) {
+      return false;
+    }
+    if (JUNK_OUTLETS.some((d) => source.includes(d))) {
       return false;
     }
     if (JUNK_PATTERNS.some((p) => p.test(combined))) {
