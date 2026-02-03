@@ -739,19 +739,30 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
               </p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {/* Market News – expandable */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Market News – rounded card, expandable */}
               <motion.div
                 layout
-                className="rounded-2xl border border-slate-100 bg-white/80 backdrop-blur-sm overflow-hidden shadow-sm"
+                className="rounded-3xl border border-slate-100 bg-white/85 backdrop-blur-sm overflow-hidden shadow-md hover:shadow-lg transition-shadow"
                 initial={false}
               >
                 <button
                   type="button"
                   onClick={() => setMarketSectionOpen((o) => !o)}
-                  className="w-full flex items-center justify-between p-4 text-left hover:bg-slate-50/50 transition-colors"
+                  className="w-full text-left p-5 min-h-[140px] flex flex-col gap-3 hover:bg-slate-50/50 transition-colors rounded-3xl"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-slate-900 text-lg">Market News</span>
+                    <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full">
+                      {marketStories.length} stories
+                    </span>
+                  </div>
+                  <p className="text-sm text-slate-500 line-clamp-2 flex-1">
+                    {marketStories.length > 0
+                      ? marketStories.slice(0, 2).map((s) => s.title).join(" · ")
+                      : "Broad market and macro headlines"}
+                  </p>
+                  <div className="flex items-center justify-end">
                     <motion.span
                       animate={{ rotate: marketSectionOpen ? 0 : -90 }}
                       transition={{ duration: 0.2 }}
@@ -759,14 +770,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
                     >
                       <ChevronDown className="w-5 h-5" />
                     </motion.span>
-                    <span className="font-semibold text-slate-900">Market News</span>
-                    {marketNews?.summary && (
-                      <span className="text-sm text-slate-500 font-normal truncate max-w-[280px]">
-                        {marketNews.summary}
-                      </span>
-                    )}
                   </div>
-                  <span className="text-sm text-slate-400">{marketStories.length} stories</span>
                 </button>
                 <motion.div
                   initial={false}
@@ -777,7 +781,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
                   transition={{ duration: 0.25, ease: "easeInOut" }}
                   className="overflow-hidden"
                 >
-                  <div className="px-4 pb-4 pt-0 grid gap-4 md:grid-cols-2">
+                  <div className="px-4 pb-5 pt-0 grid gap-4">
                     {marketStories.map((story, index) => (
                       <NewsCard key={`market-${index}`} story={story} index={index} />
                     ))}
@@ -785,18 +789,29 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
                 </motion.div>
               </motion.div>
 
-              {/* Your Portfolio – expandable */}
+              {/* Your Portfolio – rounded card, expandable */}
               <motion.div
                 layout
-                className="rounded-2xl border border-slate-100 bg-white/80 backdrop-blur-sm overflow-hidden shadow-sm"
+                className="rounded-3xl border border-slate-100 bg-white/85 backdrop-blur-sm overflow-hidden shadow-md hover:shadow-lg transition-shadow"
                 initial={false}
               >
                 <button
                   type="button"
                   onClick={() => setPortfolioSectionOpen((o) => !o)}
-                  className="w-full flex items-center justify-between p-4 text-left hover:bg-slate-50/50 transition-colors"
+                  className="w-full text-left p-5 min-h-[140px] flex flex-col gap-3 hover:bg-slate-50/50 transition-colors rounded-3xl"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-slate-900 text-lg">Your Portfolio</span>
+                    <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full">
+                      {portfolioStories.length} stories
+                    </span>
+                  </div>
+                  <p className="text-sm text-slate-500 line-clamp-2 flex-1">
+                    {portfolioStories.length > 0
+                      ? portfolioStories.slice(0, 2).map((s) => s.title).join(" · ")
+                      : "News tied to your selected tickers"}
+                  </p>
+                  <div className="flex items-center justify-end">
                     <motion.span
                       animate={{ rotate: portfolioSectionOpen ? 0 : -90 }}
                       transition={{ duration: 0.2 }}
@@ -804,14 +819,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
                     >
                       <ChevronDown className="w-5 h-5" />
                     </motion.span>
-                    <span className="font-semibold text-slate-900">Your Portfolio</span>
-                    {portfolioNews?.summary && (
-                      <span className="text-sm text-slate-500 font-normal truncate max-w-[280px]">
-                        {portfolioNews.summary}
-                      </span>
-                    )}
                   </div>
-                  <span className="text-sm text-slate-400">{portfolioStories.length} stories</span>
                 </button>
                 <motion.div
                   initial={false}
@@ -822,7 +830,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
                   transition={{ duration: 0.25, ease: "easeInOut" }}
                   className="overflow-hidden"
                 >
-                  <div className="px-4 pb-4 pt-0 grid gap-4 md:grid-cols-2">
+                  <div className="px-4 pb-5 pt-0 grid gap-4">
                     {portfolioStories.map((story, index) => (
                       <NewsCard key={`portfolio-${index}`} story={story} index={index} />
                     ))}
