@@ -1,5 +1,5 @@
 // ============================================================
-// refreshNewsCache.ts - Base44 Function (v10 - Finlight)
+// refreshNewsCache.ts - Base44 Function (v10 - Finlight) 
 // Runs every 5 minutes (0 LLM credits)
 // Fetches from Finlight (broad financial news). Scores by:
 // recency, MACRO/BREAKING first (oil, bitcoin, shutdown, funding deal, broad market),
