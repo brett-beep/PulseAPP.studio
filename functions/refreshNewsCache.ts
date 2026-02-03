@@ -1,9 +1,10 @@
 // ============================================================
-// refreshNewsCache.ts - Base44 Function (v8 - Recent + best in 12h)
+// refreshNewsCache.ts - Base44 Function (v9 - Macro-first, single-stock demoted)
 // Runs every 5 minutes (0 LLM credits)
-// Fetches from Alpha Vantage (15 per topic × 5 groups = 75 in last 12h); scores by recency,
-// source credibility, content quality, "best" bonus (premium + summary), topic clustering.
-// Never caches "Details emerging...". Caches top 20 RAW articles. LLM in generateCategoryCards.
+// Fetches from Alpha Vantage (15 per topic × 5 groups = 75 in last 12h). Scores by:
+// recency, MACRO/BREAKING first (oil, bitcoin, shutdown, funding deal, broad market),
+// single-stock/earnings noise demoted (-40), source + summary quality, topic clustering.
+// Never caches "Details emerging...". Caches top 20 RAW articles.
 // ============================================================
 
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
@@ -62,7 +63,9 @@ function randomId(): string {
 }
 
 function getTimeFromHoursAgo(hours: number): string {
-  return new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+  const date = new Date(Date.now() - hours * 60 * 60 * 1000);
+  // Alpha Vantage format: YYYYMMDDTHHMM
+  return date.toISOString().replace(/[-:]/g, "").slice(0, 13);
 }
 
 function categoryImageUrl(categoryRaw: string): string {
@@ -198,41 +201,60 @@ function calculateUrgencyScore(article: any, nowTimestamp: number): number {
   const sentimentScore = Math.abs(article.sentiment_score || 0);
   score += Math.round(sentimentScore * 30);
   
-  // 3. HIGH-IMPACT KEYWORDS (0-50 points)
-  const text = `${article.title} ${article.what_happened}`.toLowerCase();
+  // 3. HIGH-IMPACT KEYWORDS – macro/breaking first (WSJ-style), then general
+  const title = (article.title || "").toLowerCase();
+  const text = `${title} ${(article.what_happened || "").toLowerCase()}`;
   
-  const BREAKING_KEYWORDS = [
-    // Fed/Monetary - Highest priority
+  // 3a. MACRO / BREAKING (WSJ-level: oil, bitcoin, shutdown, funding deal, broad market) – highest priority
+  const MACRO_BREAKING = [
+    { keywords: ["shutdown", "funding deal", "house advances", "government shutdown"], points: 55 },
+    { keywords: ["oil jumps", "oil surges", "oil price", "crude oil", "oil rally"], points: 52 },
+    { keywords: ["bitcoin drops", "bitcoin plunge", "bitcoin lowest", "btc drops", "crypto crash"], points: 52 },
+    { keywords: ["stocks fall", "stocks plunge", "markets wrap", "market selloff", "dow jones", "s&p 500", "nasdaq"], points: 50 },
     { keywords: ["fed", "powell", "fomc", "federal reserve"], points: 50 },
     { keywords: ["rate cut", "rate hike", "basis points", "bps"], points: 45 },
-    { keywords: ["inflation", "cpi", "ppi", "core inflation"], points: 40 },
-    
-    // Major Economic Data
+    { keywords: ["inflation", "cpi", "ppi", "core inflation"], points: 42 },
     { keywords: ["jobs report", "unemployment", "payroll", "jobless"], points: 40 },
-    { keywords: ["gdp", "recession", "economic growth"], points: 35 },
-    
-    // Market Events
-    { keywords: ["crash", "surge", "plunge", "selloff"], points: 45 },
-    { keywords: ["record high", "record low", "all-time"], points: 35 },
-    { keywords: ["volatility", "vix", "circuit breaker"], points: 40 },
-    
-    // Earnings/Company News
-    { keywords: ["earnings", "revenue", "guidance", "outlook"], points: 25 },
-    { keywords: ["layoffs", "restructuring", "bankruptcy"], points: 35 },
-    
-    // Geopolitical
+    { keywords: ["gdp", "recession", "economic growth"], points: 38 },
     { keywords: ["tariff", "trade war", "sanctions"], points: 40 },
-    { keywords: ["trump", "biden", "white house"], points: 30 },
-    
-    // Crypto-specific
-    { keywords: ["bitcoin", "btc", "ethereum", "eth"], points: 20 },
-    { keywords: ["crypto crash", "crypto surge"], points: 35 },
+    { keywords: ["trump", "biden", "white house"], points: 32 },
+    { keywords: ["bitcoin", "btc", "ethereum", "eth"], points: 28 },
   ];
-  
-  for (const { keywords, points } of BREAKING_KEYWORDS) {
+  for (const { keywords, points } of MACRO_BREAKING) {
     if (keywords.some(kw => text.includes(kw))) {
       score += points;
-      break; // Only count highest matching category
+      break;
+    }
+  }
+  
+  // 3b. Single-stock / earnings noise DEMOTION – so PennyMac 33%, DaVita soars, “all-time high at $X” don’t beat macro
+  const singleStockPatterns = [
+    /\bstock\s+(soars?|drops?|surges?|jumps?|falls?|rises?)\s+/i,
+    /\b(post[- ]?earnings|beats\s+q[1-4]|q[1-4]\s+results?)\b/i,
+    /\ball[- ]?time\s+high\s+at\s+\d/i,
+    /\b(inc\.?|corp\.?)\s+(stock|shares?)\s+/i,
+    /\d+%\s+(after|post)\s+/i,
+    /\b(soars?|drops?|surges?|jumps?)\s+\d+%\s+/i,
+    /\bunder\s+scrutiny\s+as\s+stock\s+drops\b/i,
+  ];
+  const looksLikeSingleStock = singleStockPatterns.some(p => p.test(title));
+  if (looksLikeSingleStock) score -= 40;
+  
+  // 3c. Other impact keywords (only if no macro match yet – avoid double-counting)
+  const hadMacroMatch = MACRO_BREAKING.some(({ keywords }) => keywords.some(kw => text.includes(kw)));
+  if (!hadMacroMatch) {
+    const OTHER_KEYWORDS = [
+      { keywords: ["crash", "plunge", "selloff"], points: 42 },
+      { keywords: ["record high", "record low", "all-time"], points: 32 },
+      { keywords: ["volatility", "vix", "circuit breaker"], points: 38 },
+      { keywords: ["layoffs", "restructuring", "bankruptcy"], points: 35 },
+      { keywords: ["earnings", "revenue", "guidance", "outlook"], points: 22 },
+    ];
+    for (const { keywords, points } of OTHER_KEYWORDS) {
+      if (keywords.some(kw => text.includes(kw))) {
+        score += points;
+        break;
+      }
     }
   }
   
@@ -277,8 +299,41 @@ function calculateUrgencyScore(article: any, nowTimestamp: number): number {
 // ALPHA VANTAGE NEWS FETCHER
 // ============================================================
 
+// Map Alpha Vantage topic strings to our categories
+const TOPIC_TO_CATEGORY: Record<string, string> = {
+  technology: "technology",
+  blockchain: "crypto",
+  financial_markets: "markets",
+  economy_macro: "economy",
+  economy_monetary: "economy",
+  economy_fiscal: "economy",
+  real_estate: "real estate",
+  energy_transportation: "commodities",
+  earnings: "markets",
+  mergers_and_acquisitions: "markets",
+  manufacturing: "markets",
+  finance: "markets",
+  life_sciences: "technology",
+  retail_wholesale: "markets",
+  ipo: "markets",
+};
+
+function parseAlphaVantageDate(dateStr: string): string {
+  if (!dateStr) return new Date().toISOString();
+  try {
+    const year = dateStr.slice(0, 4);
+    const month = dateStr.slice(4, 6);
+    const day = dateStr.slice(6, 8);
+    const hour = dateStr.slice(9, 11) || "00";
+    const min = dateStr.slice(11, 13) || "00";
+    const sec = dateStr.slice(13, 15) || "00";
+    return new Date(`${year}-${month}-${day}T${hour}:${min}:${sec}Z`).toISOString();
+  } catch {
+    return new Date().toISOString();
+  }
+}
+
 async function fetchAlphaVantageNews(apiKey: string): Promise<any[]> {
-<<<<<<< HEAD
   const allArticles: any[] = [];
   const timeFrom = getTimeFromHoursAgo(12); // Last 12 hours
   
@@ -355,53 +410,10 @@ async function fetchAlphaVantageNews(apiKey: string): Promise<any[]> {
       
     } catch (error: any) {
       console.error(`❌ Alpha Vantage fetch error [${topics}]:`, error.message);
-=======
-  try {
-    console.log("📡 Fetching from Alpha Vantage...");
-    const url = `${ALPHA_VANTAGE_BASE_URL}?function=NEWS_SENTIMENT&apikey=${apiKey}`;
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      console.error("❌ Alpha Vantage error:", response.status);
-      return [];
->>>>>>> 6c52c966c494c0f2a8e40f0dafd3a6ae86746d55
     }
-    
-    const data = await response.json();
-    
-    if (data.Note || data.Information) {
-      console.error("❌ Alpha Vantage API limit:", data.Note || data.Information);
-      return [];
-    }
-    
-    const articles = data.feed || [];
-    console.log(`✅ Alpha Vantage: ${articles.length} articles`);
-    
-    return articles.map((item: any) => ({
-      title: item.title || "Breaking News",
-      summary: item.summary || "",
-      url: item.url || "#",
-      source: item.source || "Alpha Vantage",
-      datetime: item.time_published ? 
-        new Date(
-          item.time_published.slice(0, 4) + "-" + 
-          item.time_published.slice(4, 6) + "-" + 
-          item.time_published.slice(6, 8) + "T" + 
-          item.time_published.slice(9, 11) + ":" + 
-          item.time_published.slice(11, 13) + ":" + 
-          item.time_published.slice(13, 15) + "Z"
-        ).toISOString() 
-        : new Date().toISOString(),
-      image: item.banner_image || null,
-      category: categorizeArticle(item.title, item.summary),
-      sentiment_score: parseFloat(item.overall_sentiment_score || "0"),
-      provider: "alphavantage",
-      topics: item.topics?.map((t: any) => t.topic) || [],
-    }));
-  } catch (error: any) {
-    console.error("❌ Alpha Vantage fetch error:", error.message);
-    return [];
   }
+  console.log(`📊 Total fetched: ${allArticles.length} articles from Alpha Vantage`);
+  return allArticles;
 }
 
 // ============================================================
@@ -619,11 +631,7 @@ Deno.serve(async (req) => {
   
   try {
     console.log("\n" + "=".repeat(60));
-<<<<<<< HEAD
-    console.log("🔄 [refreshNewsCache] Starting v8 (recent + best in 12h, 75-fetch/20-cache)...");
-=======
-    console.log("🔄 [refreshNewsCache] Starting v8 (Alpha Vantage Only)...");
->>>>>>> 6c52c966c494c0f2a8e40f0dafd3a6ae86746d55
+    console.log("🔄 [refreshNewsCache] Starting v9 (macro-first, single-stock demoted)...");
     console.log(`⏰ Time: ${new Date().toISOString()}`);
     console.log("=".repeat(60));
     
@@ -712,11 +720,7 @@ Deno.serve(async (req) => {
     
     return Response.json({
       success: true,
-<<<<<<< HEAD
-      message: "News cache refreshed (v8 - recent + best in 12h, 20 articles, 0 LLM credits)",
-=======
-      message: "News cache refreshed (v8 - Alpha Vantage Only, 0 LLM credits)",
->>>>>>> 6c52c966c494c0f2a8e40f0dafd3a6ae86746d55
+      message: "News cache refreshed (v9 - macro-first, single-stock demoted, 0 LLM credits)",
       stories_cached: enhancedStories.length,
       total_fetched: rawArticles.length,
       sources_used: "alphavantage",
