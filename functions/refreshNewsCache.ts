@@ -1,17 +1,9 @@
 // ============================================================
-<<<<<<< HEAD
 // refreshNewsCache.ts - Base44 Function (v8 - Recent + best in 12h)
 // Runs every 5 minutes (0 LLM credits)
 // Fetches from Alpha Vantage (15 per topic × 5 groups = 75 in last 12h); scores by recency,
 // source credibility, content quality, "best" bonus (premium + summary), topic clustering.
 // Never caches "Details emerging...". Caches top 20 RAW articles. LLM in generateCategoryCards.
-=======
-// refreshNewsCache.ts - Base44 Function (v8 - Alpha Vantage Only)
-// Runs every 15 minutes (0 LLM credits)
-// Fetches from Alpha Vantage
-// Scores by urgency/relevance, caches top 30 RAW articles
-// LLM analysis happens in generateCategoryCards instead
->>>>>>> 6c52c966c494c0f2a8e40f0dafd3a6ae86746d55
 // ============================================================
 
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
