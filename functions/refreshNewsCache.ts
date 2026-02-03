@@ -1,9 +1,9 @@
 // ============================================================
-// refreshNewsCache.ts - Base44 Function (v6 - Raw Storage)
+// refreshNewsCache.ts - Base44 Function (v8 - Recent + best in 12h)
 // Runs every 5 minutes (0 LLM credits)
-// Fetches 50 articles from Alpha Vantage across all PulseApp sectors
-// Scores by urgency/relevance, caches top 30 RAW articles
-// LLM analysis happens in generateCategoryCards instead
+// Fetches from Alpha Vantage (15 per topic × 5 groups = 75 in last 12h); scores by recency,
+// source credibility, content quality, "best" bonus (premium + summary), topic clustering.
+// Never caches "Details emerging...". Caches top 20 RAW articles. LLM in generateCategoryCards.
 // ============================================================
 
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
@@ -109,8 +109,51 @@ function categoryImageUrl(categoryRaw: string): string {
 }
 
 // ============================================================
+// TOPIC CLUSTERING – one story per cluster (like pre–Alpha Vantage)
+// ============================================================
+
+function getTopicCluster(headline: string, summary: string): string | null {
+  const text = ((headline || "") + " " + (summary || "")).toLowerCase();
+  const patterns: { pattern: RegExp; cluster: string }[] = [
+    { pattern: /powell.*(investigation|criminal|doj|indictment)/i, cluster: "powell_investigation" },
+    { pattern: /(investigation|criminal|doj).*(powell|fed chair)/i, cluster: "powell_investigation" },
+    { pattern: /supreme court.*(fed|federal reserve|powell)/i, cluster: "scotus_fed" },
+    { pattern: /(fed|federal reserve).*(supreme court|independence)/i, cluster: "scotus_fed" },
+    { pattern: /trump.*(powell|fed chair|federal reserve)/i, cluster: "trump_fed" },
+    { pattern: /powell.*(trump|president)/i, cluster: "trump_fed" },
+    { pattern: /bitcoin.*(etf|price|rally|crash)/i, cluster: "bitcoin_price" },
+    { pattern: /ethereum.*(etf|price|rally|crash)/i, cluster: "ethereum_price" },
+    { pattern: /nvidia.*(earnings|stock|shares|revenue)/i, cluster: "nvidia" },
+    { pattern: /apple.*(earnings|stock|shares|revenue|iphone)/i, cluster: "apple" },
+    { pattern: /tesla.*(earnings|stock|shares|musk)/i, cluster: "tesla" },
+    { pattern: /rate (cut|hike|decision).*(fed|fomc)/i, cluster: "fed_rates" },
+    { pattern: /(fed|fomc).*(rate|rates|policy)/i, cluster: "fed_rates" },
+    { pattern: /inflation.*(cpi|report|data)/i, cluster: "inflation_data" },
+    { pattern: /jobs report|employment.*(data|report)/i, cluster: "jobs_data" },
+    { pattern: /all-time high|all-time low|record high|record low/i, cluster: "ath_atl" },
+  ];
+  for (const { pattern, cluster } of patterns) {
+    if (pattern.test(text)) return cluster;
+  }
+  return null;
+}
+
+// ============================================================
 // DUPLICATE DETECTION
 // ============================================================
+
+// Minimum summary length to cache (avoids "Details emerging...")
+const MIN_SUMMARY_LENGTH = 30;
+const MIN_SUMMARY_LENGTH_RELAXED = 20; // Safety: allow slightly shorter if we'd have too few
+const MIN_ARTICLES_SAFETY = 12;        // If we have fewer than this after filter, relax once
+const TRIVIAL_SUMMARY_PATTERN = /^details\s+emerging\.?\.?\.?\s*$/i;
+
+function hasRealSummary(article: any, minLength: number): boolean {
+  const s = (article.summary || article.what_happened || "").trim();
+  if (!s || s.length < minLength) return false;
+  if (TRIVIAL_SUMMARY_PATTERN.test(s)) return false;
+  return true;
+}
 
 function isNearDuplicate(a: any, b: any): boolean {
   const aHeadline = normalizeHeadline(a?.title || "");
@@ -168,16 +211,16 @@ interface ScoredArticle {
 function calculateUrgencyScore(article: any, nowTimestamp: number): number {
   let score = 0;
   
-  // 1. RECENCY (0-100 points) - Most important factor
+  // 1. RECENCY (0-100 points) – recent preferred, but 12h window stays competitive so "best" can surface
   const articleTime = new Date(article.datetime).getTime();
   const ageHours = (nowTimestamp - articleTime) / (1000 * 60 * 60);
   
   if (ageHours <= 0.5) score += 100;      // Last 30 min
-  else if (ageHours <= 1) score += 90;    // Last hour
+  else if (ageHours <= 1) score += 88;    // Last hour
   else if (ageHours <= 2) score += 75;    // Last 2 hours
-  else if (ageHours <= 4) score += 55;    // Last 4 hours
-  else if (ageHours <= 8) score += 35;    // Last 8 hours
-  else if (ageHours <= 12) score += 20;   // Last 12 hours
+  else if (ageHours <= 4) score += 60;    // Last 4 hours
+  else if (ageHours <= 8) score += 45;    // Last 8 hours
+  else if (ageHours <= 12) score += 30;   // Last 12 hours – enough that best-in-window can win
   else score += 5;                         // Older
   
   // 2. SENTIMENT STRENGTH (0-30 points) - Strong sentiment = more urgent
@@ -222,17 +265,33 @@ function calculateUrgencyScore(article: any, nowTimestamp: number): number {
     }
   }
   
-  // 4. SOURCE CREDIBILITY (0-20 points)
-  const source = (article.outlet || "").toLowerCase();
+  // 4. SOURCE CREDIBILITY (0-20 points; raw Alpha Vantage articles use .source)
+  const source = (article.source || article.outlet || "").toLowerCase().trim();
   const premiumSources = [
     "reuters", "bloomberg", "wsj", "wall street journal", "cnbc",
     "financial times", "ft", "associated press", "ap", "barrons",
-    "marketwatch", "yahoo finance", "economist"
+    "marketwatch", "yahoo finance", "economist", "benzinga", "finnhub",
+    "investing.com", "msn", "zacks", "street insider"
   ];
-  if (premiumSources.some(s => source.includes(s))) {
-    score += 20;
+  if (source && source !== "unknown" && source !== "alpha vantage") {
+    if (premiumSources.some(s => source.includes(s))) {
+      score += 20;
+    }
+  } else {
+    score -= 25; // Demote unknown or missing source
   }
-  
+
+  // 4b. CONTENT QUALITY – prefer articles with real summaries (avoids "Details emerging...")
+  const summary = (article.summary || article.what_happened || "").trim();
+  if (summary.length > 200) score += 15;
+  else if (summary.length > 100) score += 10;
+  else if (summary.length > 30) score += 5;
+  else if (summary.length === 0) score -= 15;
+
+  // 4c. "BEST" BONUS – premium source + real summary so best-in-12h reliably surfaces
+  const hasPremium = source && premiumSources.some((p: string) => source.includes(p));
+  if (hasPremium && summary.length > 100) score += 12;
+
   // 5. CATEGORY PRIORITY (0-15 points)
   const category = (article.category || "").toLowerCase();
   if (category === "economy") score += 15;
@@ -269,7 +328,7 @@ async function fetchAlphaVantageNews(apiKey: string): Promise<any[]> {
       url.searchParams.set("topics", topics);
       url.searchParams.set("time_from", timeFrom);
       url.searchParams.set("sort", "LATEST");
-      url.searchParams.set("limit", "15"); // 15 per group × 5 groups = 75 max
+      url.searchParams.set("limit", "15"); // 15 per group × 5 groups = 75 max (larger 12h pool so best-in-window surfaces)
       url.searchParams.set("apikey", apiKey);
       
       const response = await fetch(url.toString());
@@ -395,11 +454,11 @@ function filterLowQualityArticles(articles: any[]): any[] {
 function selectTopStories(
   newArticles: any[],
   previousTopStories: any[] = [],
-  targetCount: number = 30
+  targetCount: number = 20
 ): ScoredArticle[] {
   const now = Date.now();
   
-  console.log(`\n🎯 Selecting top ${targetCount} stories from ${newArticles.length} new articles...`);
+  console.log(`\n🎯 Selecting top ${targetCount} stories from ${newArticles.length} new articles (non-empty summary only)...`);
   console.log(`📋 Previous top stories: ${previousTopStories.length}`);
   
   // 1. Score all new articles
@@ -429,31 +488,40 @@ function selectTopStories(
   // 4. Sort by urgency score (highest first)
   allCandidates.sort((a, b) => b.urgency_score - a.urgency_score);
   
-  // 5. Pick top stories with diversity
+  // 5. Pick top stories with diversity (topic clustering + category cap)
   const selected: ScoredArticle[] = [];
   const categoryCount: Record<string, number> = {};
-  const maxPerCategory = Math.ceil(targetCount * 0.4); // Max 40% per category
-  
+  const usedClusters = new Set<string>();
+  const maxPerCategory = Math.ceil(targetCount * 0.35); // Max 35% per category (like pre–Alpha Vantage)
+  let minSummaryLen = MIN_SUMMARY_LENGTH;
+
+  const trySelect = (): void => {
   for (const article of allCandidates) {
-    if (selected.length >= targetCount) break;
+    if (selected.length >= targetCount) return;
+    
+    // Never cache "Details emerging..." or empty/short summaries
+    if (!hasRealSummary(article, minSummaryLen)) continue;
     
     // Skip duplicates
     if (selected.some(s => isNearDuplicate(s, article))) continue;
     
+    // Topic cluster: only one story per cluster (avoids 5 similar “all-time high” stories)
+    const cluster = getTopicCluster(article.title || "", article.summary || "");
+    if (cluster && usedClusters.has(cluster)) continue;
+    
     // Category limit check
     const cat = article.category || "markets";
     if ((categoryCount[cat] || 0) >= maxPerCategory) {
-      // Only skip if we have plenty of candidates left
-      if (allCandidates.indexOf(article) < targetCount * 2) {
-        continue;
-      }
+      if (allCandidates.indexOf(article) < targetCount * 2) continue;
     }
     
-    // Format the article
+    if (cluster) usedClusters.add(cluster);
+    
+    // Format the article (summary is always real here due to hasRealSummary filter)
     const formattedArticle: ScoredArticle = {
       id: article.id || randomId(),
       title: safeText(article.title, "Breaking News"),
-      what_happened: safeText(article.summary, "Details emerging..."),
+      what_happened: safeText(article.summary, ""),
       why_it_matters: "", // Will be filled by LLM or fetchNewsCards
       href: safeText(article.url, "#"),
       imageUrl: article.image || categoryImageUrl(article.category),
@@ -473,7 +541,16 @@ function selectTopStories(
     const statusEmoji = article.is_new ? "🆕" : "📌";
     console.log(`${statusEmoji} #${selected.length} [${cat}] (score:${article.urgency_score}) ${article.title?.slice(0, 50)}...`);
   }
-  
+  };
+
+  trySelect();
+  // Safety: if we dropped too many, relax summary length once (still no "Details emerging...")
+  if (selected.length < MIN_ARTICLES_SAFETY && minSummaryLen === MIN_SUMMARY_LENGTH) {
+    minSummaryLen = MIN_SUMMARY_LENGTH_RELAXED;
+    console.log(`⚠️ Only ${selected.length} articles had summary ≥ ${MIN_SUMMARY_LENGTH} chars; relaxing to ≥ ${MIN_SUMMARY_LENGTH_RELAXED}`);
+    trySelect();
+  }
+
   console.log("\n📊 Category distribution:", categoryCount);
   console.log(`📊 New articles: ${selected.filter(s => s.rank === undefined || s.rank <= newArticles.length).length}`);
   
@@ -528,7 +605,7 @@ Deno.serve(async (req) => {
   
   try {
     console.log("\n" + "=".repeat(60));
-    console.log("🔄 [refreshNewsCache] Starting v5 (Alpha Vantage Premium)...");
+    console.log("🔄 [refreshNewsCache] Starting v8 (recent + best in 12h, 75-fetch/20-cache)...");
     console.log(`⏰ Time: ${new Date().toISOString()}`);
     console.log("=".repeat(60));
     
@@ -574,7 +651,7 @@ Deno.serve(async (req) => {
     }
     
     // Select top stories with persistence
-    const topStories = selectTopStories(allArticles, previousTopStories, 30);
+    const topStories = selectTopStories(allArticles, previousTopStories, 20);
     
     // Store RAW articles (0 LLM credits)
     // LLM analysis happens in generateCategoryCards instead
@@ -614,7 +691,7 @@ Deno.serve(async (req) => {
     
     return Response.json({
       success: true,
-      message: "News cache refreshed (v6 - Raw Storage, 0 LLM credits)",
+      message: "News cache refreshed (v8 - recent + best in 12h, 20 articles, 0 LLM credits)",
       stories_cached: enhancedStories.length,
       total_fetched: allArticles.length,
       source: "alphavantage",

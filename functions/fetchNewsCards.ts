@@ -44,6 +44,56 @@ function isJunkStory(story: any): boolean {
   return false;
 }
 
+const PREMIUM_OUTLETS = [
+  "reuters", "bloomberg", "wsj", "wall street journal", "cnbc", "financial times", "ft",
+  "associated press", "ap", "barrons", "marketwatch", "yahoo finance", "economist",
+  "benzinga", "finnhub", "investing.com", "msn", "zacks", "street insider"
+];
+
+function qualityScore(story: any): number {
+  let score = 0;
+  const outlet = (story.outlet || story.source || "").toLowerCase().trim();
+  const body = (story.what_happened || story.summary || "").trim();
+  const hasRealSummary = body.length > 50 && !/^details emerging/i.test(body);
+
+  if (outlet && outlet !== "unknown" && PREMIUM_OUTLETS.some((s) => outlet.includes(s))) score += 40;
+  else if (!outlet || outlet === "unknown") score -= 30;
+  if (hasRealSummary) score += 35;
+  else if (body.length > 0) score += 10;
+  else score -= 20;
+  const rank = story.rank ?? 999;
+  score += Math.max(0, 50 - rank * 2);
+  const datetime = story.datetime || story.published_at;
+  if (datetime) {
+    const ageHours = (Date.now() - new Date(datetime).getTime()) / (1000 * 60 * 60);
+    if (ageHours < 2) score += 20;
+    else if (ageHours < 6) score += 10;
+  }
+  return score;
+}
+
+function portfolioRelevanceScore(story: any, holdings: any[]): number {
+  if (!holdings?.length) return 0;
+  const text = `${story.title || ""} ${story.what_happened || ""} ${story.summary || ""}`.toLowerCase();
+  let score = 0;
+  for (const h of holdings) {
+    const ticker = (typeof h === "string" ? h : h?.symbol || h?.ticker || "").toUpperCase();
+    const name = (typeof h === "string" ? "" : h?.name || "").toLowerCase();
+    if (ticker && text.includes(ticker.toLowerCase())) score += 80;
+    if (name && name.length > 3 && text.includes(name)) score += 50;
+  }
+  return score;
+}
+
+function rankFallbackStories(stories: any[], userHoldings: any[]): any[] {
+  return [...stories]
+    .map((s) => ({
+      ...s,
+      _fallbackScore: qualityScore(s) + portfolioRelevanceScore(s, userHoldings),
+    }))
+    .sort((a, b) => b._fallbackScore - a._fallbackScore);
+}
+
 // ============================================================
 // PORTFOLIO CATEGORY DETECTION
 // ============================================================
@@ -199,19 +249,28 @@ Deno.serve(async (req) => {
             console.log(`🧹 Fallback: filtered ${before - allStories.length} junk stories → ${allStories.length} remaining`);
           }
 
-          if (!marketNews && allStories.length >= 5) {
+          const ranked = rankFallbackStories(allStories, userHoldings);
+
+          if (!marketNews && ranked.length >= 5) {
             marketNews = {
               summary: "Today's top market stories",
-              stories: allStories.slice(0, 5),
+              stories: ranked.slice(0, 5),
               updated_at: latestCache.refreshed_at,
               fallback: true,
             };
           }
 
-          if (!portfolioNews && allStories.length >= 10) {
+          if (!portfolioNews && ranked.length >= 10) {
             portfolioNews = {
               summary: "Stories relevant to your portfolio",
-              stories: allStories.slice(5, 10),
+              stories: ranked.slice(5, 10),
+              updated_at: latestCache.refreshed_at,
+              fallback: true,
+            };
+          } else if (!portfolioNews && ranked.length >= 5) {
+            portfolioNews = {
+              summary: "Stories relevant to your portfolio",
+              stories: ranked.slice(5),
               updated_at: latestCache.refreshed_at,
               fallback: true,
             };
