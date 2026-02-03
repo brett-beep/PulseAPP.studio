@@ -1,7 +1,7 @@
 // ============================================================
-// refreshNewsCache.ts - Base44 Function (v7 - Multi-Source)
+// refreshNewsCache.ts - Base44 Function (v8 - Alpha Vantage Only)
 // Runs every 15 minutes (0 LLM credits)
-// Fetches from Finnhub, NewsAPI, and Marketaux
+// Fetches from Alpha Vantage
 // Scores by urgency/relevance, caches top 30 RAW articles
 // LLM analysis happens in generateCategoryCards instead
 // ============================================================
@@ -12,9 +12,7 @@ import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
 // CONFIGURATION
 // ============================================================
 
-const FINNHUB_BASE_URL = "https://finnhub.io/api/v1/news";
-const NEWSAPI_BASE_URL = "https://newsapi.org/v2/everything";
-const MARKETAUX_BASE_URL = "https://api.marketaux.com/v1/news/all";
+const ALPHA_VANTAGE_BASE_URL = "https://www.alphavantage.co/query";
 
 // Category mapping keywords
 const CATEGORY_KEYWORDS: Record<string, string[]> = {
@@ -217,112 +215,53 @@ function calculateUrgencyScore(article: any, nowTimestamp: number): number {
 }
 
 // ============================================================
-// MULTI-SOURCE NEWS FETCHERS
+// ALPHA VANTAGE NEWS FETCHER
 // ============================================================
 
-async function fetchFinnhubNews(apiKey: string): Promise<any[]> {
+async function fetchAlphaVantageNews(apiKey: string): Promise<any[]> {
   try {
-    console.log("📡 Fetching from Finnhub...");
-    const url = `${FINNHUB_BASE_URL}?category=general&token=${apiKey}`;
+    console.log("📡 Fetching from Alpha Vantage...");
+    const url = `${ALPHA_VANTAGE_BASE_URL}?function=NEWS_SENTIMENT&apikey=${apiKey}`;
     const response = await fetch(url);
     
     if (!response.ok) {
-      console.error("❌ Finnhub error:", response.status);
+      console.error("❌ Alpha Vantage error:", response.status);
       return [];
     }
     
-    const articles = await response.json();
-    console.log(`✅ Finnhub: ${articles.length} articles`);
+    const data = await response.json();
+    
+    if (data.Note || data.Information) {
+      console.error("❌ Alpha Vantage API limit:", data.Note || data.Information);
+      return [];
+    }
+    
+    const articles = data.feed || [];
+    console.log(`✅ Alpha Vantage: ${articles.length} articles`);
     
     return articles.map((item: any) => ({
-      title: item.headline || "Breaking News",
+      title: item.title || "Breaking News",
       summary: item.summary || "",
       url: item.url || "#",
-      source: item.source || "Finnhub",
-      datetime: new Date(item.datetime * 1000).toISOString(),
-      image: item.image || null,
-      category: categorizeArticle(item.headline, item.summary),
-      sentiment_score: 0,
-      provider: "finnhub",
+      source: item.source || "Alpha Vantage",
+      datetime: item.time_published ? 
+        new Date(
+          item.time_published.slice(0, 4) + "-" + 
+          item.time_published.slice(4, 6) + "-" + 
+          item.time_published.slice(6, 8) + "T" + 
+          item.time_published.slice(9, 11) + ":" + 
+          item.time_published.slice(11, 13) + ":" + 
+          item.time_published.slice(13, 15) + "Z"
+        ).toISOString() 
+        : new Date().toISOString(),
+      image: item.banner_image || null,
+      category: categorizeArticle(item.title, item.summary),
+      sentiment_score: parseFloat(item.overall_sentiment_score || "0"),
+      provider: "alphavantage",
+      topics: item.topics?.map((t: any) => t.topic) || [],
     }));
   } catch (error: any) {
-    console.error("❌ Finnhub fetch error:", error.message);
-    return [];
-  }
-}
-
-async function fetchNewsAPI(apiKey: string): Promise<any[]> {
-  try {
-    console.log("📡 Fetching from NewsAPI...");
-    const from = getTimeFromHoursAgo(12);
-    const url = new URL(NEWSAPI_BASE_URL);
-    url.searchParams.set("q", "stock OR market OR economy OR crypto OR bitcoin");
-    url.searchParams.set("from", from);
-    url.searchParams.set("sortBy", "publishedAt");
-    url.searchParams.set("language", "en");
-    url.searchParams.set("pageSize", "30");
-    url.searchParams.set("apiKey", apiKey);
-    
-    const response = await fetch(url.toString());
-    
-    if (!response.ok) {
-      console.error("❌ NewsAPI error:", response.status);
-      return [];
-    }
-    
-    const data = await response.json();
-    const articles = data.articles || [];
-    console.log(`✅ NewsAPI: ${articles.length} articles`);
-    
-    return articles.map((item: any) => ({
-      title: item.title || "Breaking News",
-      summary: item.description || "",
-      url: item.url || "#",
-      source: item.source?.name || "NewsAPI",
-      datetime: item.publishedAt || new Date().toISOString(),
-      image: item.urlToImage || null,
-      category: categorizeArticle(item.title, item.description),
-      sentiment_score: 0,
-      provider: "newsapi",
-    }));
-  } catch (error: any) {
-    console.error("❌ NewsAPI fetch error:", error.message);
-    return [];
-  }
-}
-
-async function fetchMarketaux(apiKey: string): Promise<any[]> {
-  try {
-    console.log("📡 Fetching from Marketaux...");
-    const url = new URL(MARKETAUX_BASE_URL);
-    url.searchParams.set("api_token", apiKey);
-    url.searchParams.set("language", "en");
-    url.searchParams.set("limit", "30");
-    
-    const response = await fetch(url.toString());
-    
-    if (!response.ok) {
-      console.error("❌ Marketaux error:", response.status);
-      return [];
-    }
-    
-    const data = await response.json();
-    const articles = data.data || [];
-    console.log(`✅ Marketaux: ${articles.length} articles`);
-    
-    return articles.map((item: any) => ({
-      title: item.title || "Breaking News",
-      summary: item.description || "",
-      url: item.url || "#",
-      source: item.source || "Marketaux",
-      datetime: item.published_at || new Date().toISOString(),
-      image: item.image_url || null,
-      category: categorizeArticle(item.title, item.description),
-      sentiment_score: 0,
-      provider: "marketaux",
-    }));
-  } catch (error: any) {
-    console.error("❌ Marketaux fetch error:", error.message);
+    console.error("❌ Alpha Vantage fetch error:", error.message);
     return [];
   }
 }
@@ -524,26 +463,24 @@ Deno.serve(async (req) => {
   
   try {
     console.log("\n" + "=".repeat(60));
-    console.log("🔄 [refreshNewsCache] Starting v7 (Multi-Source)...");
+    console.log("🔄 [refreshNewsCache] Starting v8 (Alpha Vantage Only)...");
     console.log(`⏰ Time: ${new Date().toISOString()}`);
     console.log("=".repeat(60));
     
     const base44 = createClientFromRequest(req);
     
-    // Get API keys
-    const finnhubKey = Deno.env.get("FINNHUB_API_KEY");
-    const newsapiKey = Deno.env.get("NEWSAPI_API_KEY");
-    const marketauxKey = Deno.env.get("MARKETAUX_API_KEY");
+    // Get API key
+    const alphaVantageKey = Deno.env.get("ALPHA_VANTAGE_API_KEY");
     
-    if (!finnhubKey || !newsapiKey || !marketauxKey) {
-      console.error("❌ Missing API keys");
+    if (!alphaVantageKey) {
+      console.error("❌ Missing API key");
       return Response.json({ 
-        error: "Missing required API keys (FINNHUB, NEWSAPI, MARKETAUX)",
+        error: "ALPHA_VANTAGE_API_KEY not configured in Base44 secrets",
         hint: "Check Base44 secrets configuration"
       }, { status: 500 });
     }
     
-    console.log("🔑 All API keys found ✓");
+    console.log("🔑 Alpha Vantage API key found ✓");
     
     // Get previous cache for persistence logic
     let previousTopStories: any[] = [];
@@ -560,15 +497,9 @@ Deno.serve(async (req) => {
       console.log("No previous cache found, starting fresh");
     }
     
-    // Fetch from multiple sources in parallel
-    const [finnhubArticles, newsapiArticles, marketauxArticles] = await Promise.all([
-      fetchFinnhubNews(finnhubKey),
-      fetchNewsAPI(newsapiKey),
-      fetchMarketaux(marketauxKey),
-    ]);
-    
-    const rawArticles = [...finnhubArticles, ...newsapiArticles, ...marketauxArticles];
-    console.log(`📊 Total fetched: ${rawArticles.length} articles from all sources`);
+    // Fetch from Alpha Vantage
+    const rawArticles = await fetchAlphaVantageNews(alphaVantageKey);
+    console.log(`📊 Total fetched: ${rawArticles.length} articles from Alpha Vantage`);
     
     const allArticles = filterLowQualityArticles(rawArticles);
     
@@ -607,7 +538,7 @@ Deno.serve(async (req) => {
     const cacheEntry = await base44.asServiceRole.entities.NewsCache.create({
       stories: JSON.stringify(enhancedStories),
       refreshed_at: new Date().toISOString(),
-      sources_used: "finnhub,newsapi,marketaux",
+      sources_used: "alphavantage",
       total_fetched: rawArticles.length,
       articles_selected: enhancedStories.length,
     });
@@ -621,10 +552,10 @@ Deno.serve(async (req) => {
     
     return Response.json({
       success: true,
-      message: "News cache refreshed (v7 - Multi-Source, 0 LLM credits)",
+      message: "News cache refreshed (v8 - Alpha Vantage Only, 0 LLM credits)",
       stories_cached: enhancedStories.length,
       total_fetched: rawArticles.length,
-      sources_used: "finnhub,newsapi,marketaux",
+      sources_used: "alphavantage",
       refreshed_at: cacheEntry.refreshed_at,
       elapsed_ms: elapsed,
       llm_credits_used: 0,
