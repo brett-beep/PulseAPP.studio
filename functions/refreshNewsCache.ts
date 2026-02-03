@@ -577,20 +577,23 @@ Deno.serve(async (req) => {
   
   try {
     console.log("\n" + "=".repeat(60));
-    console.log("🔄 [refreshNewsCache] Starting v10 (Finlight)...");
+    console.log("🔄 [refreshNewsCache] Starting v11 (Finlight - Force Redeploy)...");
     console.log(`⏰ Time: ${new Date().toISOString()}`);
     console.log("=".repeat(60));
     
     const base44 = createClientFromRequest(req);
     
-    // Get API key
+    // Get API key with debug info
+    console.log("🔍 Checking for FINLIGHT_API_KEY in environment...");
     const finlightKey = Deno.env.get("FINLIGHT_API_KEY");
+    console.log(`🔍 Key exists: ${!!finlightKey}, Length: ${finlightKey?.length || 0}`);
     
     if (!finlightKey) {
-      console.error("❌ Missing API key");
+      console.error("❌ Missing API key - Available env vars:", Object.keys(Deno.env.toObject()).filter(k => k.includes('API')));
       return Response.json({ 
         error: "FINLIGHT_API_KEY not configured in Base44 secrets",
-        hint: "Check Base44 secrets configuration"
+        hint: "Check Base44 secrets configuration",
+        debug_available_keys: Object.keys(Deno.env.toObject()).filter(k => k.includes('API') || k.includes('FINLIGHT'))
       }, { status: 500 });
     }
     
