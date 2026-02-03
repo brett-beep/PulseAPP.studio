@@ -1,7 +1,7 @@
 // Quick test script for Finlight API
 // Replace YOUR_FINLIGHT_KEY with your actual key
 
-const FINLIGHT_KEY = "YOUR_FINLIGHT_KEY"; // Replace this
+const FINLIGHT_KEY = "FINLIGHT_API_KEY"; // Replace this
 
 const today = new Date().toISOString().slice(0, 10);
 const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
