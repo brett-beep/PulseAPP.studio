@@ -228,7 +228,7 @@ Deno.serve(async (req) => {
 
     // =========================================================
     // FALLBACK: If NewsCardCache is empty, fall back to NewsCache
-    // When on fallback you get RAW Alpha Vantage summaries (short, 1–2 sentences)
+    // When on fallback you get RAW cached summaries (short, 1–2 sentences)
     // and generic "Why It Matters". Run generateCategoryCards on a schedule to get
     // LLM-written 400–500 char descriptions and 150–200 char takeaways instead.
     // =========================================================

@@ -183,7 +183,7 @@ function getBreakingScore(story, nowTimestamp) {
   else if (originalRank <= 5) score += 15;
   else if (originalRank <= 10) score += 10;
   
-  // 6. Inherit urgency_score from Alpha Vantage pre-scoring (if available)
+  // 6. Inherit urgency_score from news cache pre-scoring (if available)
   if (story.urgency_score) {
     score += Math.round(story.urgency_score * 0.3); // Weight it as a supplemental signal
   }

@@ -1,7 +1,7 @@
 // ============================================================
-// refreshNewsCache.ts - Base44 Function (v9 - Macro-first, single-stock demoted)
+// refreshNewsCache.ts - Base44 Function (v10 - Finlight)
 // Runs every 5 minutes (0 LLM credits)
-// Fetches from Alpha Vantage (15 per topic × 5 groups = 75 in last 12h). Scores by:
+// Fetches from Finlight (broad financial news). Scores by:
 // recency, MACRO/BREAKING first (oil, bitcoin, shutdown, funding deal, broad market),
 // single-stock/earnings noise demoted (-40), source + summary quality, topic clustering.
 // Never caches "Details emerging...". Caches top 20 RAW articles.
@@ -13,7 +13,7 @@ import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
 // CONFIGURATION
 // ============================================================
 
-const ALPHA_VANTAGE_BASE_URL = "https://www.alphavantage.co/query";
+const FINLIGHT_API_BASE = "https://api.finlight.me";
 
 // Category mapping keywords
 const CATEGORY_KEYWORDS: Record<string, string[]> = {
@@ -62,10 +62,9 @@ function randomId(): string {
   }
 }
 
-function getTimeFromHoursAgo(hours: number): string {
+function getDateFromHoursAgo(hours: number): string {
   const date = new Date(Date.now() - hours * 60 * 60 * 1000);
-  // Alpha Vantage format: YYYYMMDDTHHMM
-  return date.toISOString().replace(/[-:]/g, "").slice(0, 13);
+  return date.toISOString().slice(0, 10); // YYYY-MM-DD for Finlight from/to
 }
 
 function categoryImageUrl(categoryRaw: string): string {
@@ -83,7 +82,7 @@ function categoryImageUrl(categoryRaw: string): string {
 }
 
 // ============================================================
-// TOPIC CLUSTERING – one story per cluster (like pre–Alpha Vantage)
+// TOPIC CLUSTERING – one story per cluster
 // ============================================================
 
 function getTopicCluster(headline: string, summary: string): string | null {
@@ -258,7 +257,7 @@ function calculateUrgencyScore(article: any, nowTimestamp: number): number {
     }
   }
   
-  // 4. SOURCE CREDIBILITY (0-20 points; raw Alpha Vantage articles use .source)
+  // 4. SOURCE CREDIBILITY (0-20 points)
   const source = (article.source || article.outlet || "").toLowerCase().trim();
   const premiumSources = [
     "reuters", "bloomberg", "wsj", "wall street journal", "cnbc",
@@ -296,124 +295,71 @@ function calculateUrgencyScore(article: any, nowTimestamp: number): number {
 }
 
 // ============================================================
-// ALPHA VANTAGE NEWS FETCHER
+// FINLIGHT NEWS FETCHER
 // ============================================================
 
-// Map Alpha Vantage topic strings to our categories
-const TOPIC_TO_CATEGORY: Record<string, string> = {
-  technology: "technology",
-  blockchain: "crypto",
-  financial_markets: "markets",
-  economy_macro: "economy",
-  economy_monetary: "economy",
-  economy_fiscal: "economy",
-  real_estate: "real estate",
-  energy_transportation: "commodities",
-  earnings: "markets",
-  mergers_and_acquisitions: "markets",
-  manufacturing: "markets",
-  finance: "markets",
-  life_sciences: "technology",
-  retail_wholesale: "markets",
-  ipo: "markets",
-};
-
-function parseAlphaVantageDate(dateStr: string): string {
-  if (!dateStr) return new Date().toISOString();
-  try {
-    const year = dateStr.slice(0, 4);
-    const month = dateStr.slice(4, 6);
-    const day = dateStr.slice(6, 8);
-    const hour = dateStr.slice(9, 11) || "00";
-    const min = dateStr.slice(11, 13) || "00";
-    const sec = dateStr.slice(13, 15) || "00";
-    return new Date(`${year}-${month}-${day}T${hour}:${min}:${sec}Z`).toISOString();
-  } catch {
-    return new Date().toISOString();
-  }
+function sentimentToScore(sentiment: string, confidence: number): number {
+  const c = Math.max(0, Math.min(1, confidence || 0));
+  if (sentiment === "positive") return c * 0.5;
+  if (sentiment === "negative") return -c * 0.5;
+  return 0;
 }
 
-async function fetchAlphaVantageNews(apiKey: string): Promise<any[]> {
-  const allArticles: any[] = [];
-  const timeFrom = getTimeFromHoursAgo(12); // Last 12 hours
+async function fetchFinlightNews(apiKey: string): Promise<any[]> {
+  const fromDate = getDateFromHoursAgo(12);
+  const toDate = new Date().toISOString().slice(0, 10);
   
-  // Fetch news with multiple topic queries for diversity
-  const topicGroups = [
-    "technology,blockchain",                    // Tech & Crypto
-    "financial_markets,economy_macro",          // Markets & Economy
-    "economy_monetary,earnings",                // Fed/Rates & Earnings
-    "real_estate,energy_transportation",        // Real Estate & Commodities
-    "mergers_and_acquisitions,manufacturing",   // M&A & Industrial
-  ];
+  console.log(`📡 Finlight: Fetching articles from ${fromDate} to ${toDate}...`);
   
-  for (const topics of topicGroups) {
-    try {
-      console.log(`📡 Alpha Vantage: Fetching topics [${topics}]...`);
-      
-      const url = new URL(ALPHA_VANTAGE_BASE_URL);
-      url.searchParams.set("function", "NEWS_SENTIMENT");
-      url.searchParams.set("topics", topics);
-      url.searchParams.set("time_from", timeFrom);
-      url.searchParams.set("sort", "LATEST");
-      url.searchParams.set("limit", "15"); // 15 per group × 5 groups = 75 max (larger 12h pool so best-in-window surfaces)
-      url.searchParams.set("apikey", apiKey);
-      
-      const response = await fetch(url.toString());
-      
-      if (!response.ok) {
-        console.error(`❌ Alpha Vantage error for [${topics}]:`, response.status);
-        continue;
-      }
-      
-      const data = await response.json();
-      
-      if (data.Note || data.Information) {
-        console.warn(`⚠️ Alpha Vantage rate limit:`, data.Note || data.Information);
-        continue;
-      }
-      
-      const feed = data.feed || [];
-      console.log(`✅ Alpha Vantage [${topics}]: ${feed.length} articles`);
-      
-      for (const item of feed) {
-        // Determine primary category from topics
-        const itemTopics = (item.topics || []).map((t: any) => t.topic?.toLowerCase());
-        let category = "markets";
-        for (const topic of itemTopics) {
-          if (TOPIC_TO_CATEGORY[topic]) {
-            category = TOPIC_TO_CATEGORY[topic];
-            break;
-          }
-        }
-        
-        // Get overall sentiment
-        const sentimentScore = parseFloat(item.overall_sentiment_score) || 0;
-        
-        allArticles.push({
-          title: item.title || "Breaking News",
-          summary: item.summary || "",
-          url: item.url || "#",
-          source: item.source || "Alpha Vantage",
-          datetime: parseAlphaVantageDate(item.time_published),
-          image: item.banner_image || null,
-          topics: itemTopics,
-          category,
-          sentiment_score: sentimentScore,
-          sentiment_label: item.overall_sentiment_label || "Neutral",
-          provider: "alphavantage",
-          tickers: (item.ticker_sentiment || []).map((t: any) => t.ticker),
-        });
-      }
-      
-      // Small delay between requests to respect rate limits
-      await new Promise(r => setTimeout(r, 300));
-      
-    } catch (error: any) {
-      console.error(`❌ Alpha Vantage fetch error [${topics}]:`, error.message);
-    }
+  const response = await fetch(`${FINLIGHT_API_BASE}/v2/articles`, {
+    method: "POST",
+    headers: {
+      "accept": "application/json",
+      "Content-Type": "application/json",
+      "X-API-KEY": apiKey,
+    },
+    body: JSON.stringify({
+      from: fromDate,
+      to: toDate,
+      language: "en",
+      orderBy: "publishDate",
+      order: "DESC",
+      pageSize: 75,
+      page: 1,
+    }),
+  });
+  
+  if (!response.ok) {
+    const errText = await response.text();
+    console.error(`❌ Finlight error:`, response.status, errText);
+    throw new Error(`Finlight API error: ${response.status}`);
   }
-  console.log(`📊 Total fetched: ${allArticles.length} articles from Alpha Vantage`);
-  return allArticles;
+  
+  const data = await response.json();
+  const articles = data.articles || [];
+  console.log(`✅ Finlight: ${articles.length} articles`);
+  
+  return articles.map((item: any) => {
+    const title = item.title || "Breaking News";
+    const summary = item.summary || "";
+    const category = categorizeArticle(title, summary);
+    const sentimentScore = sentimentToScore(item.sentiment || "neutral", item.confidence ?? 0);
+    return {
+      title,
+      summary,
+      what_happened: summary,
+      url: item.link || "#",
+      source: item.source || "Finlight",
+      datetime: item.publishDate ? new Date(item.publishDate).toISOString() : new Date().toISOString(),
+      image: (item.images && item.images[0]) || null,
+      topics: [],
+      category,
+      sentiment_score: sentimentScore,
+      sentiment_label: item.sentiment === "positive" ? "Positive" : item.sentiment === "negative" ? "Negative" : "Neutral",
+      provider: "finlight",
+      tickers: (item.companies || []).map((c: any) => c.ticker).filter(Boolean),
+    };
+  });
 }
 
 // ============================================================
@@ -518,7 +464,7 @@ function selectTopStories(
   const selected: ScoredArticle[] = [];
   const categoryCount: Record<string, number> = {};
   const usedClusters = new Set<string>();
-  const maxPerCategory = Math.ceil(targetCount * 0.35); // Max 35% per category (like pre–Alpha Vantage)
+  const maxPerCategory = Math.ceil(targetCount * 0.35); // Max 35% per category
   let minSummaryLen = MIN_SUMMARY_LENGTH;
 
   const trySelect = (): void => {
@@ -554,7 +500,7 @@ function selectTopStories(
       outlet: safeText(article.source, "Unknown"),
       category: cat,
       datetime: article.datetime,
-      provider: article.provider || "alphavantage",
+      provider: article.provider || "finlight",
       topics: article.topics || [],
       sentiment_score: article.sentiment_score || 0,
       urgency_score: article.urgency_score,
@@ -631,24 +577,24 @@ Deno.serve(async (req) => {
   
   try {
     console.log("\n" + "=".repeat(60));
-    console.log("🔄 [refreshNewsCache] Starting v9 (macro-first, single-stock demoted)...");
+    console.log("🔄 [refreshNewsCache] Starting v10 (Finlight)...");
     console.log(`⏰ Time: ${new Date().toISOString()}`);
     console.log("=".repeat(60));
     
     const base44 = createClientFromRequest(req);
     
     // Get API key
-    const alphaVantageKey = Deno.env.get("ALPHA_VANTAGE_API_KEY");
+    const finlightKey = Deno.env.get("FINLIGHT_API_KEY");
     
-    if (!alphaVantageKey) {
+    if (!finlightKey) {
       console.error("❌ Missing API key");
       return Response.json({ 
-        error: "ALPHA_VANTAGE_API_KEY not configured in Base44 secrets",
+        error: "FINLIGHT_API_KEY not configured in Base44 secrets",
         hint: "Check Base44 secrets configuration"
       }, { status: 500 });
     }
     
-    console.log("🔑 Alpha Vantage API key found ✓");
+    console.log("🔑 Finlight API key found ✓");
     
     // Get previous cache for persistence logic
     let previousTopStories: any[] = [];
@@ -665,9 +611,9 @@ Deno.serve(async (req) => {
       console.log("No previous cache found, starting fresh");
     }
     
-    // Fetch from Alpha Vantage
-    const rawArticles = await fetchAlphaVantageNews(alphaVantageKey);
-    console.log(`📊 Total fetched: ${rawArticles.length} articles from Alpha Vantage`);
+    // Fetch from Finlight
+    const rawArticles = await fetchFinlightNews(finlightKey);
+    console.log(`📊 Total fetched: ${rawArticles.length} articles from Finlight`);
     
     const allArticles = filterLowQualityArticles(rawArticles);
     
@@ -706,7 +652,7 @@ Deno.serve(async (req) => {
     const cacheEntry = await base44.asServiceRole.entities.NewsCache.create({
       stories: JSON.stringify(enhancedStories),
       refreshed_at: new Date().toISOString(),
-      sources_used: "alphavantage",
+      sources_used: "finlight",
       total_fetched: rawArticles.length,
       articles_selected: enhancedStories.length,
     });
@@ -720,10 +666,10 @@ Deno.serve(async (req) => {
     
     return Response.json({
       success: true,
-      message: "News cache refreshed (v9 - macro-first, single-stock demoted, 0 LLM credits)",
+      message: "News cache refreshed (v10 - Finlight, 0 LLM credits)",
       stories_cached: enhancedStories.length,
       total_fetched: rawArticles.length,
-      sources_used: "alphavantage",
+      sources_used: "finlight",
       refreshed_at: cacheEntry.refreshed_at,
       elapsed_ms: elapsed,
       llm_credits_used: 0,
