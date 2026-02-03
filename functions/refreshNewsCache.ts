@@ -1,9 +1,17 @@
 // ============================================================
+<<<<<<< HEAD
 // refreshNewsCache.ts - Base44 Function (v8 - Recent + best in 12h)
 // Runs every 5 minutes (0 LLM credits)
 // Fetches from Alpha Vantage (15 per topic × 5 groups = 75 in last 12h); scores by recency,
 // source credibility, content quality, "best" bonus (premium + summary), topic clustering.
 // Never caches "Details emerging...". Caches top 20 RAW articles. LLM in generateCategoryCards.
+=======
+// refreshNewsCache.ts - Base44 Function (v8 - Alpha Vantage Only)
+// Runs every 15 minutes (0 LLM credits)
+// Fetches from Alpha Vantage
+// Scores by urgency/relevance, caches top 30 RAW articles
+// LLM analysis happens in generateCategoryCards instead
+>>>>>>> 6c52c966c494c0f2a8e40f0dafd3a6ae86746d55
 // ============================================================
 
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
@@ -14,38 +22,27 @@ import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
 
 const ALPHA_VANTAGE_BASE_URL = "https://www.alphavantage.co/query";
 
-// Topics mapped to PulseApp sectors
-const PULSEAPP_TOPICS = [
-  "technology",           // Tech Stocks
-  "blockchain",           // Crypto
-  "financial_markets",    // Markets
-  "economy_macro",        // Economy
-  "economy_monetary",     // Fed/Interest Rates
-  "real_estate",          // Real Estate
-  "energy_transportation", // Commodities (oil, energy)
-  "earnings",             // Earnings reports
-  "mergers_and_acquisitions", // M&A activity
-  "manufacturing",        // Industrial/Manufacturing
-];
-
-// Map Alpha Vantage topics to PulseApp categories
-const TOPIC_TO_CATEGORY: Record<string, string> = {
-  "technology": "technology",
-  "blockchain": "crypto",
-  "financial_markets": "markets",
-  "economy_macro": "economy",
-  "economy_monetary": "economy",
-  "economy_fiscal": "economy",
-  "real_estate": "real estate",
-  "energy_transportation": "commodities",
-  "earnings": "markets",
-  "mergers_and_acquisitions": "markets",
-  "manufacturing": "markets",
-  "finance": "markets",
-  "life_sciences": "technology",
-  "retail_wholesale": "markets",
-  "ipo": "markets",
+// Category mapping keywords
+const CATEGORY_KEYWORDS: Record<string, string[]> = {
+  markets: ["stock", "market", "trading", "wall street", "nasdaq", "dow jones", "s&p", "equity"],
+  crypto: ["bitcoin", "ethereum", "crypto", "blockchain", "nft", "defi", "web3"],
+  economy: ["fed", "interest rate", "inflation", "gdp", "unemployment", "economy", "recession"],
+  technology: ["tech", "ai", "software", "apple", "google", "microsoft", "meta", "tesla"],
+  "real estate": ["housing", "real estate", "mortgage", "property", "reits"],
+  commodities: ["oil", "gold", "silver", "commodity", "energy", "natural gas"],
 };
+
+function categorizeArticle(title: string, description: string): string {
+  const text = `${title} ${description}`.toLowerCase();
+  
+  for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+    if (keywords.some(kw => text.includes(kw))) {
+      return category;
+    }
+  }
+  
+  return "markets"; // Default category
+}
 
 // ============================================================
 // UTILITY FUNCTIONS
@@ -73,25 +70,7 @@ function randomId(): string {
 }
 
 function getTimeFromHoursAgo(hours: number): string {
-  const date = new Date(Date.now() - hours * 60 * 60 * 1000);
-  // Alpha Vantage format: YYYYMMDDTHHMM
-  return date.toISOString().replace(/[-:]/g, "").slice(0, 13);
-}
-
-function parseAlphaVantageDate(dateStr: string): string {
-  // Input: "20240126T143000" -> ISO string
-  if (!dateStr) return new Date().toISOString();
-  try {
-    const year = dateStr.slice(0, 4);
-    const month = dateStr.slice(4, 6);
-    const day = dateStr.slice(6, 8);
-    const hour = dateStr.slice(9, 11) || "00";
-    const min = dateStr.slice(11, 13) || "00";
-    const sec = dateStr.slice(13, 15) || "00";
-    return new Date(`${year}-${month}-${day}T${hour}:${min}:${sec}Z`).toISOString();
-  } catch {
-    return new Date().toISOString();
-  }
+  return new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
 }
 
 function categoryImageUrl(categoryRaw: string): string {
@@ -307,6 +286,7 @@ function calculateUrgencyScore(article: any, nowTimestamp: number): number {
 // ============================================================
 
 async function fetchAlphaVantageNews(apiKey: string): Promise<any[]> {
+<<<<<<< HEAD
   const allArticles: any[] = [];
   const timeFrom = getTimeFromHoursAgo(12); // Last 12 hours
   
@@ -383,11 +363,53 @@ async function fetchAlphaVantageNews(apiKey: string): Promise<any[]> {
       
     } catch (error: any) {
       console.error(`❌ Alpha Vantage fetch error [${topics}]:`, error.message);
+=======
+  try {
+    console.log("📡 Fetching from Alpha Vantage...");
+    const url = `${ALPHA_VANTAGE_BASE_URL}?function=NEWS_SENTIMENT&apikey=${apiKey}`;
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      console.error("❌ Alpha Vantage error:", response.status);
+      return [];
+>>>>>>> 6c52c966c494c0f2a8e40f0dafd3a6ae86746d55
     }
+    
+    const data = await response.json();
+    
+    if (data.Note || data.Information) {
+      console.error("❌ Alpha Vantage API limit:", data.Note || data.Information);
+      return [];
+    }
+    
+    const articles = data.feed || [];
+    console.log(`✅ Alpha Vantage: ${articles.length} articles`);
+    
+    return articles.map((item: any) => ({
+      title: item.title || "Breaking News",
+      summary: item.summary || "",
+      url: item.url || "#",
+      source: item.source || "Alpha Vantage",
+      datetime: item.time_published ? 
+        new Date(
+          item.time_published.slice(0, 4) + "-" + 
+          item.time_published.slice(4, 6) + "-" + 
+          item.time_published.slice(6, 8) + "T" + 
+          item.time_published.slice(9, 11) + ":" + 
+          item.time_published.slice(11, 13) + ":" + 
+          item.time_published.slice(13, 15) + "Z"
+        ).toISOString() 
+        : new Date().toISOString(),
+      image: item.banner_image || null,
+      category: categorizeArticle(item.title, item.summary),
+      sentiment_score: parseFloat(item.overall_sentiment_score || "0"),
+      provider: "alphavantage",
+      topics: item.topics?.map((t: any) => t.topic) || [],
+    }));
+  } catch (error: any) {
+    console.error("❌ Alpha Vantage fetch error:", error.message);
+    return [];
   }
-  
-  console.log(`📊 Alpha Vantage total: ${allArticles.length} articles`);
-  return allArticles;
 }
 
 // ============================================================
@@ -579,7 +601,7 @@ function getCategoryMessage(category: string): string {
 
 async function invokeLLM(base44Client: any, prompt: string): Promise<string> {
   try {
-    const response = await base44Client.functions.invoke("invokeLLM", {
+    const response = await base44Client.asServiceRole.functions.invoke("invokeLLM", {
       prompt,
       useStreaming: false,
       context: null,
@@ -605,28 +627,33 @@ Deno.serve(async (req) => {
   
   try {
     console.log("\n" + "=".repeat(60));
+<<<<<<< HEAD
     console.log("🔄 [refreshNewsCache] Starting v8 (recent + best in 12h, 75-fetch/20-cache)...");
+=======
+    console.log("🔄 [refreshNewsCache] Starting v8 (Alpha Vantage Only)...");
+>>>>>>> 6c52c966c494c0f2a8e40f0dafd3a6ae86746d55
     console.log(`⏰ Time: ${new Date().toISOString()}`);
     console.log("=".repeat(60));
     
     const base44 = createClientFromRequest(req);
     
-    // Get Alpha Vantage API key
+    // Get API key
     const alphaVantageKey = Deno.env.get("ALPHA_VANTAGE_API_KEY");
     
     if (!alphaVantageKey) {
-      console.error("❌ ALPHA_VANTAGE_API_KEY not configured");
+      console.error("❌ Missing API key");
       return Response.json({ 
-        error: "ALPHA_VANTAGE_API_KEY not configured in Base44 secrets" 
+        error: "ALPHA_VANTAGE_API_KEY not configured in Base44 secrets",
+        hint: "Check Base44 secrets configuration"
       }, { status: 500 });
     }
     
-    console.log("🔑 Alpha Vantage API key configured ✓");
+    console.log("🔑 Alpha Vantage API key found ✓");
     
     // Get previous cache for persistence logic
     let previousTopStories: any[] = [];
     try {
-      const cacheEntries = await base44.entities.NewsCache.filter({});
+      const cacheEntries = await base44.asServiceRole.entities.NewsCache.filter({});
       if (cacheEntries && cacheEntries.length > 0) {
         const latestCache = cacheEntries.sort((a: any, b: any) => 
           new Date(b.refreshed_at).getTime() - new Date(a.refreshed_at).getTime()
@@ -640,13 +667,15 @@ Deno.serve(async (req) => {
     
     // Fetch from Alpha Vantage
     const rawArticles = await fetchAlphaVantageNews(alphaVantageKey);
+    console.log(`📊 Total fetched: ${rawArticles.length} articles from Alpha Vantage`);
+    
     const allArticles = filterLowQualityArticles(rawArticles);
     
     if (allArticles.length === 0) {
-      console.log("⚠️ No articles fetched from Alpha Vantage (or all filtered out)");
+      console.log("⚠️ No articles fetched (or all filtered out)");
       return Response.json({ 
-        error: "No articles fetched from Alpha Vantage",
-        hint: "Check API key and rate limits"
+        error: "No articles fetched from news sources",
+        hint: "Check API keys and rate limits"
       }, { status: 500 });
     }
     
@@ -664,9 +693,9 @@ Deno.serve(async (req) => {
     
     // Clear old cache
     try {
-      const oldCache = await base44.entities.NewsCache.filter({});
+      const oldCache = await base44.asServiceRole.entities.NewsCache.filter({});
       for (const entry of oldCache) {
-        await base44.entities.NewsCache.delete(entry.id);
+        await base44.asServiceRole.entities.NewsCache.delete(entry.id);
       }
       console.log(`🗑️ Cleared ${oldCache.length} old cache entries`);
     } catch (e) {
@@ -674,11 +703,11 @@ Deno.serve(async (req) => {
     }
     
     // Save new cache
-    const cacheEntry = await base44.entities.NewsCache.create({
+    const cacheEntry = await base44.asServiceRole.entities.NewsCache.create({
       stories: JSON.stringify(enhancedStories),
       refreshed_at: new Date().toISOString(),
       sources_used: "alphavantage",
-      total_fetched: allArticles.length,
+      total_fetched: rawArticles.length,
       articles_selected: enhancedStories.length,
     });
     
@@ -691,10 +720,14 @@ Deno.serve(async (req) => {
     
     return Response.json({
       success: true,
+<<<<<<< HEAD
       message: "News cache refreshed (v8 - recent + best in 12h, 20 articles, 0 LLM credits)",
+=======
+      message: "News cache refreshed (v8 - Alpha Vantage Only, 0 LLM credits)",
+>>>>>>> 6c52c966c494c0f2a8e40f0dafd3a6ae86746d55
       stories_cached: enhancedStories.length,
-      total_fetched: allArticles.length,
-      source: "alphavantage",
+      total_fetched: rawArticles.length,
+      sources_used: "alphavantage",
       refreshed_at: cacheEntry.refreshed_at,
       elapsed_ms: elapsed,
       llm_credits_used: 0,
