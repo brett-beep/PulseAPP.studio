@@ -114,7 +114,7 @@ export default function AudioPlayer({
       sourceRef.current = source;
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
-      analyser.smoothingTimeConstant = 0.7;
+      analyser.smoothingTimeConstant = 0.88;
       analyserRef.current = analyser;
       source.connect(analyser);
       analyser.connect(ctx.destination);
@@ -131,7 +131,7 @@ export default function AudioPlayer({
       for (let i = 0; i < barCount; i++) {
         let sum = 0;
         for (let j = 0; j < step; j++) sum += dataArray[i * step + j] ?? 0;
-        bars.push(Math.min(1, (sum / step / 255) * 2));
+        bars.push(Math.min(1, (sum / step / 255) * 1.4));
       }
       setFrequencyData(bars);
       rafRef.current = requestAnimationFrame(tick);
@@ -538,7 +538,7 @@ export default function AudioPlayer({
               {bars.map(({ i }, idx) => {
                 const level = isPlaying && frequencyData[idx] != null
                   ? 0.28 + 0.68 * frequencyData[idx]
-                  : 0.35 + 0.3 * (0.5 + 0.5 * Math.sin(currentTime * 2.5 + i * 0.2));
+                  : 0.35 + 0.3 * (0.5 + 0.5 * Math.sin(currentTime * 1.2 + i * 0.18));
                 return (
                   <motion.div
                     key={i}
@@ -549,7 +549,7 @@ export default function AudioPlayer({
                       boxShadow: "0 0 10px rgba(230,115,26,0.4)",
                       scaleY: level,
                     }}
-                    transition={{ duration: 0.06, ease: "easeOut" }}
+                    transition={{ type: "spring", stiffness: 120, damping: 20, mass: 0.5 }}
                   />
                 );
               })}
@@ -558,18 +558,18 @@ export default function AudioPlayer({
             <div
               className="news-content relative rounded-[20px] overflow-hidden"
               style={{
-                padding: 30,
+                padding: 0,
                 marginBottom: 60,
                 background: "rgba(240, 240, 240, 0.4)",
                 boxShadow: [
-                  "0 0 0 1px rgba(0, 0, 0, 0.03)",
-                  "0 0 30px 5px rgba(0, 0, 0, 0.12)",
-                  "0 0 50px 10px rgba(0, 0, 0, 0.08)",
-                  "0 0 80px 15px rgba(0, 0, 0, 0.05)",
+                  "0 0 0 1px rgba(0, 0, 0, 0.04)",
+                  "0 0 40px 8px rgba(0, 0, 0, 0.14)",
+                  "0 0 70px 16px rgba(0, 0, 0, 0.1)",
+                  "0 0 100px 24px rgba(0, 0, 0, 0.07)",
                 ].join(", "),
               }}
             >
-              {/* Floating content */}
+              {/* Content: image fills to border, text in padded area */}
               <AnimatePresence mode="wait">
                 <motion.div
                   key={currentSectionIndex}
@@ -577,17 +577,17 @@ export default function AudioPlayer({
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.2 }}
-                  className="relative flex items-stretch min-w-0 z-10"
+                  className="relative flex items-stretch min-w-0"
                   style={{ background: "transparent" }}
                 >
-                  <div className="relative w-20 flex-shrink-0 overflow-hidden rounded-xl" style={{ boxShadow: "0 4px 20px rgba(0,0,0,0.08)" }}>
+                  <div className="relative w-[42%] min-w-[160px] flex-shrink-0 overflow-hidden rounded-l-[20px]">
                     <img
-                      src={`https://picsum.photos/seed/${currentSectionIndex + 1}-${(currentSectionStory.category || "news").replace(/\s/g, "")}/200/160`}
+                      src={`https://picsum.photos/seed/${currentSectionIndex + 1}-${(currentSectionStory.category || "news").replace(/\s/g, "")}/400/280`}
                       alt=""
-                      className="w-full h-full object-cover"
+                      className="w-full h-full min-h-[140px] object-cover"
                     />
                   </div>
-                  <div className="flex-1 min-w-0 flex flex-col justify-center pl-4 py-1">
+                  <div className="flex-1 min-w-0 flex flex-col justify-center px-6 py-5">
                     <p className="text-slate-800 text-[13px] font-semibold leading-tight drop-shadow-sm" style={{ textShadow: "0 0 12px rgba(255,255,255,0.8)" }}>
                       {currentSectionStory.title || currentSectionStory.what_happened || "This section"}
                     </p>
@@ -599,19 +599,6 @@ export default function AudioPlayer({
                   </div>
                 </motion.div>
               </AnimatePresence>
-              {/* Vignette as border: center bright, edges soft dark */}
-              <div
-                className="absolute inset-0 pointer-events-none z-0 rounded-[20px]"
-                style={{
-                  background: "radial-gradient(ellipse 80% 70% at 50% 50%, transparent 20%, rgba(0,0,0,0.04) 40%, rgba(0,0,0,0.1) 60%, rgba(0,0,0,0.2) 80%, rgba(0,0,0,0.38) 100%)",
-                }}
-              />
-              <div
-                className="absolute inset-0 pointer-events-none z-0 opacity-[0.03] rounded-[20px]"
-                style={{
-                  backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E")`,
-                }}
-              />
             </div>
           ) : (
             <div
