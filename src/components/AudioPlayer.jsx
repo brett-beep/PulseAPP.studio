@@ -155,23 +155,22 @@ export default function AudioPlayer({
     const totalWords = words.length;
     if (totalWords === 0) return [];
 
-    // Phrases that cue "next story" – used to find 5 boundaries for 6 sections (scaled to actual audio length)
+    // Phrases that cue "NEXT story" only – NOT "first up" (that starts section 0). Boundaries = when to switch to next card.
     const transitionPhrases = [
-      "first up",
       "next up",
       "up next",
       "another headline",
       "moving on",
       "and another",
       "next,",
-      "finally",
-      "last up",
       "one more",
       "shifting to",
       "turning to",
       "meanwhile",
       "also in the news",
       "and in",
+      "finally",
+      "last up",
     ];
     const positions = [];
     for (const phrase of transitionPhrases) {
@@ -201,7 +200,7 @@ export default function AudioPlayer({
     if (sorted.length === 0) {
       return Array.from({ length: needBoundaries }, (_, i) => Math.max(0, ((i + 1) / 6) * totalDuration - earlySec));
     }
-    // Use first 5 transition positions (no minPos filter) so timing follows this briefing's transcript
+    // First 5 transition positions = boundaries 1→2, 2→3, ..., 5→6 ("first up" excluded so section 0 runs until first "next up")
     const take = Math.min(needBoundaries, sorted.length);
     const selected = sorted
       .slice(0, take)
@@ -246,16 +245,13 @@ export default function AudioPlayer({
     return first.endsWith(".") || first.endsWith("!") || first.endsWith("?") ? first : first + ".";
   }, [currentSectionStory]);
 
-  // Nature/city landscape images only (no people) – 6 per briefing
-  const SECTION_IMAGES = [
-    "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=280&fit=crop",
-    "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=400&h=280&fit=crop",
-    "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=400&h=280&fit=crop",
-    "https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=400&h=280&fit=crop",
-    "https://images.unsplash.com/photo-1514565131-fce0801e5785?w=400&h=280&fit=crop",
-    "https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=400&h=280&fit=crop",
-  ];
-  const sectionImageUrl = SECTION_IMAGES[currentSectionIndex % SECTION_IMAGES.length] ?? SECTION_IMAGES[0];
+  // Image per section: seed from headline so same story = same image, varied across stories (picsum; no topic filter)
+  const sectionImageSeed = useMemo(() => {
+    if (!currentSectionStory) return String(currentSectionIndex + 1);
+    const raw = (currentSectionStory.title || currentSectionStory.what_happened || "").slice(0, 50);
+    return raw.replace(/\s+/g, "-").replace(/[^a-zA-Z0-9-]/g, "").toLowerCase() || String(currentSectionIndex + 1);
+  }, [currentSectionStory, currentSectionIndex]);
+  const sectionImageUrl = `https://picsum.photos/seed/${encodeURIComponent(sectionImageSeed)}/400/280`;
 
   const togglePlay = async () => {
     const a = audioRef.current;
@@ -570,6 +566,7 @@ export default function AudioPlayer({
               style={{
                 padding: 0,
                 marginBottom: 60,
+                opacity: 0.75,
                 background: "rgba(240, 240, 240, 0.4)",
                 boxShadow: [
                   "0 0 0 1px rgba(0, 0, 0, 0.05)",
