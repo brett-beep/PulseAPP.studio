@@ -21,13 +21,16 @@ import { createPageUrl } from "@/utils";
 const SMOOTH_EASE = [0.25, 0.46, 0.45, 0.94];
 const SMOOTH_DURATION = 0.4;
 
+const LAYOUT_TRANSITION = { layout: { duration: 0.32, ease: [0.25, 0.46, 0.45, 0.94] } };
+
 function MarketSection({ marketSectionOpen, setMarketSectionOpen, setLastExpandedSection, marketStories, isSecond, gridOrder }) {
   return (
-    <div
+    <motion.div
+      layout
+      transition={LAYOUT_TRANSITION}
       className={`rounded-3xl overflow-hidden ${marketSectionOpen || isSecond ? "lg:col-span-2" : ""}`}
       style={{
         order: gridOrder,
-        transition: `all ${SMOOTH_DURATION}s cubic-bezier(${SMOOTH_EASE.join(",")})`,
         background: "linear-gradient(145deg, rgba(255,255,255,0.94) 0%, rgba(224, 242, 254, 0.35) 50%, rgba(248,250,252,0.9) 100%)",
         border: "1px solid rgba(148, 163, 184, 0.14)",
         boxShadow: "0 0 48px -10px rgba(96, 165, 250, 0.22), 0 4px 20px -8px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.85)",
@@ -77,13 +80,13 @@ function MarketSection({ marketSectionOpen, setMarketSectionOpen, setLastExpande
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: SMOOTH_DURATION, ease: SMOOTH_EASE }}
+          transition={{ duration: 0.22, ease: SMOOTH_EASE }}
           className="border-t border-slate-100/80 overflow-hidden"
         >
           <motion.div
-            initial={{ opacity: 0, y: -10 }}
+            initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: SMOOTH_DURATION, ease: SMOOTH_EASE }}
+            transition={{ duration: 0.22, ease: SMOOTH_EASE }}
             className="px-6 pb-6 pt-4"
           >
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
@@ -94,17 +97,18 @@ function MarketSection({ marketSectionOpen, setMarketSectionOpen, setLastExpande
           </motion.div>
         </motion.div>
       )}
-    </div>
+    </motion.div>
   );
 }
 
 function PortfolioSection({ portfolioSectionOpen, setPortfolioSectionOpen, setLastExpandedSection, portfolioStories, isSecond, gridOrder }) {
   return (
-    <div
+    <motion.div
+      layout
+      transition={LAYOUT_TRANSITION}
       className={`rounded-3xl overflow-hidden ${portfolioSectionOpen || isSecond ? "lg:col-span-2" : ""}`}
       style={{
         order: gridOrder,
-        transition: `all ${SMOOTH_DURATION}s cubic-bezier(${SMOOTH_EASE.join(",")})`,
         background: "linear-gradient(145deg, rgba(255,255,255,0.94) 0%, rgba(254, 243, 199, 0.35) 50%, rgba(255,251,235,0.9) 100%)",
         border: "1px solid rgba(148, 163, 184, 0.14)",
         boxShadow: "0 0 48px -10px rgba(251, 191, 36, 0.2), 0 4px 20px -8px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.85)",
@@ -154,13 +158,13 @@ function PortfolioSection({ portfolioSectionOpen, setPortfolioSectionOpen, setLa
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: SMOOTH_DURATION, ease: SMOOTH_EASE }}
+          transition={{ duration: 0.22, ease: SMOOTH_EASE }}
           className="border-t border-slate-100/80 overflow-hidden"
         >
           <motion.div
-            initial={{ opacity: 0, y: -10 }}
+            initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: SMOOTH_DURATION, ease: SMOOTH_EASE }}
+            transition={{ duration: 0.22, ease: SMOOTH_EASE }}
             className="px-6 pb-6 pt-4"
           >
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
@@ -171,7 +175,7 @@ function PortfolioSection({ portfolioSectionOpen, setPortfolioSectionOpen, setLa
           </motion.div>
         </motion.div>
       )}
-    </div>
+    </motion.div>
   );
 }
 
@@ -897,7 +901,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <motion.div layout className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <MarketSection
                 marketSectionOpen={marketSectionOpen}
                 setMarketSectionOpen={setMarketSectionOpen}
@@ -914,7 +918,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
                 isSecond={marketSectionOpen}
                 gridOrder={portfolioSectionOpen ? 1 : 2}
               />
-            </div>
+            </motion.div>
           )}
         </motion.section>
       </main>
