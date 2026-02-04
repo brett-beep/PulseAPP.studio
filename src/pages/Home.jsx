@@ -739,26 +739,26 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Market News – light blue hue, independent expand */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 transition-all duration-300 ease-out">
+              {/* Market News – subtle blue glow, expands full width when open */}
               <div
-                className="rounded-3xl overflow-hidden"
+                className={`rounded-3xl overflow-hidden transition-all duration-300 ease-out ${marketSectionOpen ? "lg:col-span-2" : ""}`}
                 style={{
-                  background: 'linear-gradient(135deg, rgba(224, 242, 254, 0.6) 0%, rgba(186, 230, 253, 0.25) 50%, rgba(255,255,255,0.9) 100%)',
-                  border: '1px solid rgba(147, 197, 253, 0.3)',
-                  boxShadow: '0 4px 24px -4px rgba(59, 130, 246, 0.12), 0 0 0 1px rgba(255,255,255,0.5) inset',
+                  background: 'linear-gradient(145deg, rgba(255,255,255,0.92) 0%, rgba(248,250,252,0.88) 100%)',
+                  border: '1px solid rgba(148, 163, 184, 0.12)',
+                  boxShadow: '0 0 40px -12px rgba(96, 165, 250, 0.18), 0 4px 20px -8px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.8)',
                 }}
               >
                 <button
                   type="button"
                   onClick={() => setMarketSectionOpen((o) => !o)}
-                  className="w-full text-left p-6 flex flex-col gap-4 hover:bg-blue-50/30 transition-colors"
+                  className="w-full text-left p-6 flex flex-col gap-4 hover:opacity-90 transition-opacity"
                 >
                   {/* Header */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-sm">
-                        <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <div className="w-10 h-10 rounded-2xl flex items-center justify-center shadow-sm" style={{ background: 'linear-gradient(135deg, rgba(147, 197, 253, 0.4) 0%, rgba(96, 165, 250, 0.25) 100%)', boxShadow: '0 0 20px -4px rgba(96, 165, 250, 0.25)' }}>
+                        <svg className="w-5 h-5 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                         </svg>
                       </div>
@@ -770,18 +770,18 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
                     <motion.div
                       animate={{ rotate: marketSectionOpen ? 180 : 0 }}
                       transition={{ duration: 0.2 }}
-                      className="w-8 h-8 rounded-full bg-blue-100/80 flex items-center justify-center"
+                      className="w-8 h-8 rounded-full bg-slate-100/80 flex items-center justify-center"
                     >
-                      <ChevronDown className="w-4 h-4 text-blue-600" />
+                      <ChevronDown className="w-4 h-4 text-slate-500" />
                     </motion.div>
                   </div>
 
-                  {/* Preview Headlines – full length, no truncation */}
+                  {/* Preview Headlines – full length */}
                   {!marketSectionOpen && marketStories.length > 0 && (
                     <div className="space-y-2.5 pt-1">
                       {marketStories.slice(0, 3).map((story, i) => (
                         <div key={i} className="flex items-start gap-3">
-                          <span className="w-1.5 h-1.5 rounded-full bg-blue-400 mt-2 flex-shrink-0" />
+                          <span className="w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0 opacity-60" style={{ background: 'rgba(96, 165, 250, 0.6)' }} />
                           <p className="text-sm text-slate-600 leading-relaxed">
                             {story.title}
                           </p>
@@ -796,37 +796,42 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
                   )}
                 </button>
 
-                {/* Expanded Content – horizontal grid, no shared layout animation */}
+                {/* Expanded: full width, news cards in a wide grid */}
                 {marketSectionOpen && (
-                  <div className="px-6 pb-6 pt-2 border-t border-blue-100/50">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.25, ease: "easeOut" }}
+                    className="px-6 pb-6 pt-2 border-t border-slate-100/80"
+                  >
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
                       {marketStories.map((story, index) => (
                         <NewsCard key={`market-${index}`} story={story} index={index} />
                       ))}
                     </div>
-                  </div>
+                  </motion.div>
                 )}
               </div>
 
-              {/* Your Portfolio – light orange hue, independent expand */}
+              {/* Your Portfolio – subtle amber glow, expands full width when open; also full width when pushed below expanded Market */}
               <div
-                className="rounded-3xl overflow-hidden"
+                className={`rounded-3xl overflow-hidden transition-all duration-300 ease-out ${portfolioSectionOpen || marketSectionOpen ? "lg:col-span-2" : ""}`}
                 style={{
-                  background: 'linear-gradient(135deg, rgba(255, 237, 213, 0.6) 0%, rgba(254, 215, 170, 0.25) 50%, rgba(255,255,255,0.9) 100%)',
-                  border: '1px solid rgba(251, 191, 36, 0.3)',
-                  boxShadow: '0 4px 24px -4px rgba(249, 115, 22, 0.12), 0 0 0 1px rgba(255,255,255,0.5) inset',
+                  background: 'linear-gradient(145deg, rgba(255,255,255,0.92) 0%, rgba(255,251,235,0.88) 100%)',
+                  border: '1px solid rgba(148, 163, 184, 0.12)',
+                  boxShadow: '0 0 40px -12px rgba(251, 191, 36, 0.15), 0 4px 20px -8px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.8)',
                 }}
               >
                 <button
                   type="button"
                   onClick={() => setPortfolioSectionOpen((o) => !o)}
-                  className="w-full text-left p-6 flex flex-col gap-4 hover:bg-amber-50/30 transition-colors"
+                  className="w-full text-left p-6 flex flex-col gap-4 hover:opacity-90 transition-opacity"
                 >
                   {/* Header */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-sm">
-                        <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <div className="w-10 h-10 rounded-2xl flex items-center justify-center shadow-sm" style={{ background: 'linear-gradient(135deg, rgba(253, 230, 138, 0.5) 0%, rgba(251, 191, 36, 0.3) 100%)', boxShadow: '0 0 20px -4px rgba(251, 191, 36, 0.2)' }}>
+                        <svg className="w-5 h-5 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                         </svg>
                       </div>
@@ -838,18 +843,18 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
                     <motion.div
                       animate={{ rotate: portfolioSectionOpen ? 180 : 0 }}
                       transition={{ duration: 0.2 }}
-                      className="w-8 h-8 rounded-full bg-amber-100/80 flex items-center justify-center"
+                      className="w-8 h-8 rounded-full bg-slate-100/80 flex items-center justify-center"
                     >
-                      <ChevronDown className="w-4 h-4 text-amber-600" />
+                      <ChevronDown className="w-4 h-4 text-slate-500" />
                     </motion.div>
                   </div>
 
-                  {/* Preview Headlines – full length, no truncation */}
+                  {/* Preview Headlines – full length */}
                   {!portfolioSectionOpen && portfolioStories.length > 0 && (
                     <div className="space-y-2.5 pt-1">
                       {portfolioStories.slice(0, 3).map((story, i) => (
                         <div key={i} className="flex items-start gap-3">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-2 flex-shrink-0" />
+                          <span className="w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0 opacity-60" style={{ background: 'rgba(251, 191, 36, 0.6)' }} />
                           <p className="text-sm text-slate-600 leading-relaxed">
                             {story.title}
                           </p>
@@ -864,15 +869,20 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
                   )}
                 </button>
 
-                {/* Expanded Content – horizontal grid, no shared layout animation */}
+                {/* Expanded: full width, news cards in a wide grid */}
                 {portfolioSectionOpen && (
-                  <div className="px-6 pb-6 pt-2 border-t border-amber-100/50">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.25, ease: "easeOut" }}
+                    className="px-6 pb-6 pt-2 border-t border-slate-100/80"
+                  >
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
                       {portfolioStories.map((story, index) => (
                         <NewsCard key={`portfolio-${index}`} story={story} index={index} />
                       ))}
                     </div>
-                  </div>
+                  </motion.div>
                 )}
               </div>
             </div>
