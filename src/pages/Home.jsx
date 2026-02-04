@@ -190,8 +190,8 @@ export default function Home() {
   const [portfolioNews, setPortfolioNews] = useState(null); // { summary, stories, updated_at }
   const [isLoadingNews, setIsLoadingNews] = useState(true);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const [marketSectionOpen, setMarketSectionOpen] = useState(true);
-  const [portfolioSectionOpen, setPortfolioSectionOpen] = useState(true);
+  const [marketSectionOpen, setMarketSectionOpen] = useState(false);
+  const [portfolioSectionOpen, setPortfolioSectionOpen] = useState(false);
   const [lastExpandedSection, setLastExpandedSection] = useState("market"); // "market" | "portfolio" – whichever is expanded sits on top
 
   const [lastRefreshTime, setLastRefreshTime] = useState(null);

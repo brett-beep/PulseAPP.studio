@@ -131,7 +131,7 @@ export default function AudioPlayer({
       for (let i = 0; i < barCount; i++) {
         let sum = 0;
         for (let j = 0; j < step; j++) sum += dataArray[i * step + j] ?? 0;
-        bars.push(Math.min(1, (sum / step / 255) * 1.4));
+        bars.push(Math.min(1, (sum / step / 255) * 2.2));
       }
       setFrequencyData(bars);
       rafRef.current = requestAnimationFrame(tick);
@@ -537,19 +537,19 @@ export default function AudioPlayer({
             <div className="absolute inset-0 rounded-2xl flex items-center justify-center gap-0.5 px-2">
               {bars.map(({ i }, idx) => {
                 const level = isPlaying && frequencyData[idx] != null
-                  ? 0.28 + 0.68 * frequencyData[idx]
-                  : 0.35 + 0.3 * (0.5 + 0.5 * Math.sin(currentTime * 1.2 + i * 0.18));
+                  ? 0.18 + 0.82 * frequencyData[idx]
+                  : 0.25 + 0.55 * (0.5 + 0.5 * Math.sin(currentTime * 1.8 + i * 0.2));
                 return (
                   <motion.div
                     key={i}
                     className="w-1.5 rounded-full flex-shrink-0 origin-center"
                     style={{
-                      height: 24,
+                      height: 26,
                       background: "linear-gradient(180deg, rgba(255,200,140,0.95) 0%, rgba(230,115,26,0.85) 35%, rgba(219,114,67,0.7) 100%)",
-                      boxShadow: "0 0 10px rgba(230,115,26,0.4)",
+                      boxShadow: "0 0 12px rgba(230,115,26,0.5)",
                       scaleY: level,
                     }}
-                    transition={{ type: "spring", stiffness: 120, damping: 20, mass: 0.5 }}
+                    transition={{ type: "spring", stiffness: 100, damping: 14, mass: 0.4 }}
                   />
                 );
               })}
@@ -562,10 +562,9 @@ export default function AudioPlayer({
                 marginBottom: 60,
                 background: "rgba(240, 240, 240, 0.4)",
                 boxShadow: [
-                  "0 0 0 1px rgba(0, 0, 0, 0.04)",
-                  "0 0 40px 8px rgba(0, 0, 0, 0.14)",
-                  "0 0 70px 16px rgba(0, 0, 0, 0.1)",
-                  "0 0 100px 24px rgba(0, 0, 0, 0.07)",
+                  "0 0 30px 6px rgba(0, 0, 0, 0.08)",
+                  "0 0 55px 14px rgba(0, 0, 0, 0.1)",
+                  "0 0 90px 22px rgba(0, 0, 0, 0.06)",
                 ].join(", "),
               }}
             >
@@ -573,10 +572,10 @@ export default function AudioPlayer({
               <AnimatePresence mode="wait">
                 <motion.div
                   key={currentSectionIndex}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.2 }}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.42, ease: [0.25, 0.46, 0.45, 0.94] }}
                   className="relative flex items-stretch min-w-0"
                   style={{ background: "transparent" }}
                 >
