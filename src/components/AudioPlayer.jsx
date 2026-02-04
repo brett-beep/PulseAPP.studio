@@ -183,6 +183,14 @@ export default function AudioPlayer({
       ? sectionStories[currentSectionIndex]
       : null;
 
+  // Intro period: show waveform before we "dive into" news (first few seconds or until first section)
+  const INTRO_SECONDS = 8;
+  const introEndSeconds = sectionBoundariesSeconds.length > 0
+    ? sectionBoundariesSeconds[0]
+    : INTRO_SECONDS;
+  const showWaveform = sectionCount === 0 || currentTime < introEndSeconds;
+  const showInfoCard = sectionCount > 0 && currentSectionStory && currentTime >= introEndSeconds;
+
   const sectionSummary = useMemo(() => {
     if (!currentSectionStory) return "";
     const raw = currentSectionStory.what_happened || currentSectionStory.title || "";
@@ -475,9 +483,32 @@ export default function AudioPlayer({
           )}
         </AnimatePresence>
 
-        {/* Embedded info card (replaces waveform): vignette blends into player background */}
+        {/* Waveform during intro; info cards (with vignette frame) once we're in the news */}
         <div className="h-24 mb-8 rounded-2xl overflow-hidden relative">
-          {sectionCount > 0 && currentSectionStory ? (
+          {showWaveform ? (
+            <div className="absolute inset-0 rounded-2xl flex items-center justify-center gap-0.5 px-2">
+              {bars.map(({ i, p }) => (
+                <motion.div
+                  key={i}
+                  className="w-1 rounded-full flex-shrink-0 origin-center"
+                  style={{
+                    height: 24,
+                    background: "linear-gradient(180deg, rgba(148,163,184,0.5) 0%, rgba(148,163,184,0.25) 100%)",
+                    boxShadow: "0 0 4px rgba(0,0,0,0.06)",
+                  }}
+                  animate={{
+                    scaleY: isPlaying ? [0.4, 0.5 + 0.35 * (0.5 + 0.5 * Math.sin(p * Math.PI)), 0.4] : 0.4,
+                  }}
+                  transition={{
+                    duration: 0.6,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                    delay: (i % 8) * 0.04,
+                  }}
+                />
+              ))}
+            </div>
+          ) : showInfoCard ? (
             <AnimatePresence mode="wait">
               <motion.div
                 key={currentSectionIndex}
@@ -485,25 +516,19 @@ export default function AudioPlayer({
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.18 }}
-                className="absolute inset-0 rounded-2xl overflow-hidden"
+                className="absolute inset-0 rounded-2xl overflow-hidden flex items-stretch"
                 style={{
-                  background: "linear-gradient(90deg, rgba(255,255,255,0.42) 0%, rgba(248,250,252,0.28) 35%, rgba(255,255,255,0.08) 70%, transparent 100%)",
-                  boxShadow: "inset 0 0 80px 30px rgba(255,255,255,0.2), inset -60px 0 40px -20px rgba(0,0,0,0.06)",
+                  background: "rgba(255,255,255,0.92)",
+                  boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
                 }}
               >
-                <div className="absolute inset-0 flex items-stretch">
-                  <div className="relative w-20 flex-shrink-0 overflow-hidden">
+                {/* Content lives in the bright center */}
+                <div className="relative flex-1 flex items-stretch min-w-0 z-10">
+                  <div className="relative w-20 flex-shrink-0 overflow-hidden rounded-l-2xl">
                     <img
                       src={`https://picsum.photos/seed/${currentSectionIndex + 1}-${(currentSectionStory.category || "news").replace(/\s/g, "")}/200/160`}
                       alt=""
                       className="w-full h-full object-cover"
-                    />
-                    <div
-                      className="absolute inset-0 pointer-events-none"
-                      style={{
-                        background: "linear-gradient(90deg, transparent 20%, rgba(0,0,0,0.15) 60%, rgba(255,255,255,0.12) 100%)",
-                        boxShadow: "inset 0 0 50px 20px rgba(0,0,0,0.12)",
-                      }}
                     />
                   </div>
                   <div className="flex-1 min-w-0 flex flex-col justify-center px-4 py-2">
@@ -517,6 +542,20 @@ export default function AudioPlayer({
                     )}
                   </div>
                 </div>
+                {/* Vignette frame: dark edges, bright center (like reference image) */}
+                <div
+                  className="absolute inset-0 pointer-events-none rounded-2xl z-20"
+                  style={{
+                    background: "radial-gradient(ellipse 75% 70% at 50% 50%, transparent 35%, rgba(0,0,0,0.08) 55%, rgba(0,0,0,0.22) 75%, rgba(0,0,0,0.45) 100%)",
+                    boxShadow: "inset 0 0 100px 30px rgba(0,0,0,0.08)",
+                  }}
+                />
+                <div
+                  className="absolute inset-0 pointer-events-none rounded-2xl z-20 opacity-[0.04]"
+                  style={{
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
+                  }}
+                />
               </motion.div>
             </AnimatePresence>
           ) : (
