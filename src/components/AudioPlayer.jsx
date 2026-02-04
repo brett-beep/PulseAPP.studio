@@ -20,6 +20,7 @@ export default function AudioPlayer({
   briefingCount = 0,
   isPremium = false,
   transcript = "",
+  sectionStories = [],
 }) {
   console.log("🎵 [AudioPlayer Component] Rendered with audioUrl:", audioUrl);
   console.log("🎵 [AudioPlayer Component] isGenerating:", isGenerating);
@@ -94,6 +95,15 @@ export default function AudioPlayer({
   }, [playbackRate]);
 
   const progress = totalDuration > 0 ? currentTime / totalDuration : 0;
+  const sectionCount = Math.min(6, sectionStories?.length || 0);
+  const currentSectionIndex =
+    sectionCount > 0 && totalDuration > 0
+      ? Math.min(sectionCount - 1, Math.floor(progress * sectionCount))
+      : -1;
+  const currentSectionStory =
+    currentSectionIndex >= 0 && sectionStories?.[currentSectionIndex]
+      ? sectionStories[currentSectionIndex]
+      : null;
 
   const togglePlay = async () => {
     const a = audioRef.current;
@@ -171,12 +181,13 @@ export default function AudioPlayer({
   };
 
   return (
+    <div className="flex flex-col lg:flex-row gap-6 items-stretch">
     <motion.div
       initial={{ opacity: 0, y: 20, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
       onPointerMove={onPointerMove}
-      className="relative overflow-hidden rounded-[40px] p-10"
+      className="relative overflow-hidden rounded-[40px] p-10 flex-1 min-w-0"
       style={{
         background: "linear-gradient(145deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.55) 100%)",
         backdropFilter: "blur(60px) saturate(1.5) url(#container-glass)",
@@ -640,5 +651,59 @@ export default function AudioPlayer({
         </AnimatePresence>
       </div>
     </motion.div>
+
+    {/* Info card: current section (3 breaking + 3 portfolio stories) next to player */}
+    {sectionCount > 0 && (
+      <div className="w-full lg:w-[300px] flex-shrink-0 flex flex-col justify-center">
+        <AnimatePresence mode="wait">
+          {currentSectionStory ? (
+            <motion.div
+              key={currentSectionIndex}
+              initial={{ opacity: 0, x: 12 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -8 }}
+              transition={{ duration: 0.28, ease: [0.25, 0.46, 0.45, 0.94] }}
+              className="rounded-2xl overflow-hidden flex flex-col"
+              style={{
+                background: "rgba(255, 255, 255, 0.75)",
+                backdropFilter: "blur(20px)",
+                border: "1px solid rgba(148, 163, 184, 0.2)",
+                boxShadow: "0 8px 32px -8px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.8)",
+              }}
+            >
+              <div className="relative aspect-[16/10] overflow-hidden bg-slate-100">
+                <img
+                  src={`https://picsum.photos/seed/${currentSectionIndex + 1}-${(currentSectionStory.category || "news").replace(/\s/g, "")}/400/250`}
+                  alt=""
+                  className="w-full h-full object-cover"
+                />
+                {/* Cloudy vignette: soft darkening toward edges */}
+                <div
+                  className="absolute inset-0 pointer-events-none"
+                  style={{
+                    background: "radial-gradient(ellipse 90% 80% at 50% 50%, transparent 50%, rgba(0,0,0,0.12) 85%, rgba(0,0,0,0.35) 100%)",
+                    boxShadow: "inset 0 0 120px 30px rgba(0,0,0,0.08)",
+                  }}
+                />
+              </div>
+              <div className="p-4 flex-1">
+                <p className="text-slate-700 text-sm leading-snug line-clamp-2">
+                  {currentSectionStory.title || currentSectionStory.what_happened || "This section"}
+                </p>
+                {currentSectionStory.why_it_matters && (
+                  <p className="text-slate-500 text-xs mt-1.5 line-clamp-1">
+                    {currentSectionStory.why_it_matters}
+                  </p>
+                )}
+                <p className="text-slate-400 text-[10px] font-medium uppercase tracking-wider mt-2">
+                  Section {currentSectionIndex + 1} of {sectionCount}
+                </p>
+              </div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+      </div>
+    )}
+    </div>
   );
 }
