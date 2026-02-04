@@ -45,7 +45,7 @@ export default function NewsCard({ story, index }) {
     const expandedText = descriptionText.length > EXPANDED_MAX_CHARS
       ? descriptionText.slice(0, EXPANDED_MAX_CHARS).trim() + '…'
       : descriptionText;
-    const needsExpansion = descriptionText.length > 200;
+    const needsExpansion = descriptionText.length > 100;
 
     return (
         <article
@@ -88,11 +88,12 @@ export default function NewsCard({ story, index }) {
                         type="button"
                         onClick={(e) => {
                             e.stopPropagation();
+                            e.preventDefault();
                             setIsExpanded(!isExpanded);
                         }}
-                        className="text-xs font-medium text-amber-600 hover:text-amber-700 transition-colors mt-1.5 inline-flex items-center gap-1"
+                        className="text-sm font-medium text-amber-600 hover:text-amber-700 transition-colors mt-2 inline-flex items-center gap-1"
                     >
-                        {isExpanded ? '← Less' : 'More →'}
+                        {isExpanded ? "Show less" : "Read more"}
                     </button>
                 )}
             </div>
