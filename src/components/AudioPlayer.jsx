@@ -531,8 +531,8 @@ export default function AudioPlayer({
           )}
         </AnimatePresence>
 
-        {/* Waveform during intro (audio-reactive + orange); floating info + vignette border once in news */}
-        <div className="h-24 mb-8 rounded-2xl overflow-visible relative">
+        {/* Waveform during intro (audio-reactive + orange); news content card + vignette once in news */}
+        <div className={`rounded-2xl overflow-visible relative ${showWaveform ? "h-24" : "min-h-24"} ${showInfoCard ? "" : "mb-8"}`}>
           {showWaveform ? (
             <div className="absolute inset-0 rounded-2xl flex items-center justify-center gap-0.5 px-2">
               {bars.map(({ i }, idx) => {
@@ -555,8 +555,21 @@ export default function AudioPlayer({
               })}
             </div>
           ) : showInfoCard ? (
-            <>
-              {/* Floating content: no card box, blended into player */}
+            <div
+              className="news-content relative rounded-[20px] overflow-hidden"
+              style={{
+                padding: 30,
+                marginBottom: 60,
+                background: "rgba(240, 240, 240, 0.4)",
+                boxShadow: [
+                  "0 0 0 1px rgba(0, 0, 0, 0.03)",
+                  "0 0 30px 5px rgba(0, 0, 0, 0.12)",
+                  "0 0 50px 10px rgba(0, 0, 0, 0.08)",
+                  "0 0 80px 15px rgba(0, 0, 0, 0.05)",
+                ].join(", "),
+              }}
+            >
+              {/* Floating content */}
               <AnimatePresence mode="wait">
                 <motion.div
                   key={currentSectionIndex}
@@ -564,7 +577,7 @@ export default function AudioPlayer({
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.2 }}
-                  className="absolute inset-0 flex items-stretch min-w-0 z-10 px-2"
+                  className="relative flex items-stretch min-w-0 z-10"
                   style={{ background: "transparent" }}
                 >
                   <div className="relative w-20 flex-shrink-0 overflow-hidden rounded-xl" style={{ boxShadow: "0 4px 20px rgba(0,0,0,0.08)" }}>
@@ -586,24 +599,20 @@ export default function AudioPlayer({
                   </div>
                 </motion.div>
               </AnimatePresence>
-              {/* Vignette as border: extends out, no card edge – blends into player; center bright, edges soft dark */}
+              {/* Vignette as border: center bright, edges soft dark */}
               <div
-                className="absolute pointer-events-none z-0"
+                className="absolute inset-0 pointer-events-none z-0 rounded-[20px]"
                 style={{
-                  inset: "-32px -24px -32px -24px",
-                  borderRadius: "28px",
                   background: "radial-gradient(ellipse 80% 70% at 50% 50%, transparent 20%, rgba(0,0,0,0.04) 40%, rgba(0,0,0,0.1) 60%, rgba(0,0,0,0.2) 80%, rgba(0,0,0,0.38) 100%)",
                 }}
               />
               <div
-                className="absolute pointer-events-none z-0 opacity-[0.03]"
+                className="absolute inset-0 pointer-events-none z-0 opacity-[0.03] rounded-[20px]"
                 style={{
-                  inset: "-32px -24px -32px -24px",
-                  borderRadius: "28px",
                   backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E")`,
                 }}
               />
-            </>
+            </div>
           ) : (
             <div
               className="absolute inset-0 rounded-2xl flex items-center justify-center"
