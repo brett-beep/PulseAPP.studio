@@ -96,14 +96,79 @@ export default function AudioPlayer({
 
   const progress = totalDuration > 0 ? currentTime / totalDuration : 0;
   const sectionCount = Math.min(6, sectionStories?.length || 0);
-  const currentSectionIndex =
-    sectionCount > 0 && totalDuration > 0
-      ? Math.min(sectionCount - 1, Math.floor(progress * sectionCount))
-      : -1;
+
+  // Section boundaries from transcript transition phrases (e.g. "next up", "another headline")
+  const sectionBoundariesSeconds = useMemo(() => {
+    const text = (transcript || "").trim().toLowerCase();
+    if (!text || sectionCount === 0 || !totalDuration || totalDuration <= 0) return [];
+    const transitionPhrases = [
+      "first up",
+      "next up",
+      "another headline",
+      "moving on",
+      "and another",
+      "next,",
+      "finally",
+      "last up",
+      "one more",
+      "shifting to",
+      "turning to",
+      "meanwhile",
+      "also in the news",
+      "and in",
+    ];
+    const positions = [];
+    for (const phrase of transitionPhrases) {
+      let idx = 0;
+      while (idx < text.length) {
+        const found = text.indexOf(phrase, idx);
+        if (found === -1) break;
+        positions.push(found);
+        idx = found + 1;
+      }
+    }
+    const sorted = [...new Set(positions)].sort((a, b) => a - b);
+    const needBoundaries = 5;
+    if (sorted.length === 0) {
+      return Array.from({ length: needBoundaries }, (_, i) => ((i + 1) / 6) * totalDuration);
+    }
+    const minPos = Math.floor(text.length * 0.02);
+    const filtered = sorted.filter((p) => p > minPos);
+    const take = Math.min(needBoundaries, filtered.length || sorted.length);
+    const selected = (filtered.length >= take ? filtered : sorted).slice(0, take).map((p) => (p / text.length) * totalDuration);
+    if (selected.length < needBoundaries) {
+      const last = selected[selected.length - 1] ?? totalDuration * 0.5;
+      for (let i = selected.length; i < needBoundaries; i++) {
+        selected.push(last + ((i - selected.length + 1) / (needBoundaries - selected.length + 1)) * (totalDuration - last));
+      }
+    }
+    return selected.sort((a, b) => a - b);
+  }, [transcript, sectionCount, totalDuration]);
+
+  const currentSectionIndex = useMemo(() => {
+    if (sectionCount === 0) return -1;
+    if (sectionBoundariesSeconds.length === 0) {
+      return totalDuration > 0 ? Math.min(sectionCount - 1, Math.floor((currentTime / totalDuration) * sectionCount)) : -1;
+    }
+    if (currentTime < sectionBoundariesSeconds[0]) return 0;
+    for (let i = 1; i < sectionBoundariesSeconds.length; i++) {
+      if (currentTime < sectionBoundariesSeconds[i]) return Math.min(i, sectionCount - 1);
+    }
+    return Math.min(sectionBoundariesSeconds.length, sectionCount - 1);
+  }, [currentTime, sectionBoundariesSeconds, sectionCount, totalDuration]);
+
   const currentSectionStory =
     currentSectionIndex >= 0 && sectionStories?.[currentSectionIndex]
       ? sectionStories[currentSectionIndex]
       : null;
+
+  const sectionSummary = useMemo(() => {
+    if (!currentSectionStory) return "";
+    const raw = currentSectionStory.what_happened || currentSectionStory.title || "";
+    const first = raw.split(/[.!?]/)[0]?.trim() || "";
+    if (!first) return "";
+    return first.endsWith(".") || first.endsWith("!") || first.endsWith("?") ? first : first + ".";
+  }, [currentSectionStory]);
 
   const togglePlay = async () => {
     const a = audioRef.current;
@@ -652,50 +717,50 @@ export default function AudioPlayer({
       </div>
     </motion.div>
 
-    {/* Info card: current section (3 breaking + 3 portfolio stories) next to player */}
+    {/* Info card: current section, compact and blended */}
     {sectionCount > 0 && (
-      <div className="w-full lg:w-[300px] flex-shrink-0 flex flex-col justify-center">
+      <div className="w-full lg:w-[200px] xl:w-[220px] flex-shrink-0 flex flex-col justify-center">
         <AnimatePresence mode="wait">
           {currentSectionStory ? (
             <motion.div
               key={currentSectionIndex}
-              initial={{ opacity: 0, x: 12 }}
+              initial={{ opacity: 0, x: 8 }}
               animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -8 }}
+              exit={{ opacity: 0, x: -6 }}
               transition={{ duration: 0.28, ease: [0.25, 0.46, 0.45, 0.94] }}
-              className="rounded-2xl overflow-hidden flex flex-col"
+              className="rounded-xl overflow-hidden flex flex-col"
               style={{
-                background: "rgba(255, 255, 255, 0.75)",
-                backdropFilter: "blur(20px)",
-                border: "1px solid rgba(148, 163, 184, 0.2)",
-                boxShadow: "0 8px 32px -8px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.8)",
+                background: "rgba(255, 255, 255, 0.45)",
+                backdropFilter: "blur(16px)",
+                border: "1px solid rgba(148, 163, 184, 0.12)",
+                boxShadow: "0 4px 20px -6px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.5)",
               }}
             >
-              <div className="relative aspect-[16/10] overflow-hidden bg-slate-100">
+              <div className="relative aspect-[4/3] overflow-hidden bg-slate-100">
                 <img
-                  src={`https://picsum.photos/seed/${currentSectionIndex + 1}-${(currentSectionStory.category || "news").replace(/\s/g, "")}/400/250`}
+                  src={`https://picsum.photos/seed/${currentSectionIndex + 1}-${(currentSectionStory.category || "news").replace(/\s/g, "")}/320/240`}
                   alt=""
                   className="w-full h-full object-cover"
                 />
-                {/* Cloudy vignette: soft darkening toward edges */}
+                {/* Cloudy vignette: visible darkening at edges */}
                 <div
                   className="absolute inset-0 pointer-events-none"
                   style={{
-                    background: "radial-gradient(ellipse 90% 80% at 50% 50%, transparent 50%, rgba(0,0,0,0.12) 85%, rgba(0,0,0,0.35) 100%)",
-                    boxShadow: "inset 0 0 120px 30px rgba(0,0,0,0.08)",
+                    background: "radial-gradient(ellipse 70% 60% at 50% 50%, transparent 30%, rgba(0,0,0,0.2) 70%, rgba(0,0,0,0.55) 100%)",
+                    boxShadow: "inset 0 0 80px 40px rgba(0,0,0,0.2)",
                   }}
                 />
               </div>
-              <div className="p-4 flex-1">
-                <p className="text-slate-700 text-sm leading-snug line-clamp-2">
+              <div className="p-3 flex-1">
+                <p className="text-slate-700 text-xs leading-snug">
                   {currentSectionStory.title || currentSectionStory.what_happened || "This section"}
                 </p>
-                {currentSectionStory.why_it_matters && (
-                  <p className="text-slate-500 text-xs mt-1.5 line-clamp-1">
-                    {currentSectionStory.why_it_matters}
+                {sectionSummary && (
+                  <p className="text-slate-500 text-[11px] leading-snug mt-1.5 line-clamp-2">
+                    {sectionSummary}
                   </p>
                 )}
-                <p className="text-slate-400 text-[10px] font-medium uppercase tracking-wider mt-2">
+                <p className="text-slate-400 text-[9px] font-medium uppercase tracking-wider mt-1.5">
                   Section {currentSectionIndex + 1} of {sectionCount}
                 </p>
               </div>
