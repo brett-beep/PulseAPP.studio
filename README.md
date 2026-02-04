@@ -10,10 +10,6 @@ This project contains everything you need to run your app locally.
 
 Any change pushed to the repo will also be reflected in the Base44 Builder.
 
-**Syncing Base44 changes back to local**
-
-Base44 sync is Git-based: pushing from local updates Base44. To get changes you made in the Base44 dashboard (entities, automations, secrets) into your local repo: use **Pull** in your Git client if Base44 is connected to GitHub and pushes to your repo, or re-apply entity/schema changes manually. Data (e.g. records in tables) is managed in the dashboard; export from **Dashboard → Data → More Actions → Export** if you need a local copy.
-
 **Prerequisites:** 
 
 1. Clone the repository using the project's Git URL 

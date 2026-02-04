@@ -28,6 +28,10 @@ export default function AudioPlayer({
   console.log("🎵 [AudioPlayer Component] statusLabel:", statusLabel);
   
   const audioRef = useRef(null);
+  const audioContextRef = useRef(null);
+  const analyserRef = useRef(null);
+  const sourceRef = useRef(null);
+  const rafRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [totalDuration, setTotalDuration] = useState((duration || 0) * 60 || 0);
@@ -35,6 +39,7 @@ export default function AudioPlayer({
   const [playbackRate, setPlaybackRate] = useState(1);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
+  const [frequencyData, setFrequencyData] = useState(() => Array(48).fill(0.3));
 
   const mx = useMotionValue(300);
   const my = useMotionValue(200);
@@ -93,6 +98,49 @@ export default function AudioPlayer({
       audio.playbackRate = playbackRate;
     }
   }, [playbackRate]);
+
+  // Audio-reactive waveform: AnalyserNode drives bar heights when playing
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || !audioUrl || !isPlaying) {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      return;
+    }
+    let ctx = audioContextRef.current;
+    if (!ctx) {
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      audioContextRef.current = ctx;
+      const source = ctx.createMediaElementSource(audio);
+      sourceRef.current = source;
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.7;
+      analyserRef.current = analyser;
+      source.connect(analyser);
+      analyser.connect(ctx.destination);
+    }
+    if (ctx.state === "suspended") ctx.resume().catch(() => {});
+    const analyser = analyserRef.current;
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    const barCount = 48;
+
+    const tick = () => {
+      analyser.getByteFrequencyData(dataArray);
+      const step = Math.floor(dataArray.length / barCount);
+      const bars = [];
+      for (let i = 0; i < barCount; i++) {
+        let sum = 0;
+        for (let j = 0; j < step; j++) sum += dataArray[i * step + j] ?? 0;
+        bars.push(Math.min(1, (sum / step / 255) * 2));
+      }
+      setFrequencyData(bars);
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [audioUrl, isPlaying]);
 
   const progress = totalDuration > 0 ? currentTime / totalDuration : 0;
   const sectionCount = Math.min(6, sectionStories?.length || 0);
@@ -483,87 +531,83 @@ export default function AudioPlayer({
           )}
         </AnimatePresence>
 
-        {/* Waveform during intro; info cards (with vignette frame) once we're in the news */}
-        <div className="h-24 mb-8 rounded-2xl overflow-hidden relative">
+        {/* Waveform during intro (audio-reactive + orange); floating info + vignette border once in news */}
+        <div className="h-24 mb-8 rounded-2xl overflow-visible relative">
           {showWaveform ? (
             <div className="absolute inset-0 rounded-2xl flex items-center justify-center gap-0.5 px-2">
-              {bars.map(({ i, p }) => (
-                <motion.div
-                  key={i}
-                  className="w-1 rounded-full flex-shrink-0 origin-center"
-                  style={{
-                    height: 24,
-                    background: "linear-gradient(180deg, rgba(148,163,184,0.5) 0%, rgba(148,163,184,0.25) 100%)",
-                    boxShadow: "0 0 4px rgba(0,0,0,0.06)",
-                  }}
-                  animate={{
-                    scaleY: isPlaying ? [0.4, 0.5 + 0.35 * (0.5 + 0.5 * Math.sin(p * Math.PI)), 0.4] : 0.4,
-                  }}
-                  transition={{
-                    duration: 0.6,
-                    repeat: Infinity,
-                    ease: "easeInOut",
-                    delay: (i % 8) * 0.04,
-                  }}
-                />
-              ))}
+              {bars.map(({ i }, idx) => {
+                const level = isPlaying && frequencyData[idx] != null
+                  ? 0.28 + 0.68 * frequencyData[idx]
+                  : 0.35 + 0.3 * (0.5 + 0.5 * Math.sin(currentTime * 2.5 + i * 0.2));
+                return (
+                  <motion.div
+                    key={i}
+                    className="w-1.5 rounded-full flex-shrink-0 origin-center"
+                    style={{
+                      height: 24,
+                      background: "linear-gradient(180deg, rgba(255,200,140,0.95) 0%, rgba(230,115,26,0.85) 35%, rgba(219,114,67,0.7) 100%)",
+                      boxShadow: "0 0 10px rgba(230,115,26,0.4)",
+                      scaleY: level,
+                    }}
+                    transition={{ duration: 0.06, ease: "easeOut" }}
+                  />
+                );
+              })}
             </div>
           ) : showInfoCard ? (
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={currentSectionIndex}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.18 }}
-                className="absolute inset-0 rounded-2xl overflow-hidden flex items-stretch"
-                style={{
-                  background: "rgba(255,255,255,0.92)",
-                  boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
-                }}
-              >
-                {/* Content lives in the bright center */}
-                <div className="relative flex-1 flex items-stretch min-w-0 z-10">
-                  <div className="relative w-20 flex-shrink-0 overflow-hidden rounded-l-2xl">
+            <>
+              {/* Floating content: no card box, blended into player */}
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={currentSectionIndex}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="absolute inset-0 flex items-stretch min-w-0 z-10 px-2"
+                  style={{ background: "transparent" }}
+                >
+                  <div className="relative w-20 flex-shrink-0 overflow-hidden rounded-xl" style={{ boxShadow: "0 4px 20px rgba(0,0,0,0.08)" }}>
                     <img
                       src={`https://picsum.photos/seed/${currentSectionIndex + 1}-${(currentSectionStory.category || "news").replace(/\s/g, "")}/200/160`}
                       alt=""
                       className="w-full h-full object-cover"
                     />
                   </div>
-                  <div className="flex-1 min-w-0 flex flex-col justify-center px-4 py-2">
-                    <p className="text-slate-800 text-[13px] font-semibold leading-tight">
+                  <div className="flex-1 min-w-0 flex flex-col justify-center pl-4 py-1">
+                    <p className="text-slate-800 text-[13px] font-semibold leading-tight drop-shadow-sm" style={{ textShadow: "0 0 12px rgba(255,255,255,0.8)" }}>
                       {currentSectionStory.title || currentSectionStory.what_happened || "This section"}
                     </p>
                     {sectionSummary && (
-                      <p className="text-slate-600 text-sm leading-snug mt-1 max-w-xl">
+                      <p className="text-slate-600 text-sm leading-snug mt-1 max-w-xl drop-shadow-sm" style={{ textShadow: "0 0 10px rgba(255,255,255,0.6)" }}>
                         {sectionSummary}
                       </p>
                     )}
                   </div>
-                </div>
-                {/* Vignette frame: dark edges, bright center (like reference image) */}
-                <div
-                  className="absolute inset-0 pointer-events-none rounded-2xl z-20"
-                  style={{
-                    background: "radial-gradient(ellipse 75% 70% at 50% 50%, transparent 35%, rgba(0,0,0,0.08) 55%, rgba(0,0,0,0.22) 75%, rgba(0,0,0,0.45) 100%)",
-                    boxShadow: "inset 0 0 100px 30px rgba(0,0,0,0.08)",
-                  }}
-                />
-                <div
-                  className="absolute inset-0 pointer-events-none rounded-2xl z-20 opacity-[0.04]"
-                  style={{
-                    backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
-                  }}
-                />
-              </motion.div>
-            </AnimatePresence>
+                </motion.div>
+              </AnimatePresence>
+              {/* Vignette as border: extends out, no card edge – blends into player; center bright, edges soft dark */}
+              <div
+                className="absolute pointer-events-none z-0"
+                style={{
+                  inset: "-32px -24px -32px -24px",
+                  borderRadius: "28px",
+                  background: "radial-gradient(ellipse 80% 70% at 50% 50%, transparent 20%, rgba(0,0,0,0.04) 40%, rgba(0,0,0,0.1) 60%, rgba(0,0,0,0.2) 80%, rgba(0,0,0,0.38) 100%)",
+                }}
+              />
+              <div
+                className="absolute pointer-events-none z-0 opacity-[0.03]"
+                style={{
+                  inset: "-32px -24px -32px -24px",
+                  borderRadius: "28px",
+                  backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E")`,
+                }}
+              />
+            </>
           ) : (
             <div
               className="absolute inset-0 rounded-2xl flex items-center justify-center"
-              style={{
-                background: "linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 100%)",
-              }}
+              style={{ background: "transparent" }}
             >
               <p className="text-slate-400 text-xs">Play your briefing to see this section</p>
             </div>
