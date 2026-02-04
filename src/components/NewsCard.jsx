@@ -49,63 +49,60 @@ export default function NewsCard({ story, index }) {
 
     return (
         <article
-            className="group rounded-[28px] p-6 transition-all duration-300 flex flex-col"
+            className="group rounded-2xl p-5 transition-all duration-300 hover:scale-[1.01]"
             style={{ 
-                alignSelf: 'flex-start',
-                background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.55) 100%)',
-                backdropFilter: 'blur(40px) saturate(1.5)',
-                WebkitBackdropFilter: 'blur(40px) saturate(1.5)',
-                border: '0.5px solid rgba(255, 255, 255, 0.8)',
-                boxShadow: `
-                    0 0 50px -20px hsla(25, 80%, 50%, 0.2),
-                    0 0 35px -15px hsla(15, 70%, 55%, 0.15),
-                    0 4px 20px -8px rgba(0, 0, 0, 0.08),
-                    inset 0 1px 1px rgba(255, 255, 255, 0.6)
-                `
+                background: 'rgba(255, 255, 255, 0.7)',
+                backdropFilter: 'blur(20px)',
+                WebkitBackdropFilter: 'blur(20px)',
+                border: '1px solid rgba(148, 163, 184, 0.12)',
+                boxShadow: '0 2px 12px -4px rgba(0, 0, 0, 0.06)',
             }}
         >
-            {/* Header */}
-            <div className="flex items-start justify-between gap-4 mb-4 flex-shrink-0">
+            {/* Header Row */}
+            <div className="flex items-center justify-between gap-3 mb-3">
                 <Badge 
                     variant="outline" 
-                    className={`${getCategoryColor(story.category)} text-xs font-medium tracking-wide uppercase`}
+                    className={`${getCategoryColor(story.category)} text-[10px] font-semibold tracking-wider uppercase px-2 py-0.5`}
                 >
                     {story.category || 'News'}
                 </Badge>
-                <span className="text-xs text-slate-400 font-medium whitespace-nowrap truncate max-w-[140px]" title={story.outlet || story.source}>
+                <span className="text-[11px] text-slate-400 font-medium truncate max-w-[120px]" title={story.outlet || story.source}>
                     {story.outlet || story.source}
                 </span>
             </div>
 
             {/* Title */}
-            <h3 className="text-lg font-semibold text-slate-900 mb-2 leading-tight group-hover:text-amber-600 transition-colors line-clamp-2 flex-shrink-0">
+            <h3 className="text-base font-semibold text-slate-800 mb-2 leading-snug group-hover:text-amber-600 transition-colors">
                 {story.title}
             </h3>
 
-            {/* Description: collapsed = first 3 lines (consistent card height); expanded = up to 450 chars */}
-            <div className="mb-4">
+            {/* Description */}
+            <div className="mb-3">
                 {isExpanded ? (
                     <p className="text-slate-600 text-sm leading-relaxed">{expandedText}</p>
                 ) : (
-                    <p className="text-slate-600 text-sm leading-relaxed line-clamp-3">{descriptionText}</p>
+                    <p className="text-slate-500 text-sm leading-relaxed line-clamp-2">{descriptionText}</p>
                 )}
                 {needsExpansion && (
                     <button
                         type="button"
-                        onClick={() => setIsExpanded(!isExpanded)}
-                        className="text-sm font-medium text-amber-600 hover:text-amber-700 transition-colors mt-2"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setIsExpanded(!isExpanded);
+                        }}
+                        className="text-xs font-medium text-amber-600 hover:text-amber-700 transition-colors mt-1.5 inline-flex items-center gap-1"
                     >
-                        {isExpanded ? '← Show less' : 'Read more →'}
+                        {isExpanded ? '← Less' : 'More →'}
                     </button>
                 )}
             </div>
 
-            {/* Why It Matters – one sentence, 150–200 chars, never truncated */}
+            {/* Why It Matters */}
             {whyItMattersText && (
-                <div className="pt-4 border-t border-slate-100 mt-auto">
+                <div className="pt-3 border-t border-slate-100/80">
                     <div className="flex items-start gap-2">
-                        <div className="w-1 h-1 bg-amber-400 rounded-full mt-2 flex-shrink-0" />
-                        <p className="text-sm text-slate-600 leading-relaxed">
+                        <div className="w-1 h-1 bg-amber-400 rounded-full mt-[7px] flex-shrink-0" />
+                        <p className="text-xs text-slate-500 leading-relaxed">
                             {whyItMattersText}
                         </p>
                     </div>

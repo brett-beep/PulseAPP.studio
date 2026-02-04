@@ -739,49 +739,76 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Market News – rounded card, expandable */}
               <motion.div
                 layout
-                className="rounded-3xl border border-slate-100 bg-white/85 backdrop-blur-sm overflow-hidden shadow-md hover:shadow-lg transition-shadow"
+                className="rounded-3xl overflow-hidden"
                 initial={false}
+                style={{
+                  background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.9) 100%)',
+                  border: '1px solid rgba(148, 163, 184, 0.15)',
+                  boxShadow: '0 4px 24px -4px rgba(0,0,0,0.08), 0 0 0 1px rgba(255,255,255,0.5) inset',
+                }}
               >
                 <button
                   type="button"
                   onClick={() => setMarketSectionOpen((o) => !o)}
-                  className="w-full text-left p-5 min-h-[140px] flex flex-col gap-3 hover:bg-slate-50/50 transition-colors rounded-3xl"
+                  className="w-full text-left p-6 flex flex-col gap-4 hover:bg-white/50 transition-colors"
                 >
+                  {/* Header */}
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-slate-900 text-lg">Market News</span>
-                    <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full">
-                      {marketStories.length} stories
-                    </span>
-                  </div>
-                  <p className="text-sm text-slate-500 line-clamp-2 flex-1">
-                    {marketStories.length > 0
-                      ? marketStories.slice(0, 2).map((s) => s.title).join(" · ")
-                      : "Broad market and macro headlines"}
-                  </p>
-                  <div className="flex items-center justify-end">
-                    <motion.span
-                      animate={{ rotate: marketSectionOpen ? 0 : -90 }}
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-sm">
+                        <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-slate-900 text-lg">Market News</h3>
+                        <p className="text-xs text-slate-400">{marketStories.length} stories</p>
+                      </div>
+                    </div>
+                    <motion.div
+                      animate={{ rotate: marketSectionOpen ? 180 : 0 }}
                       transition={{ duration: 0.2 }}
-                      className="text-slate-400"
+                      className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center"
                     >
-                      <ChevronDown className="w-5 h-5" />
-                    </motion.span>
+                      <ChevronDown className="w-4 h-4 text-slate-500" />
+                    </motion.div>
                   </div>
+
+                  {/* Preview Headlines */}
+                  {!marketSectionOpen && marketStories.length > 0 && (
+                    <div className="space-y-2 pt-1">
+                      {marketStories.slice(0, 3).map((story, i) => (
+                        <div key={i} className="flex items-start gap-3">
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-400 mt-2 flex-shrink-0" />
+                          <p className="text-sm text-slate-600 leading-relaxed line-clamp-1">
+                            {story.title}
+                          </p>
+                        </div>
+                      ))}
+                      {marketStories.length > 3 && (
+                        <p className="text-xs text-slate-400 pl-4.5 pt-1">
+                          +{marketStories.length - 3} more stories
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </button>
+
+                {/* Expanded Content */}
                 <motion.div
                   initial={false}
                   animate={{
                     opacity: marketSectionOpen ? 1 : 0,
                     height: marketSectionOpen ? "auto" : 0,
                   }}
-                  transition={{ duration: 0.25, ease: "easeInOut" }}
+                  transition={{ duration: 0.3, ease: "easeInOut" }}
                   className="overflow-hidden"
                 >
-                  <div className="px-4 pb-5 pt-0 grid gap-4">
+                  <div className="px-6 pb-6 pt-2 space-y-5">
                     {marketStories.map((story, index) => (
                       <NewsCard key={`market-${index}`} story={story} index={index} />
                     ))}
@@ -792,45 +819,72 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
               {/* Your Portfolio – rounded card, expandable */}
               <motion.div
                 layout
-                className="rounded-3xl border border-slate-100 bg-white/85 backdrop-blur-sm overflow-hidden shadow-md hover:shadow-lg transition-shadow"
+                className="rounded-3xl overflow-hidden"
                 initial={false}
+                style={{
+                  background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.9) 100%)',
+                  border: '1px solid rgba(148, 163, 184, 0.15)',
+                  boxShadow: '0 4px 24px -4px rgba(0,0,0,0.08), 0 0 0 1px rgba(255,255,255,0.5) inset',
+                }}
               >
                 <button
                   type="button"
                   onClick={() => setPortfolioSectionOpen((o) => !o)}
-                  className="w-full text-left p-5 min-h-[140px] flex flex-col gap-3 hover:bg-slate-50/50 transition-colors rounded-3xl"
+                  className="w-full text-left p-6 flex flex-col gap-4 hover:bg-white/50 transition-colors"
                 >
+                  {/* Header */}
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-slate-900 text-lg">Your Portfolio</span>
-                    <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full">
-                      {portfolioStories.length} stories
-                    </span>
-                  </div>
-                  <p className="text-sm text-slate-500 line-clamp-2 flex-1">
-                    {portfolioStories.length > 0
-                      ? portfolioStories.slice(0, 2).map((s) => s.title).join(" · ")
-                      : "News tied to your selected tickers"}
-                  </p>
-                  <div className="flex items-center justify-end">
-                    <motion.span
-                      animate={{ rotate: portfolioSectionOpen ? 0 : -90 }}
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-sm">
+                        <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-slate-900 text-lg">Your Portfolio</h3>
+                        <p className="text-xs text-slate-400">{portfolioStories.length} stories</p>
+                      </div>
+                    </div>
+                    <motion.div
+                      animate={{ rotate: portfolioSectionOpen ? 180 : 0 }}
                       transition={{ duration: 0.2 }}
-                      className="text-slate-400"
+                      className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center"
                     >
-                      <ChevronDown className="w-5 h-5" />
-                    </motion.span>
+                      <ChevronDown className="w-4 h-4 text-slate-500" />
+                    </motion.div>
                   </div>
+
+                  {/* Preview Headlines */}
+                  {!portfolioSectionOpen && portfolioStories.length > 0 && (
+                    <div className="space-y-2 pt-1">
+                      {portfolioStories.slice(0, 3).map((story, i) => (
+                        <div key={i} className="flex items-start gap-3">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-2 flex-shrink-0" />
+                          <p className="text-sm text-slate-600 leading-relaxed line-clamp-1">
+                            {story.title}
+                          </p>
+                        </div>
+                      ))}
+                      {portfolioStories.length > 3 && (
+                        <p className="text-xs text-slate-400 pl-4.5 pt-1">
+                          +{portfolioStories.length - 3} more stories
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </button>
+
+                {/* Expanded Content */}
                 <motion.div
                   initial={false}
                   animate={{
                     opacity: portfolioSectionOpen ? 1 : 0,
                     height: portfolioSectionOpen ? "auto" : 0,
                   }}
-                  transition={{ duration: 0.25, ease: "easeInOut" }}
+                  transition={{ duration: 0.3, ease: "easeInOut" }}
                   className="overflow-hidden"
                 >
-                  <div className="px-4 pb-5 pt-0 grid gap-4">
+                  <div className="px-6 pb-6 pt-2 space-y-5">
                     {portfolioStories.map((story, index) => (
                       <NewsCard key={`portfolio-${index}`} story={story} index={index} />
                     ))}
