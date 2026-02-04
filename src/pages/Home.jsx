@@ -18,8 +18,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 
-const SMOOTH_EASE = [0.22, 1, 0.36, 1];
-const SMOOTH_DURATION = 0.55;
+const SMOOTH_EASE = [0.25, 0.46, 0.45, 0.94];
+const SMOOTH_DURATION = 0.4;
 
 function MarketSection({ marketSectionOpen, setMarketSectionOpen, setLastExpandedSection, marketStories, isSecond, gridOrder }) {
   return (
@@ -75,16 +75,23 @@ function MarketSection({ marketSectionOpen, setMarketSectionOpen, setLastExpande
       </button>
       {marketSectionOpen && (
         <motion.div
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
           transition={{ duration: SMOOTH_DURATION, ease: SMOOTH_EASE }}
-          className="px-6 pb-6 pt-2 border-t border-slate-100/80 overflow-hidden"
+          className="border-t border-slate-100/80 overflow-hidden"
         >
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
-            {marketStories.map((story, index) => (
-              <NewsCard key={`market-${index}`} story={story} index={index} />
-            ))}
-          </div>
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: SMOOTH_DURATION, ease: SMOOTH_EASE }}
+            className="px-6 pb-6 pt-4"
+          >
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+              {marketStories.map((story, index) => (
+                <NewsCard key={`market-${index}`} story={story} index={index} />
+              ))}
+            </div>
+          </motion.div>
         </motion.div>
       )}
     </div>
@@ -145,16 +152,23 @@ function PortfolioSection({ portfolioSectionOpen, setPortfolioSectionOpen, setLa
       </button>
       {portfolioSectionOpen && (
         <motion.div
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
           transition={{ duration: SMOOTH_DURATION, ease: SMOOTH_EASE }}
-          className="px-6 pb-6 pt-2 border-t border-slate-100/80 overflow-hidden"
+          className="border-t border-slate-100/80 overflow-hidden"
         >
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
-            {portfolioStories.map((story, index) => (
-              <NewsCard key={`portfolio-${index}`} story={story} index={index} />
-            ))}
-          </div>
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: SMOOTH_DURATION, ease: SMOOTH_EASE }}
+            className="px-6 pb-6 pt-4"
+          >
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+              {portfolioStories.map((story, index) => (
+                <NewsCard key={`portfolio-${index}`} story={story} index={index} />
+              ))}
+            </div>
+          </motion.div>
         </motion.div>
       )}
     </div>
@@ -889,8 +903,8 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
                 setMarketSectionOpen={setMarketSectionOpen}
                 setLastExpandedSection={setLastExpandedSection}
                 marketStories={marketStories}
-                isSecond={!portfolioSectionOpen}
-                gridOrder={lastExpandedSection === "market" ? 1 : 2}
+                isSecond={portfolioSectionOpen}
+                gridOrder={!portfolioSectionOpen ? 1 : 2}
               />
               <PortfolioSection
                 portfolioSectionOpen={portfolioSectionOpen}
@@ -898,7 +912,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
                 setLastExpandedSection={setLastExpandedSection}
                 portfolioStories={portfolioStories}
                 isSecond={marketSectionOpen}
-                gridOrder={lastExpandedSection === "portfolio" ? 1 : 2}
+                gridOrder={portfolioSectionOpen ? 1 : 2}
               />
             </div>
           )}
