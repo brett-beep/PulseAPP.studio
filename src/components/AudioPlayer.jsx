@@ -145,7 +145,8 @@ export default function AudioPlayer({
   const progress = totalDuration > 0 ? currentTime / totalDuration : 0;
   const sectionCount = Math.min(6, sectionStories?.length || 0);
 
-  // Section boundaries from transcript: word-based timing so card switches AS transition phrase is said
+  // Section boundaries: derived from transcript and scaled to actual audio duration (real-time)
+  // Boundaries = when to switch to next card; computed as (word position / total words) * totalDuration
   const sectionBoundariesSeconds = useMemo(() => {
     const raw = (transcript || "").trim();
     if (!raw || sectionCount === 0 || !totalDuration || totalDuration <= 0) return [];
@@ -154,9 +155,8 @@ export default function AudioPlayer({
     const totalWords = words.length;
     if (totalWords === 0) return [];
 
+    // Phrases that cue "next story" – used to find 5 boundaries for 6 sections (scaled to actual audio length)
     const transitionPhrases = [
-      "in breaking news",
-      "breaking news",
       "first up",
       "next up",
       "up next",
@@ -185,7 +185,7 @@ export default function AudioPlayer({
     }
     const sorted = [...new Set(positions)].sort((a, b) => a - b);
     const needBoundaries = 5;
-    const earlySec = 0; // switch exactly when transition phrase starts ("next up", etc.)
+    const earlySec = 0;
 
     const charToWordIndex = (charPos) => {
       let count = 0;
@@ -201,10 +201,9 @@ export default function AudioPlayer({
     if (sorted.length === 0) {
       return Array.from({ length: needBoundaries }, (_, i) => Math.max(0, ((i + 1) / 6) * totalDuration - earlySec));
     }
-    const minPos = Math.floor(text.length * 0.015);
-    const filtered = sorted.filter((p) => p > minPos);
-    const take = Math.min(needBoundaries, filtered.length || sorted.length);
-    const selected = (filtered.length >= take ? filtered : sorted)
+    // Use first 5 transition positions (no minPos filter) so timing follows this briefing's transcript
+    const take = Math.min(needBoundaries, sorted.length);
+    const selected = sorted
       .slice(0, take)
       .map((p) => Math.max(0, (charToWordIndex(p) / totalWords) * totalDuration - earlySec));
     if (selected.length < needBoundaries) {
@@ -573,10 +572,10 @@ export default function AudioPlayer({
                 marginBottom: 60,
                 background: "rgba(240, 240, 240, 0.4)",
                 boxShadow: [
-                  "0 0 0 1px rgba(0, 0, 0, 0.04)",
-                  "0 0 40px 8px rgba(0, 0, 0, 0.14)",
-                  "0 0 70px 16px rgba(0, 0, 0, 0.1)",
-                  "0 0 100px 24px rgba(0, 0, 0, 0.07)",
+                  "0 0 0 1px rgba(0, 0, 0, 0.05)",
+                  "0 0 50px 12px rgba(0, 0, 0, 0.18)",
+                  "0 0 85px 20px rgba(0, 0, 0, 0.12)",
+                  "0 0 120px 28px rgba(0, 0, 0, 0.08)",
                 ].join(", "),
               }}
             >
