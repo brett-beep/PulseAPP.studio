@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence, useMotionValue, useSpring } from "framer-motion";
-import { Play, Pause, RotateCcw, FastForward, Volume2, VolumeX, Gauge, Clock, Loader2 } from "lucide-react";
+import { Play, Pause, RotateCcw, FastForward, Volume2, VolumeX, Gauge, Clock, Loader2, FileText, X } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { GlassFilter } from "@/components/ui/liquid-glass-button";
 
@@ -19,6 +19,7 @@ export default function AudioPlayer({
   timeUntilNextBriefing = null,
   briefingCount = 0,
   isPremium = false,
+  transcript = "",
 }) {
   console.log("🎵 [AudioPlayer Component] Rendered with audioUrl:", audioUrl);
   console.log("🎵 [AudioPlayer Component] isGenerating:", isGenerating);
@@ -32,6 +33,7 @@ export default function AudioPlayer({
   const [isMuted, setIsMuted] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
+  const [showTranscript, setShowTranscript] = useState(false);
 
   const mx = useMotionValue(300);
   const my = useMotionValue(200);
@@ -292,11 +294,24 @@ export default function AudioPlayer({
               <span className="font-semibold text-slate-900 normal-case" style={{ fontFamily: "'Italianno', 'Sacramento', cursive", fontSize: '3.5rem', letterSpacing: '0.05em', fontWeight: 400, marginTop: '0.5rem', display: 'inline-block' }}>{userName}</span>
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="text-right">
-              <p className="text-slate-400 text-[10px] font-medium tracking-wider uppercase">Today</p>
-              <p className="text-slate-700 text-sm font-semibold">{briefingCount} / 3</p>
-            </div>
+          <div className="flex flex-col items-end gap-2">
+            {transcript.trim() ? (
+              <motion.button
+                type="button"
+                onClick={() => setShowTranscript((t) => !t)}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="text-[10px] font-semibold tracking-wider uppercase text-slate-500 hover:text-slate-700 transition-colors flex items-center gap-1.5 px-2 py-1 rounded"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                {showTranscript ? "Hide transcript" : "Show transcript"}
+              </motion.button>
+            ) : null}
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <p className="text-slate-400 text-[10px] font-medium tracking-wider uppercase">Today</p>
+                <p className="text-slate-700 text-sm font-semibold">{briefingCount} / 3</p>
+              </div>
             <motion.div
               animate={{ 
                 scale: isPlaying ? [1, 1.15, 1] : 1,
@@ -306,8 +321,63 @@ export default function AudioPlayer({
               className="w-2.5 h-2.5 rounded-full"
               style={{ background: "linear-gradient(135deg, rgba(230, 115, 26, 0.95) 0%, rgba(219, 114, 67, 1) 100%)" }}
             />
+            </div>
           </div>
         </div>
+
+        <AnimatePresence>
+          {showTranscript && transcript.trim() && (
+            <motion.div
+              initial={{ opacity: 0, y: -12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
+              className="mb-6"
+            >
+              <div
+                className="rounded-2xl border border-slate-200/80 bg-slate-50/95 backdrop-blur-sm overflow-hidden"
+                style={{
+                  boxShadow: "0 4px 24px -4px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.8)",
+                }}
+              >
+                <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200/80 bg-white/70">
+                  <span className="text-xs font-semibold tracking-wider uppercase text-slate-500">Briefing transcript</span>
+                  <motion.button
+                    type="button"
+                    onClick={() => setShowTranscript(false)}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/50 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </motion.button>
+                </div>
+                <div className="px-5 py-5 max-h-[320px] overflow-y-auto">
+                  {transcript
+                    .trim()
+                    .split(/\n\n+/)
+                    .filter((block) => block.trim())
+                    .map((paragraph, i) => {
+                      const lines = paragraph.trim().split("\n").map((l) => l.trim()).filter(Boolean);
+                      return (
+                        <p
+                          key={i}
+                          className="text-slate-700 text-sm leading-relaxed mb-4 last:mb-0"
+                        >
+                          {lines.map((line, j) => (
+                            <span key={j}>
+                              {line}
+                              {j < lines.length - 1 ? <br /> : null}
+                            </span>
+                          ))}
+                        </p>
+                      );
+                    })}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <div className="flex items-center justify-center gap-[3px] h-28 mb-8 px-2">
           {bars.map((bar) => {

@@ -825,6 +825,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
             timeUntilNextBriefing={timeUntilNextBriefing}
             briefingCount={getBriefingCount()}
             isPremium={isPremium}
+            transcript={todayBriefing?.script ?? ""}
             />
 
           <div className="mt-6">
