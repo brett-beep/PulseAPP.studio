@@ -97,13 +97,19 @@ export default function AudioPlayer({
   const progress = totalDuration > 0 ? currentTime / totalDuration : 0;
   const sectionCount = Math.min(6, sectionStories?.length || 0);
 
-  // Section boundaries from transcript transition phrases (e.g. "next up", "another headline")
+  // Section boundaries from transcript: word-based timing so card switches AS transition phrase is said
   const sectionBoundariesSeconds = useMemo(() => {
-    const text = (transcript || "").trim().toLowerCase();
-    if (!text || sectionCount === 0 || !totalDuration || totalDuration <= 0) return [];
+    const raw = (transcript || "").trim();
+    if (!raw || sectionCount === 0 || !totalDuration || totalDuration <= 0) return [];
+    const text = raw.toLowerCase();
+    const words = raw.split(/\s+/).filter(Boolean);
+    const totalWords = words.length;
+    if (totalWords === 0) return [];
+
     const transitionPhrases = [
       "first up",
       "next up",
+      "up next",
       "another headline",
       "moving on",
       "and another",
@@ -129,13 +135,28 @@ export default function AudioPlayer({
     }
     const sorted = [...new Set(positions)].sort((a, b) => a - b);
     const needBoundaries = 5;
+    const earlySec = 0; // switch exactly when transition phrase starts ("next up", etc.)
+
+    const charToWordIndex = (charPos) => {
+      let count = 0;
+      let pos = 0;
+      for (const w of words) {
+        if (pos >= charPos) return count;
+        pos += w.length + 1;
+        count++;
+      }
+      return count;
+    };
+
     if (sorted.length === 0) {
-      return Array.from({ length: needBoundaries }, (_, i) => ((i + 1) / 6) * totalDuration);
+      return Array.from({ length: needBoundaries }, (_, i) => Math.max(0, ((i + 1) / 6) * totalDuration - earlySec));
     }
-    const minPos = Math.floor(text.length * 0.02);
+    const minPos = Math.floor(text.length * 0.015);
     const filtered = sorted.filter((p) => p > minPos);
     const take = Math.min(needBoundaries, filtered.length || sorted.length);
-    const selected = (filtered.length >= take ? filtered : sorted).slice(0, take).map((p) => (p / text.length) * totalDuration);
+    const selected = (filtered.length >= take ? filtered : sorted)
+      .slice(0, take)
+      .map((p) => Math.max(0, (charToWordIndex(p) / totalWords) * totalDuration - earlySec));
     if (selected.length < needBoundaries) {
       const last = selected[selected.length - 1] ?? totalDuration * 0.5;
       for (let i = selected.length; i < needBoundaries; i++) {
@@ -246,13 +267,12 @@ export default function AudioPlayer({
   };
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 items-stretch">
     <motion.div
       initial={{ opacity: 0, y: 20, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
       onPointerMove={onPointerMove}
-      className="relative overflow-hidden rounded-[40px] p-10 flex-1 min-w-0"
+      className="relative overflow-hidden rounded-[40px] p-10"
       style={{
         background: "linear-gradient(145deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.55) 100%)",
         backdropFilter: "blur(60px) saturate(1.5) url(#container-glass)",
@@ -455,33 +475,60 @@ export default function AudioPlayer({
           )}
         </AnimatePresence>
 
-        <div className="flex items-center justify-center gap-[3px] h-28 mb-8 px-2">
-          {bars.map((bar) => {
-            const isActive = bar.p <= progress;
-            return (
+        {/* Embedded info card (replaces waveform): vignette blends into player background */}
+        <div className="h-24 mb-8 rounded-2xl overflow-hidden relative">
+          {sectionCount > 0 && currentSectionStory ? (
+            <AnimatePresence mode="wait">
               <motion.div
-                key={bar.i}
-                animate={{
-                  height: isPlaying
-                    ? [bar.baseHeight, bar.baseHeight * 1.65, bar.baseHeight * 0.75, bar.baseHeight]
-                    : bar.baseHeight * 0.45,
-                  opacity: isActive ? 1 : 0.25,
-                }}
-                transition={{
-                  duration: isPlaying ? 0.6 + (bar.i % 9) * 0.025 : 0.3,
-                  repeat: isPlaying ? Infinity : 0,
-                  ease: "easeInOut",
-                  delay: isPlaying ? bar.i * 0.015 : 0,
-                }}
-                className="w-[3.5px] rounded-full"
+                key={currentSectionIndex}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.18 }}
+                className="absolute inset-0 rounded-2xl overflow-hidden"
                 style={{
-                  background: isActive
-                    ? "linear-gradient(180deg, rgba(230, 115, 26, 0.95) 0%, rgba(219, 114, 67, 0.9) 100%)"
-                    : "rgba(120, 120, 120, 0.25)",
+                  background: "linear-gradient(90deg, rgba(255,255,255,0.42) 0%, rgba(248,250,252,0.28) 35%, rgba(255,255,255,0.08) 70%, transparent 100%)",
+                  boxShadow: "inset 0 0 80px 30px rgba(255,255,255,0.2), inset -60px 0 40px -20px rgba(0,0,0,0.06)",
                 }}
-              />
-            );
-          })}
+              >
+                <div className="absolute inset-0 flex items-stretch">
+                  <div className="relative w-20 flex-shrink-0 overflow-hidden">
+                    <img
+                      src={`https://picsum.photos/seed/${currentSectionIndex + 1}-${(currentSectionStory.category || "news").replace(/\s/g, "")}/200/160`}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                    <div
+                      className="absolute inset-0 pointer-events-none"
+                      style={{
+                        background: "linear-gradient(90deg, transparent 20%, rgba(0,0,0,0.15) 60%, rgba(255,255,255,0.12) 100%)",
+                        boxShadow: "inset 0 0 50px 20px rgba(0,0,0,0.12)",
+                      }}
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0 flex flex-col justify-center px-4 py-2">
+                    <p className="text-slate-800 text-[13px] font-semibold leading-tight">
+                      {currentSectionStory.title || currentSectionStory.what_happened || "This section"}
+                    </p>
+                    {sectionSummary && (
+                      <p className="text-slate-600 text-sm leading-snug mt-1 max-w-xl">
+                        {sectionSummary}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            </AnimatePresence>
+          ) : (
+            <div
+              className="absolute inset-0 rounded-2xl flex items-center justify-center"
+              style={{
+                background: "linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 100%)",
+              }}
+            >
+              <p className="text-slate-400 text-xs">Play your briefing to see this section</p>
+            </div>
+          )}
         </div>
 
         <div className="mb-10 px-1">
@@ -716,59 +763,5 @@ export default function AudioPlayer({
         </AnimatePresence>
       </div>
     </motion.div>
-
-    {/* Info card: current section, compact and blended */}
-    {sectionCount > 0 && (
-      <div className="w-full lg:w-[200px] xl:w-[220px] flex-shrink-0 flex flex-col justify-center">
-        <AnimatePresence mode="wait">
-          {currentSectionStory ? (
-            <motion.div
-              key={currentSectionIndex}
-              initial={{ opacity: 0, x: 8 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -6 }}
-              transition={{ duration: 0.28, ease: [0.25, 0.46, 0.45, 0.94] }}
-              className="rounded-xl overflow-hidden flex flex-col"
-              style={{
-                background: "rgba(255, 255, 255, 0.45)",
-                backdropFilter: "blur(16px)",
-                border: "1px solid rgba(148, 163, 184, 0.12)",
-                boxShadow: "0 4px 20px -6px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.5)",
-              }}
-            >
-              <div className="relative aspect-[4/3] overflow-hidden bg-slate-100">
-                <img
-                  src={`https://picsum.photos/seed/${currentSectionIndex + 1}-${(currentSectionStory.category || "news").replace(/\s/g, "")}/320/240`}
-                  alt=""
-                  className="w-full h-full object-cover"
-                />
-                {/* Cloudy vignette: visible darkening at edges */}
-                <div
-                  className="absolute inset-0 pointer-events-none"
-                  style={{
-                    background: "radial-gradient(ellipse 70% 60% at 50% 50%, transparent 30%, rgba(0,0,0,0.2) 70%, rgba(0,0,0,0.55) 100%)",
-                    boxShadow: "inset 0 0 80px 40px rgba(0,0,0,0.2)",
-                  }}
-                />
-              </div>
-              <div className="p-3 flex-1">
-                <p className="text-slate-700 text-xs leading-snug">
-                  {currentSectionStory.title || currentSectionStory.what_happened || "This section"}
-                </p>
-                {sectionSummary && (
-                  <p className="text-slate-500 text-[11px] leading-snug mt-1.5 line-clamp-2">
-                    {sectionSummary}
-                  </p>
-                )}
-                <p className="text-slate-400 text-[9px] font-medium uppercase tracking-wider mt-1.5">
-                  Section {currentSectionIndex + 1} of {sectionCount}
-                </p>
-              </div>
-            </motion.div>
-          ) : null}
-        </AnimatePresence>
-      </div>
-    )}
-    </div>
   );
 }
