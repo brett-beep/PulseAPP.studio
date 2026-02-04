@@ -115,10 +115,10 @@ function getTopicCluster(headline: string, summary: string): string | null {
 // DUPLICATE DETECTION
 // ============================================================
 
-// Minimum summary length to cache (avoids "Details emerging...")
-const MIN_SUMMARY_LENGTH = 30;
-const MIN_SUMMARY_LENGTH_RELAXED = 20; // Safety: allow slightly shorter if we'd have too few
-const MIN_ARTICLES_SAFETY = 12;        // If we have fewer than this after filter, relax once
+// Minimum summary length to cache (avoids "Details emerging..." and junk)
+const MIN_SUMMARY_LENGTH = 15;
+const MIN_SUMMARY_LENGTH_RELAXED = 5;  // Allow title-only articles so we don't drop Finlight's empty-summary items
+const MIN_ARTICLES_SAFETY = 8;         // If we have fewer than this after filter, relax once
 const TRIVIAL_SUMMARY_PATTERN = /^details\s+emerging\.?\.?\.?\s*$/i;
 
 function hasRealSummary(article: any, minLength: number): boolean {
@@ -337,11 +337,14 @@ async function fetchFinlightNews(apiKey: string): Promise<any[]> {
   
   const data = await response.json();
   const articles = data.articles || [];
-  console.log(`✅ Finlight: ${articles.length} articles`);
+  const withSummary = articles.filter((a: any) => (a.summary || "").trim().length >= 30).length;
+  const emptySummary = articles.filter((a: any) => !(a.summary || "").trim()).length;
+  console.log(`✅ Finlight: ${articles.length} articles (${withSummary} with summary ≥30 chars, ${emptySummary} empty – will use title as fallback)`);
   
   return articles.map((item: any) => {
     const title = item.title || "Breaking News";
-    const summary = item.summary || "";
+    const rawSummary = (item.summary || "").trim();
+    const summary = rawSummary || title;
     const category = categorizeArticle(title, summary);
     const sentimentScore = sentimentToScore(item.sentiment || "neutral", item.confidence ?? 0);
     return {
@@ -619,6 +622,10 @@ Deno.serve(async (req) => {
     console.log(`📊 Total fetched: ${rawArticles.length} articles from Finlight`);
     
     const allArticles = filterLowQualityArticles(rawArticles);
+    const withGoodSummary = allArticles.filter((a: any) => hasRealSummary(a, 30)).length;
+    const withShortSummary = allArticles.filter((a: any) => hasRealSummary(a, 15) && !hasRealSummary(a, 30)).length;
+    const titleOnly = allArticles.filter((a: any) => !hasRealSummary(a, 15)).length;
+    console.log(`📊 After quality filter: ${allArticles.length} articles (≥30 chars: ${withGoodSummary}, 15–29: ${withShortSummary}, <15/title-only: ${titleOnly})`);
     
     if (allArticles.length === 0) {
       console.log("⚠️ No articles fetched (or all filtered out)");

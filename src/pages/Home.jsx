@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
@@ -195,6 +195,8 @@ export default function Home() {
   const [lastExpandedSection, setLastExpandedSection] = useState("market"); // "market" | "portfolio" – whichever is expanded sits on top
 
   const [lastRefreshTime, setLastRefreshTime] = useState(null);
+  const [newsLoadFailed, setNewsLoadFailed] = useState(false);
+  const newsRetryTimeoutRef = useRef(null);
 
   // Countdown timer state for briefing limits (3 per day, 3-hour cooldown) - FREE USERS ONLY
   const [timeUntilNextBriefing, setTimeUntilNextBriefing] = useState(null);
@@ -435,52 +437,60 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
     return briefings.filter((b) => b && (b.status === "ready" || b.status === "script_ready")).length;
   };
 
-  // Fetch news cards on load (independent of briefing; always available)
+  // Fetch news cards on load – fully independent of briefing; never tied to "Generate Briefing"
   useEffect(() => {
     if (!user || !preferences?.onboarding_completed) return;
 
+    setNewsLoadFailed(false);
     const CACHE_KEY = `newsCards:${user.email}`;
     const TIMESTAMP_KEY = `newsCardsTimestamp:${user.email}`;
     const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes
 
-    async function loadNewsCards() {
+    function applyCached(cached, cacheTimestamp) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (parsed.market_news != null || parsed.portfolio_news != null) {
+          setMarketNews(parsed.market_news ?? null);
+          setPortfolioNews(parsed.portfolio_news ?? null);
+        } else if (Array.isArray(parsed) && parsed.length > 0) {
+          const half = Math.ceil(parsed.length / 2);
+          setMarketNews({ summary: "Market News", stories: parsed.slice(0, half), updated_at: null });
+          setPortfolioNews({ summary: "Your Portfolio", stories: parsed.slice(half), updated_at: null });
+        }
+        if (cacheTimestamp) setLastRefreshTime(new Date(parseInt(cacheTimestamp)));
+      } catch (_) {
+        localStorage.removeItem(CACHE_KEY);
+        localStorage.removeItem(TIMESTAMP_KEY);
+      }
+    }
+
+    async function loadNewsCards(isRetry = false) {
       const now = Date.now();
       const cached = localStorage.getItem(CACHE_KEY);
       const cacheTimestamp = localStorage.getItem(TIMESTAMP_KEY);
       const cacheAge = cacheTimestamp ? now - parseInt(cacheTimestamp) : Infinity;
       const cacheValid = cacheAge < CACHE_DURATION;
 
-      if (cacheValid && cached) {
-        try {
-          const parsed = JSON.parse(cached);
-          if (parsed.market_news != null || parsed.portfolio_news != null) {
-            setMarketNews(parsed.market_news ?? null);
-            setPortfolioNews(parsed.portfolio_news ?? null);
-          } else if (Array.isArray(parsed)) {
-            const half = Math.ceil(parsed.length / 2);
-            setMarketNews({ summary: "Market News", stories: parsed.slice(0, half), updated_at: null });
-            setPortfolioNews({ summary: "Your Portfolio", stories: parsed.slice(half), updated_at: null });
-          }
-          setLastRefreshTime(new Date(parseInt(cacheTimestamp)));
-          console.log("✅ Using cached news cards (age:", Math.round(cacheAge / 60000), "min)");
-        } catch (_) {
-          localStorage.removeItem(CACHE_KEY);
-          localStorage.removeItem(TIMESTAMP_KEY);
-        }
+      // Show stale cache immediately so user sees something while we revalidate
+      if (cached && !isRetry) {
+        applyCached(cached, cacheTimestamp);
+      }
+
+      if (cacheValid && cached && !isRetry) {
         setIsLoadingNews(false);
         return;
       }
 
       try {
         setIsLoadingNews(true);
-        console.log("📦 Loading news cards via fetchNewsCards...");
+        setNewsLoadFailed(false);
+        console.log("📦 Loading news cards via fetchNewsCards (independent of briefing)...");
 
         const resp = await base44.functions.invoke("fetchNewsCards", {
           preferences: preferences,
         });
 
         if (resp?.data?.success) {
-          // New shape: market_news + portfolio_news
           const market = resp.data.market_news;
           const portfolio = resp.data.portfolio_news;
 
@@ -500,50 +510,41 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
               "portfolio",
               portfolio?.stories?.length ?? 0
             );
-          } else {
-            // Legacy shape: flat stories array
-            const stories = Array.isArray(resp.data.stories) ? resp.data.stories : [];
-            if (stories.length > 0) {
-              const half = Math.ceil(stories.length / 2);
-              setMarketNews({
-                summary: "Market News",
-                stories: stories.slice(0, half),
-                updated_at: resp.data.cache_age || null,
-              });
-              setPortfolioNews({
-                summary: "Your Portfolio",
-                stories: stories.slice(half),
-                updated_at: resp.data.cache_age || null,
-              });
-              setLastRefreshTime(resp.data.cache_age ? new Date(resp.data.cache_age) : new Date());
-              localStorage.setItem(
-                CACHE_KEY,
-                JSON.stringify({
-                  market_news: { summary: "Market News", stories: stories.slice(0, half) },
-                  portfolio_news: { summary: "Your Portfolio", stories: stories.slice(half) },
-                })
-              );
-              localStorage.setItem(TIMESTAMP_KEY, now.toString());
-            }
+          } else if (Array.isArray(resp.data.stories) && resp.data.stories.length > 0) {
+            const stories = resp.data.stories;
+            const half = Math.ceil(stories.length / 2);
+            setMarketNews({
+              summary: "Market News",
+              stories: stories.slice(0, half),
+              updated_at: resp.data.cache_age || null,
+            });
+            setPortfolioNews({
+              summary: "Your Portfolio",
+              stories: stories.slice(half),
+              updated_at: resp.data.cache_age || null,
+            });
+            setLastRefreshTime(resp.data.cache_age ? new Date(resp.data.cache_age) : new Date());
+            localStorage.setItem(
+              CACHE_KEY,
+              JSON.stringify({
+                market_news: { summary: "Market News", stories: stories.slice(0, half) },
+                portfolio_news: { summary: "Your Portfolio", stories: stories.slice(half) },
+              })
+            );
+            localStorage.setItem(TIMESTAMP_KEY, now.toString());
           }
         } else {
           console.error("Failed to load news:", resp?.data?.error);
-          if (cached) {
-            try {
-              const parsed = JSON.parse(cached);
-              setMarketNews(parsed.market_news ?? null);
-              setPortfolioNews(parsed.portfolio_news ?? null);
-            } catch (_) {}
-          }
+          setNewsLoadFailed(true);
+          if (cached) applyCached(cached, cacheTimestamp);
         }
       } catch (error) {
         console.error("Error loading news cards:", error);
-        if (cached) {
-          try {
-            const parsed = JSON.parse(cached);
-            setMarketNews(parsed.market_news ?? null);
-            setPortfolioNews(parsed.portfolio_news ?? null);
-          } catch (_) {}
+        setNewsLoadFailed(true);
+        if (cached) applyCached(cached, cacheTimestamp);
+        // Auto-retry once after 5s so transient failures can resolve
+        if (!isRetry) {
+          newsRetryTimeoutRef.current = setTimeout(() => loadNewsCards(true), 5000);
         }
       } finally {
         setIsLoadingNews(false);
@@ -555,13 +556,16 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
     const refreshInterval = setInterval(() => {
       localStorage.removeItem(CACHE_KEY);
       localStorage.removeItem(TIMESTAMP_KEY);
-      loadNewsCards();
+      loadNewsCards(true);
     }, 15 * 60 * 1000);
 
-    return () => clearInterval(refreshInterval);
+    return () => {
+      clearInterval(refreshInterval);
+      if (newsRetryTimeoutRef.current) clearTimeout(newsRetryTimeoutRef.current);
+    };
   }, [user, preferences?.onboarding_completed]);
 
-  // Manual refresh for news cards (always available; independent of briefing)
+  // Manual refresh for news cards – always available; not tied to "Generate Briefing"
   const refreshNewsCards = async () => {
     if (!user || !preferences?.onboarding_completed) return;
 
@@ -569,6 +573,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
     const TIMESTAMP_KEY = `newsCardsTimestamp:${user.email}`;
 
     setIsLoadingNews(true);
+    setNewsLoadFailed(false);
     try {
       const resp = await base44.functions.invoke("fetchNewsCards", {
         preferences: preferences,
@@ -599,9 +604,12 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
           localStorage.setItem(CACHE_KEY, JSON.stringify({ market_news: mn, portfolio_news: pn }));
           localStorage.setItem(TIMESTAMP_KEY, Date.now().toString());
         }
+      } else {
+        setNewsLoadFailed(true);
       }
     } catch (error) {
       console.error("Error refreshing news cards:", error);
+      setNewsLoadFailed(true);
     } finally {
       setIsLoadingNews(false);
     }
@@ -900,11 +908,22 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
           ) : !hasAnyNews ? (
             <div className="rounded-2xl border border-slate-100 bg-white/70 p-8 text-center">
               <p className="text-slate-600">
-                No news available yet. Check back in a few minutes or try refreshing.
+                {newsLoadFailed
+                  ? "News couldn’t be loaded. This is separate from your audio briefing—try again below."
+                  : "No news available yet. Check back in a few minutes or try refreshing."}
               </p>
               <p className="text-sm text-slate-400 mt-2">
-                News is loaded automatically based on your interests and portfolio—no need to generate a briefing.
+                News loads on its own from your interests and portfolio. You don’t need to generate a briefing to see it.
               </p>
+              <button
+                type="button"
+                onClick={refreshNewsCards}
+                disabled={isLoadingNews}
+                className="mt-4 px-5 py-2.5 rounded-xl text-sm font-semibold bg-amber-500/90 hover:bg-amber-500 text-white disabled:opacity-50 transition-colors inline-flex items-center gap-2"
+              >
+                {isLoadingNews ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                {isLoadingNews ? "Loading…" : "Retry loading news"}
+              </button>
             </div>
           ) : (
             <motion.div layout className="grid grid-cols-1 lg:grid-cols-2 gap-6">
