@@ -155,6 +155,8 @@ export default function AudioPlayer({
     if (totalWords === 0) return [];
 
     const transitionPhrases = [
+      "in breaking news",
+      "breaking news",
       "first up",
       "next up",
       "up next",
@@ -231,11 +233,9 @@ export default function AudioPlayer({
       ? sectionStories[currentSectionIndex]
       : null;
 
-  // Intro period: show waveform before we "dive into" news (first few seconds or until first section)
-  const INTRO_SECONDS = 8;
-  const introEndSeconds = sectionBoundariesSeconds.length > 0
-    ? sectionBoundariesSeconds[0]
-    : INTRO_SECONDS;
+  // Intro: short waveform, then all 6 section cards (including "In breaking news" / section 0)
+  const INTRO_SECONDS = 4;
+  const introEndSeconds = INTRO_SECONDS;
   const showWaveform = sectionCount === 0 || currentTime < introEndSeconds;
   const showInfoCard = sectionCount > 0 && currentSectionStory && currentTime >= introEndSeconds;
 
@@ -246,6 +246,17 @@ export default function AudioPlayer({
     if (!first) return "";
     return first.endsWith(".") || first.endsWith("!") || first.endsWith("?") ? first : first + ".";
   }, [currentSectionStory]);
+
+  // Nature/city landscape images only (no people) – 6 per briefing
+  const SECTION_IMAGES = [
+    "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=280&fit=crop",
+    "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=400&h=280&fit=crop",
+    "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=400&h=280&fit=crop",
+    "https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=400&h=280&fit=crop",
+    "https://images.unsplash.com/photo-1514565131-fce0801e5785?w=400&h=280&fit=crop",
+    "https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=400&h=280&fit=crop",
+  ];
+  const sectionImageUrl = SECTION_IMAGES[currentSectionIndex % SECTION_IMAGES.length] ?? SECTION_IMAGES[0];
 
   const togglePlay = async () => {
     const a = audioRef.current;
@@ -562,9 +573,10 @@ export default function AudioPlayer({
                 marginBottom: 60,
                 background: "rgba(240, 240, 240, 0.4)",
                 boxShadow: [
-                  "0 0 30px 6px rgba(0, 0, 0, 0.08)",
-                  "0 0 55px 14px rgba(0, 0, 0, 0.1)",
-                  "0 0 90px 22px rgba(0, 0, 0, 0.06)",
+                  "0 0 0 1px rgba(0, 0, 0, 0.04)",
+                  "0 0 40px 8px rgba(0, 0, 0, 0.14)",
+                  "0 0 70px 16px rgba(0, 0, 0, 0.1)",
+                  "0 0 100px 24px rgba(0, 0, 0, 0.07)",
                 ].join(", "),
               }}
             >
@@ -581,7 +593,7 @@ export default function AudioPlayer({
                 >
                   <div className="relative w-[42%] min-w-[160px] flex-shrink-0 overflow-hidden rounded-l-[20px]">
                     <img
-                      src={`https://picsum.photos/seed/${currentSectionIndex + 1}-${(currentSectionStory.category || "news").replace(/\s/g, "")}/400/280`}
+                      src={sectionImageUrl}
                       alt=""
                       className="w-full h-full min-h-[140px] object-cover"
                     />
