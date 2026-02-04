@@ -36,46 +36,48 @@ function MarketSection({ marketSectionOpen, setMarketSectionOpen, setLastExpande
         boxShadow: "0 0 48px -10px rgba(96, 165, 250, 0.22), 0 4px 20px -8px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.85)",
       }}
     >
-      <button
-        type="button"
-        onClick={() => {
-          setMarketSectionOpen((o) => !o);
-          setLastExpandedSection("market");
-        }}
-        className="w-full text-left p-6 flex flex-col gap-4 hover:opacity-90 transition-opacity"
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl flex items-center justify-center shadow-sm" style={{ background: "linear-gradient(135deg, rgba(147, 197, 253, 0.55) 0%, rgba(96, 165, 250, 0.4) 100%)", boxShadow: "0 0 24px -4px rgba(96, 165, 250, 0.3)" }}>
-              <svg className="w-5 h-5 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-              </svg>
-            </div>
-            <div>
-              <h3 className="font-semibold text-slate-900 text-lg">Market News</h3>
-              <p className="text-xs text-slate-500">{marketStories.length} stories</p>
-            </div>
-          </div>
-          <motion.div
-            animate={{ rotate: marketSectionOpen ? 180 : 0 }}
-            transition={{ duration: 0.2 }}
-            className="w-8 h-8 rounded-full bg-slate-100/80 flex items-center justify-center"
-          >
-            <ChevronDown className="w-4 h-4 text-slate-500" />
-          </motion.div>
-        </div>
-        {!marketSectionOpen && marketStories.length > 0 && (
-          <div className="space-y-2.5 pt-1">
-            {marketStories.slice(0, 3).map((story, i) => (
-              <div key={i} className="flex items-start gap-3">
-                <span className="w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0 opacity-70" style={{ background: "rgba(96, 165, 250, 0.7)" }} />
-                <p className="text-sm text-slate-600 leading-relaxed">{story.title}</p>
+      <motion.div layout={false} className="flex-shrink-0">
+        <button
+          type="button"
+          onClick={() => {
+            setMarketSectionOpen((o) => !o);
+            setLastExpandedSection("market");
+          }}
+          className="w-full text-left p-6 flex flex-col gap-4 hover:opacity-90 transition-opacity"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 flex-shrink-0">
+              <div className="w-10 h-10 rounded-2xl flex items-center justify-center shadow-sm flex-shrink-0" style={{ background: "linear-gradient(135deg, rgba(147, 197, 253, 0.55) 0%, rgba(96, 165, 250, 0.4) 100%)", boxShadow: "0 0 24px -4px rgba(96, 165, 250, 0.3)" }}>
+                <svg className="w-5 h-5 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                </svg>
               </div>
-            ))}
-            {marketStories.length > 3 && <p className="text-xs text-slate-500 pl-4.5 pt-1">+{marketStories.length - 3} more stories</p>}
+              <div className="min-w-0">
+                <h3 className="font-semibold text-slate-900 text-lg">Market News</h3>
+                <p className="text-xs text-slate-500">{marketStories.length} stories</p>
+              </div>
+            </div>
+            <motion.div
+              animate={{ rotate: marketSectionOpen ? 180 : 0 }}
+              transition={{ duration: 0.2 }}
+              className="w-8 h-8 rounded-full bg-slate-100/80 flex items-center justify-center flex-shrink-0"
+            >
+              <ChevronDown className="w-4 h-4 text-slate-500" />
+            </motion.div>
           </div>
-        )}
-      </button>
+          {!marketSectionOpen && marketStories.length > 0 && (
+            <div className="space-y-2.5 pt-1">
+              {marketStories.slice(0, 3).map((story, i) => (
+                <div key={i} className="flex items-start gap-3">
+                  <span className="w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0 opacity-70" style={{ background: "rgba(96, 165, 250, 0.7)" }} />
+                  <p className="text-sm text-slate-600 leading-relaxed">{story.title}</p>
+                </div>
+              ))}
+              {marketStories.length > 3 && <p className="text-xs text-slate-500 pl-4.5 pt-1">+{marketStories.length - 3} more stories</p>}
+            </div>
+          )}
+        </button>
+      </motion.div>
       {marketSectionOpen && (
         <motion.div
           initial={{ opacity: 0 }}
@@ -114,46 +116,48 @@ function PortfolioSection({ portfolioSectionOpen, setPortfolioSectionOpen, setLa
         boxShadow: "0 0 48px -10px rgba(251, 191, 36, 0.2), 0 4px 20px -8px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.85)",
       }}
     >
-      <button
-        type="button"
-        onClick={() => {
-          setPortfolioSectionOpen((o) => !o);
-          setLastExpandedSection("portfolio");
-        }}
-        className="w-full text-left p-6 flex flex-col gap-4 hover:opacity-90 transition-opacity"
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl flex items-center justify-center shadow-sm" style={{ background: "linear-gradient(135deg, rgba(253, 230, 138, 0.6) 0%, rgba(251, 191, 36, 0.45) 100%)", boxShadow: "0 0 24px -4px rgba(251, 191, 36, 0.28)" }}>
-              <svg className="w-5 h-5 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-              </svg>
-            </div>
-            <div>
-              <h3 className="font-semibold text-slate-900 text-lg">Your Portfolio</h3>
-              <p className="text-xs text-slate-500">{portfolioStories.length} stories</p>
-            </div>
-          </div>
-          <motion.div
-            animate={{ rotate: portfolioSectionOpen ? 180 : 0 }}
-            transition={{ duration: 0.2 }}
-            className="w-8 h-8 rounded-full bg-slate-100/80 flex items-center justify-center"
-          >
-            <ChevronDown className="w-4 h-4 text-slate-500" />
-          </motion.div>
-        </div>
-        {!portfolioSectionOpen && portfolioStories.length > 0 && (
-          <div className="space-y-2.5 pt-1">
-            {portfolioStories.slice(0, 3).map((story, i) => (
-              <div key={i} className="flex items-start gap-3">
-                <span className="w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0 opacity-70" style={{ background: "rgba(251, 191, 36, 0.7)" }} />
-                <p className="text-sm text-slate-600 leading-relaxed">{story.title}</p>
+      <motion.div layout={false} className="flex-shrink-0">
+        <button
+          type="button"
+          onClick={() => {
+            setPortfolioSectionOpen((o) => !o);
+            setLastExpandedSection("portfolio");
+          }}
+          className="w-full text-left p-6 flex flex-col gap-4 hover:opacity-90 transition-opacity"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 flex-shrink-0">
+              <div className="w-10 h-10 rounded-2xl flex items-center justify-center shadow-sm flex-shrink-0" style={{ background: "linear-gradient(135deg, rgba(253, 230, 138, 0.6) 0%, rgba(251, 191, 36, 0.45) 100%)", boxShadow: "0 0 24px -4px rgba(251, 191, 36, 0.28)" }}>
+                <svg className="w-5 h-5 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
               </div>
-            ))}
-            {portfolioStories.length > 3 && <p className="text-xs text-slate-500 pl-4.5 pt-1">+{portfolioStories.length - 3} more stories</p>}
+              <div className="min-w-0">
+                <h3 className="font-semibold text-slate-900 text-lg">Your Portfolio</h3>
+                <p className="text-xs text-slate-500">{portfolioStories.length} stories</p>
+              </div>
+            </div>
+            <motion.div
+              animate={{ rotate: portfolioSectionOpen ? 180 : 0 }}
+              transition={{ duration: 0.2 }}
+              className="w-8 h-8 rounded-full bg-slate-100/80 flex items-center justify-center flex-shrink-0"
+            >
+              <ChevronDown className="w-4 h-4 text-slate-500" />
+            </motion.div>
           </div>
-        )}
-      </button>
+          {!portfolioSectionOpen && portfolioStories.length > 0 && (
+            <div className="space-y-2.5 pt-1">
+              {portfolioStories.slice(0, 3).map((story, i) => (
+                <div key={i} className="flex items-start gap-3">
+                  <span className="w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0 opacity-70" style={{ background: "rgba(251, 191, 36, 0.7)" }} />
+                  <p className="text-sm text-slate-600 leading-relaxed">{story.title}</p>
+                </div>
+              ))}
+              {portfolioStories.length > 3 && <p className="text-xs text-slate-500 pl-4.5 pt-1">+{portfolioStories.length - 3} more stories</p>}
+            </div>
+          )}
+        </button>
+      </motion.div>
       {portfolioSectionOpen && (
         <motion.div
           initial={{ opacity: 0 }}
