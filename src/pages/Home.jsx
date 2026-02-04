@@ -740,21 +740,19 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Market News – rounded card, expandable */}
-              <motion.div
-                layout
+              {/* Market News – light blue hue, independent expand */}
+              <div
                 className="rounded-3xl overflow-hidden"
-                initial={false}
                 style={{
-                  background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.9) 100%)',
-                  border: '1px solid rgba(148, 163, 184, 0.15)',
-                  boxShadow: '0 4px 24px -4px rgba(0,0,0,0.08), 0 0 0 1px rgba(255,255,255,0.5) inset',
+                  background: 'linear-gradient(135deg, rgba(224, 242, 254, 0.6) 0%, rgba(186, 230, 253, 0.25) 50%, rgba(255,255,255,0.9) 100%)',
+                  border: '1px solid rgba(147, 197, 253, 0.3)',
+                  boxShadow: '0 4px 24px -4px rgba(59, 130, 246, 0.12), 0 0 0 1px rgba(255,255,255,0.5) inset',
                 }}
               >
                 <button
                   type="button"
                   onClick={() => setMarketSectionOpen((o) => !o)}
-                  className="w-full text-left p-6 flex flex-col gap-4 hover:bg-white/50 transition-colors"
+                  className="w-full text-left p-6 flex flex-col gap-4 hover:bg-blue-50/30 transition-colors"
                 >
                   {/* Header */}
                   <div className="flex items-center justify-between">
@@ -766,31 +764,31 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
                       </div>
                       <div>
                         <h3 className="font-semibold text-slate-900 text-lg">Market News</h3>
-                        <p className="text-xs text-slate-400">{marketStories.length} stories</p>
+                        <p className="text-xs text-slate-500">{marketStories.length} stories</p>
                       </div>
                     </div>
                     <motion.div
                       animate={{ rotate: marketSectionOpen ? 180 : 0 }}
                       transition={{ duration: 0.2 }}
-                      className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center"
+                      className="w-8 h-8 rounded-full bg-blue-100/80 flex items-center justify-center"
                     >
-                      <ChevronDown className="w-4 h-4 text-slate-500" />
+                      <ChevronDown className="w-4 h-4 text-blue-600" />
                     </motion.div>
                   </div>
 
-                  {/* Preview Headlines */}
+                  {/* Preview Headlines – full length, no truncation */}
                   {!marketSectionOpen && marketStories.length > 0 && (
-                    <div className="space-y-2 pt-1">
+                    <div className="space-y-2.5 pt-1">
                       {marketStories.slice(0, 3).map((story, i) => (
                         <div key={i} className="flex items-start gap-3">
                           <span className="w-1.5 h-1.5 rounded-full bg-blue-400 mt-2 flex-shrink-0" />
-                          <p className="text-sm text-slate-600 leading-relaxed line-clamp-1">
+                          <p className="text-sm text-slate-600 leading-relaxed">
                             {story.title}
                           </p>
                         </div>
                       ))}
                       {marketStories.length > 3 && (
-                        <p className="text-xs text-slate-400 pl-4.5 pt-1">
+                        <p className="text-xs text-slate-500 pl-4.5 pt-1">
                           +{marketStories.length - 3} more stories
                         </p>
                       )}
@@ -798,39 +796,31 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
                   )}
                 </button>
 
-                {/* Expanded Content */}
-                <motion.div
-                  initial={false}
-                  animate={{
-                    opacity: marketSectionOpen ? 1 : 0,
-                    height: marketSectionOpen ? "auto" : 0,
-                  }}
-                  transition={{ duration: 0.3, ease: "easeInOut" }}
-                  className="overflow-hidden"
-                >
-                  <div className="px-6 pb-6 pt-2 space-y-5">
-                    {marketStories.map((story, index) => (
-                      <NewsCard key={`market-${index}`} story={story} index={index} />
-                    ))}
+                {/* Expanded Content – horizontal grid, no shared layout animation */}
+                {marketSectionOpen && (
+                  <div className="px-6 pb-6 pt-2 border-t border-blue-100/50">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {marketStories.map((story, index) => (
+                        <NewsCard key={`market-${index}`} story={story} index={index} />
+                      ))}
+                    </div>
                   </div>
-                </motion.div>
-              </motion.div>
+                )}
+              </div>
 
-              {/* Your Portfolio – rounded card, expandable */}
-              <motion.div
-                layout
+              {/* Your Portfolio – light orange hue, independent expand */}
+              <div
                 className="rounded-3xl overflow-hidden"
-                initial={false}
                 style={{
-                  background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.9) 100%)',
-                  border: '1px solid rgba(148, 163, 184, 0.15)',
-                  boxShadow: '0 4px 24px -4px rgba(0,0,0,0.08), 0 0 0 1px rgba(255,255,255,0.5) inset',
+                  background: 'linear-gradient(135deg, rgba(255, 237, 213, 0.6) 0%, rgba(254, 215, 170, 0.25) 50%, rgba(255,255,255,0.9) 100%)',
+                  border: '1px solid rgba(251, 191, 36, 0.3)',
+                  boxShadow: '0 4px 24px -4px rgba(249, 115, 22, 0.12), 0 0 0 1px rgba(255,255,255,0.5) inset',
                 }}
               >
                 <button
                   type="button"
                   onClick={() => setPortfolioSectionOpen((o) => !o)}
-                  className="w-full text-left p-6 flex flex-col gap-4 hover:bg-white/50 transition-colors"
+                  className="w-full text-left p-6 flex flex-col gap-4 hover:bg-amber-50/30 transition-colors"
                 >
                   {/* Header */}
                   <div className="flex items-center justify-between">
@@ -842,31 +832,31 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
                       </div>
                       <div>
                         <h3 className="font-semibold text-slate-900 text-lg">Your Portfolio</h3>
-                        <p className="text-xs text-slate-400">{portfolioStories.length} stories</p>
+                        <p className="text-xs text-slate-500">{portfolioStories.length} stories</p>
                       </div>
                     </div>
                     <motion.div
                       animate={{ rotate: portfolioSectionOpen ? 180 : 0 }}
                       transition={{ duration: 0.2 }}
-                      className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center"
+                      className="w-8 h-8 rounded-full bg-amber-100/80 flex items-center justify-center"
                     >
-                      <ChevronDown className="w-4 h-4 text-slate-500" />
+                      <ChevronDown className="w-4 h-4 text-amber-600" />
                     </motion.div>
                   </div>
 
-                  {/* Preview Headlines */}
+                  {/* Preview Headlines – full length, no truncation */}
                   {!portfolioSectionOpen && portfolioStories.length > 0 && (
-                    <div className="space-y-2 pt-1">
+                    <div className="space-y-2.5 pt-1">
                       {portfolioStories.slice(0, 3).map((story, i) => (
                         <div key={i} className="flex items-start gap-3">
                           <span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-2 flex-shrink-0" />
-                          <p className="text-sm text-slate-600 leading-relaxed line-clamp-1">
+                          <p className="text-sm text-slate-600 leading-relaxed">
                             {story.title}
                           </p>
                         </div>
                       ))}
                       {portfolioStories.length > 3 && (
-                        <p className="text-xs text-slate-400 pl-4.5 pt-1">
+                        <p className="text-xs text-slate-500 pl-4.5 pt-1">
                           +{portfolioStories.length - 3} more stories
                         </p>
                       )}
@@ -874,23 +864,17 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
                   )}
                 </button>
 
-                {/* Expanded Content */}
-                <motion.div
-                  initial={false}
-                  animate={{
-                    opacity: portfolioSectionOpen ? 1 : 0,
-                    height: portfolioSectionOpen ? "auto" : 0,
-                  }}
-                  transition={{ duration: 0.3, ease: "easeInOut" }}
-                  className="overflow-hidden"
-                >
-                  <div className="px-6 pb-6 pt-2 space-y-5">
-                    {portfolioStories.map((story, index) => (
-                      <NewsCard key={`portfolio-${index}`} story={story} index={index} />
-                    ))}
+                {/* Expanded Content – horizontal grid, no shared layout animation */}
+                {portfolioSectionOpen && (
+                  <div className="px-6 pb-6 pt-2 border-t border-amber-100/50">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {portfolioStories.map((story, index) => (
+                        <NewsCard key={`portfolio-${index}`} story={story} index={index} />
+                      ))}
+                    </div>
                   </div>
-                </motion.div>
-              </motion.div>
+                )}
+              </div>
             </div>
           )}
         </motion.section>
