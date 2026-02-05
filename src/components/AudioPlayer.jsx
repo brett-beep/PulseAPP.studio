@@ -239,10 +239,7 @@ export default function AudioPlayer({
 
   const sectionSummary = useMemo(() => {
     if (!currentSectionStory) return "";
-    const raw = currentSectionStory.what_happened || currentSectionStory.title || "";
-    const first = raw.split(/[.!?]/)[0]?.trim() || "";
-    if (!first) return "";
-    return first.endsWith(".") || first.endsWith("!") || first.endsWith("?") ? first : first + ".";
+    return (currentSectionStory.what_happened || currentSectionStory.title || "").trim();
   }, [currentSectionStory]);
 
   // Image per section: seed from headline so same story = same image, varied across stories (picsum; no topic filter)

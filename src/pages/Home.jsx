@@ -24,45 +24,66 @@ const SMOOTH_DURATION = 0.4;
 const LAYOUT_TRANSITION = { layout: { duration: 0.32, ease: [0.25, 0.46, 0.45, 0.94] } };
 
 // Format summary text with section headers
+// Handles BOTH formats: "**Market Snapshot:** text" AND "Market Snapshot: text"
 function FormattedSummary({ text }) {
   if (!text) return null;
 
-  // Parse sections marked with **Section Name:**
+  // Known section headers to detect
+  const KNOWN_HEADERS = [
+    'Market Snapshot',
+    'Key Developments', 
+    'What to Watch',
+    'Actionable Highlights',
+    'Key Highlights',
+    'Summary',
+    'Outlook',
+  ];
+
+  // Build a regex that matches both **Header:** and Header: formats
+  // Captures: optional **, header name, optional **, colon, then content until next header or end
+  const headerPattern = new RegExp(
+    `(?:\\*\\*)?\\s*(${KNOWN_HEADERS.join('|')})\\s*(?:\\*\\*)?\\s*:\\s*`,
+    'gi'
+  );
+
+  // Find all header positions
+  const headerPositions = [];
+  let headerMatch;
+  while ((headerMatch = headerPattern.exec(text)) !== null) {
+    headerPositions.push({
+      index: headerMatch.index,
+      endIndex: headerMatch.index + headerMatch[0].length,
+      title: headerMatch[1].trim()
+    });
+  }
+
+  // If no headers found, just return clean text
+  if (headerPositions.length === 0) {
+    return <p className="text-slate-700 leading-relaxed">{text.replace(/\*\*/g, '')}</p>;
+  }
+
+  // Build sections from header positions
   const sections = [];
-  const sectionPattern = /\*\*([^:*]+):\*\*\s*([^*]+?)(?=\*\*|$)/g;
-  let match;
-  let lastIndex = 0;
 
-  while ((match = sectionPattern.exec(text)) !== null) {
-    // Add any text before this section
-    if (match.index > lastIndex) {
-      const beforeText = text.slice(lastIndex, match.index).trim();
-      if (beforeText) {
-        sections.push({ type: 'text', content: beforeText });
-      }
+  // Any text before the first header
+  if (headerPositions[0].index > 0) {
+    const beforeText = text.slice(0, headerPositions[0].index).replace(/\*\*/g, '').trim();
+    if (beforeText) {
+      sections.push({ type: 'text', content: beforeText });
     }
+  }
 
-    // Add the section
+  // Each header + its content (until next header or end of string)
+  for (let i = 0; i < headerPositions.length; i++) {
+    const contentStart = headerPositions[i].endIndex;
+    const contentEnd = i + 1 < headerPositions.length ? headerPositions[i + 1].index : text.length;
+    const content = text.slice(contentStart, contentEnd).replace(/\*\*/g, '').trim();
+
     sections.push({
       type: 'section',
-      title: match[1].trim(),
-      content: match[2].trim()
+      title: headerPositions[i].title,
+      content
     });
-
-    lastIndex = match.index + match[0].length;
-  }
-
-  // Add any remaining text
-  if (lastIndex < text.length) {
-    const remainingText = text.slice(lastIndex).trim().replace(/\*\*/g, '');
-    if (remainingText) {
-      sections.push({ type: 'text', content: remainingText });
-    }
-  }
-
-  // If no sections found, just return the text without asterisks
-  if (sections.length === 0) {
-    return <p className="text-slate-700 leading-relaxed">{text.replace(/\*\*/g, '')}</p>;
   }
 
   return (
