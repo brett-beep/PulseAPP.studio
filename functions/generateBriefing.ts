@@ -449,27 +449,27 @@ async function fetchFinlightQuote(symbol: string, apiKey: string) {
   }
 }
 
+// Fallback Finnhub key (same as frontend ticker) when Base44 env vars are missing
+const FINNHUB_FALLBACK_KEY = "d5n7s19r01qh5ppc5ln0d5n7s19r01qh5ppc5lng";
+
 async function fetchMarketSnapshot() {
-  const finnhubKey = Deno.env.get("FINNHUB_API_KEY");
+  const finnhubKey = Deno.env.get("FINNHUB_API_KEY") || FINNHUB_FALLBACK_KEY;
   const finlightKey = Deno.env.get("FINLIGHT_API_KEY");
-  
-  if (!finnhubKey && !finlightKey) {
-    console.warn("⚠️ No API keys set; using default snapshot");
-    return { sp500_pct: "0.0%", nasdaq_pct: "0.0%", dow_pct: "0.0%" };
-  }
   
   const symbols = ["SPY", "QQQ", "DIA"];
   
   try {
     const results = await Promise.all(
-      symbols.map(symbol => fetchQuoteWithFallback(symbol, finnhubKey || '', finlightKey || ''))
+      symbols.map(symbol => fetchQuoteWithFallback(symbol, finnhubKey, finlightKey || ''))
     );
     
-    return {
+    const snapshot = {
       sp500_pct: results[0].change_pct,
       nasdaq_pct: results[1].change_pct,
       dow_pct: results[2].change_pct,
     };
+    console.log("📈 [fetchMarketSnapshot] Result:", snapshot);
+    return snapshot;
   } catch (error) {
     console.error("⚠️ Market snapshot failed:", error?.message);
     return { sp500_pct: "0.0%", nasdaq_pct: "0.0%", dow_pct: "0.0%" };
