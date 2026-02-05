@@ -773,13 +773,54 @@ MARKET SNAPSHOT:
 - Nasdaq: ${marketSnapshot.nasdaq_pct}
 - Dow Jones: ${marketSnapshot.dow_pct}
 
+TYPICAL WEEKLY EVENTS (for "What to Watch" context):
+- Monday: Market digesting weekend news, sector rotation
+- Tuesday-Wednesday: Mid-week often has Fed speakers, FOMC minutes releases
+- Thursday: Weekly jobless claims (8:30am ET)
+- Friday: Often monthly jobs report (first Fri of month, 8:30am ET)
+- Month-end: CPI typically mid-month, GDP/PCE end of month, FOMC meetings ~8 times/year
+
 ---
 
 PART 1: GENERATE METADATA
 Create briefing metadata with:
-- summary: 2-3 sentence overview focusing on the top breaking headlines
-- key_highlights: 3-5 bullets (prioritize breaking news, not just market moves)
-- market_sentiment: { label: "bullish"|"bearish"|"neutral"|"mixed", description: one sentence }
+
+**SUMMARY (structured in 3 sections):**
+Format as a structured analysis with these sections:
+
+**Market Snapshot:** [Specific index movements with percentages] — [brief sector/style color commentary]
+Example: "Nasdaq -1.96%, S&P +0.12%, Dow +0.35% — tech under pressure while financials and energy hold steady."
+
+**Key Developments:** [1-2 top stories with specific company tickers and investor implications]
+- Lead with the most market-moving story from today's news
+- Include specific tickers where relevant (not generic "companies")
+- Add percentages, numbers, data points to make it concrete
+- Connect to portfolio implications (e.g., "could pressure freight rates and impact ZIM, MATX")
+Example: "Global shipping giants warn of 2026 margin squeeze as Red Sea normalizes—freight rates could drop 20-30%, watch ZIM, MATX for earnings revisions. Eve Air Mobility's firm eVTOL orders signal institutional confidence returning to electric aviation's $1T TAM."
+
+**What to Watch:** [Most important upcoming market-moving event in next 5 trading days with timing and what matters]
+- Priority: Fed meetings > CPI/inflation data > jobs reports > major earnings clusters > geopolitical events > key technical levels
+- Be SPECIFIC: include dates, times (if intraday), consensus estimates, key thresholds
+- Format: "[Event] [Timing] — [What specifically to watch for / market implication]"
+- If a major multi-day event is approaching (e.g., Fed meeting Wed), reference it daily with evolving framing until it passes
+Example: "Fed decision Wednesday 2pm ET. Market pricing 90% hold—watch dot plot revisions and Powell's inflation commentary for any shift on rate cut timeline."
+
+**KEY_HIGHLIGHTS (actionable bullets):**
+Format: 3-5 bullets, each structured as:
+**[Category/Hook]**: [What happened] + [Specific investor implication with tickers, percentages, numbers] + [What to watch or risk/opportunity]
+
+Rules:
+- Make ACTIONABLE, not just factual reporting
+- Include specific company tickers, not generic "firms" or "companies"
+- Include numbers, percentages, data points where relevant
+- Each bullet should provide UNIQUE insight—don't rehash the summary
+- Connect to portfolio implications: "watch X for...", "risk to Y sector...", "validates Z thesis..."
+
+Example: "**Shipping margin squeeze ahead**: Maersk warns Red Sea normalization could compress freight rates 20-30% in H1 2026—watch earnings revisions for ZIM, MATX, DAC; long-duration contracts (FedEx, UPS) less exposed."
+
+**MARKET_SENTIMENT:**
+- label: "bullish"|"bearish"|"neutral"|"mixed"
+- description: one sentence
 
 ---
 
