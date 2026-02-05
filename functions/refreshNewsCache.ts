@@ -1,13 +1,13 @@
 // ============================================================
-// refreshNewsCache.ts - Base44 Function (v11 - Finlight + Better Deduplication)
+// refreshNewsCache.ts - Base44 Function (v13 - Entity-Based Clustering)
 // Uses secret: FINLIGHT_API_KEY. If missing after GitHub deploy → Base44: edit this file (e.g. add newline), Save & Deploy (see DEPLOY.md).
 // Runs every 5 minutes (0 LLM credits)
 // Fetches from Finlight (broad financial news). Scores by:
 // recency, MACRO/BREAKING first (oil, bitcoin, shutdown, funding deal, broad market),
 // single-stock/earnings noise demoted (-40), source + summary quality, topic clustering.
 // Never caches "Details emerging...". Summary length loosened (min 12 chars, then headline-only) so more news surfaces; card uses title as fallback when summary empty. Caches top 20 RAW articles.
-// v11: Improved duplicate detection (0.5 threshold) + Fed governor speech clustering to prevent multiple Cook/Waller/etc stories about same topic
-// Manually adding a line ---- here to redeploy on Base44
+// v13: General-purpose entity extraction (people/companies/topics) → clusters ANY person+topic or company+topic combo
+//      Example: "Cook + inflation", "Musk + Tesla", "nvidia + earnings" all auto-cluster without hardcoded rules
 // ============================================================
 
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
