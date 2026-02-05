@@ -30,9 +30,12 @@ export default function KeyHighlights({ highlights = [] }) {
                         >
                             <div className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-2 flex-shrink-0" />
                             {titleMatch ? (
-                                <div className="flex-1">
-                                    <span className="font-semibold text-slate-800 text-sm">{titleMatch[1]}: </span>
-                                    <span className="text-slate-600 text-sm leading-relaxed">{titleMatch[2]}</span>
+                                <div className="flex-1 space-y-1">
+                                    <div className="inline-flex items-center gap-2">
+                                        <span className="font-semibold text-amber-700 text-sm tracking-wide">{titleMatch[1]}</span>
+                                        <span className="text-amber-400 text-xs">•</span>
+                                    </div>
+                                    <p className="text-slate-600 text-sm leading-relaxed">{titleMatch[2]}</p>
                                 </div>
                             ) : (
                                 <p className="text-slate-700 text-sm leading-relaxed flex-1">{highlight.replace(/\*\*/g, '')}</p>
