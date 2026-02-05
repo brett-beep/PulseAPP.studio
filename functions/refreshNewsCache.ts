@@ -308,61 +308,75 @@ function sentimentToScore(sentiment: string, confidence: number): number {
 }
 
 async function fetchFinlightNews(apiKey: string): Promise<any[]> {
-  // 12-hour ceiling: real-time news only (Finlight Pro); users see fresh stories, not 2-day-old
-  const fromDate = getDateFromHoursAgo(12);
+  // 24-hour window: gives 2 calendar days so Finlight returns more articles (12h often = same day = only a few)
+  const fromDate = getDateFromHoursAgo(24);
   const toDate = new Date().toISOString().slice(0, 10);
-  
-  console.log(`📡 Finlight: Fetching articles from ${fromDate} to ${toDate} (12h window)...`);
-  
-  const response = await fetch(`${FINLIGHT_API_BASE}/v2/articles`, {
-    method: "POST",
-    headers: {
-      "accept": "application/json",
-      "Content-Type": "application/json",
-      "X-API-KEY": apiKey,
-    },
-    body: JSON.stringify({
-      from: fromDate,
-      to: toDate,
-      language: "en",
-      orderBy: "publishDate",
-      order: "DESC",
-      pageSize: 75,
-      page: 1,
-    }),
-  });
-    
+
+  const parseResponse = (data: any): any[] => {
+    const raw = data.articles || [];
+    return raw.map((item: any) => {
+      const title = item.title || "Breaking News";
+      const summary = (item.summary || "").trim();
+      const category = categorizeArticle(title, summary);
+      const sentimentScore = sentimentToScore(item.sentiment || "neutral", item.confidence ?? 0);
+      return {
+        title,
+        summary,
+        what_happened: summary,
+        url: item.link || "#",
+        source: item.source || "Finlight",
+        datetime: item.publishDate ? new Date(item.publishDate).toISOString() : new Date().toISOString(),
+        image: (item.images && item.images[0]) || null,
+        topics: [],
+        category,
+        sentiment_score: sentimentScore,
+        sentiment_label: item.sentiment === "positive" ? "Positive" : item.sentiment === "negative" ? "Negative" : "Neutral",
+        provider: "finlight",
+        tickers: (item.companies || []).map((c: any) => c.ticker).filter(Boolean),
+      };
+    });
+  };
+
+  const fetchPage = async (page: number): Promise<any[]> => {
+    const response = await fetch(`${FINLIGHT_API_BASE}/v2/articles`, {
+      method: "POST",
+      headers: {
+        "accept": "application/json",
+        "Content-Type": "application/json",
+        "X-API-KEY": apiKey,
+      },
+      body: JSON.stringify({
+        from: fromDate,
+        to: toDate,
+        language: "en",
+        orderBy: "publishDate",
+        order: "DESC",
+        pageSize: 75,
+        page,
+      }),
+    });
     if (!response.ok) {
-    const errText = await response.text();
-    console.error(`❌ Finlight error:`, response.status, errText);
-    throw new Error(`Finlight API error: ${response.status}`);
+      const errText = await response.text();
+      console.error(`❌ Finlight error:`, response.status, errText);
+      throw new Error(`Finlight API error: ${response.status}`);
     }
-    
     const data = await response.json();
-  const articles = data.articles || [];
-  console.log(`✅ Finlight: ${articles.length} articles`);
-  
-  return articles.map((item: any) => {
-    const title = item.title || "Breaking News";
-    const summary = (item.summary || "").trim();
-    const category = categorizeArticle(title, summary);
-    const sentimentScore = sentimentToScore(item.sentiment || "neutral", item.confidence ?? 0);
-    return {
-      title,
-      summary,
-      what_happened: summary,
-      url: item.link || "#",
-      source: item.source || "Finlight",
-      datetime: item.publishDate ? new Date(item.publishDate).toISOString() : new Date().toISOString(),
-      image: (item.images && item.images[0]) || null,
-      topics: [],
-      category,
-      sentiment_score: sentimentScore,
-      sentiment_label: item.sentiment === "positive" ? "Positive" : item.sentiment === "negative" ? "Negative" : "Neutral",
-      provider: "finlight",
-      tickers: (item.companies || []).map((c: any) => c.ticker).filter(Boolean),
-    };
-  });
+    return parseResponse(data);
+  };
+
+  const page1 = await fetchPage(1);
+  console.log(`✅ Finlight: ${page1.length} articles (page 1)`);
+
+  // If first page was full, get a second page to have more stories to choose from
+  let allArticles = page1;
+  if (page1.length >= 75) {
+    const page2 = await fetchPage(2);
+    console.log(`✅ Finlight: +${page2.length} articles (page 2)`);
+    allArticles = [...page1, ...page2];
+  }
+
+  console.log(`✅ Finlight total: ${allArticles.length} articles`);
+  return allArticles;
 }
 
 // ============================================================
