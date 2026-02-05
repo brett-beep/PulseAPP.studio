@@ -653,10 +653,16 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
     const CACHE_KEY = `newsCards:${user.email}`;
     const TIMESTAMP_KEY = `newsCardsTimestamp:${user.email}`;
 
+    // Clear ALL local caches to force fresh data
+    localStorage.removeItem(CACHE_KEY);
+    localStorage.removeItem(TIMESTAMP_KEY);
+
     setIsLoadingNews(true);
     try {
       const resp = await base44.functions.invoke("fetchNewsCards", {
         preferences: preferences,
+        force_refresh: true,
+        _t: Date.now(), // cache bust
       });
 
       if (resp?.data?.success) {
