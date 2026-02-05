@@ -95,32 +95,84 @@ function categoryImageUrl(categoryRaw: string): string {
 }
 
 // ============================================================
-// TOPIC CLUSTERING – one story per cluster
+// ENTITY EXTRACTION & TOPIC CLUSTERING – one story per cluster
 // ============================================================
+
+// Extract entities (people, companies, topics) from text for smart clustering
+function extractEntities(text: string): { people: Set<string>; companies: Set<string>; topics: Set<string> } {
+  const lower = text.toLowerCase();
+  
+  // Extract prominent people
+  const people = new Set<string>();
+  const peopleNames = [
+    // Fed officials
+    'powell', 'cook', 'waller', 'bowman', 'barkin', 'jefferson', 'kugler', 'logan', 'williams',
+    'bostic', 'collins', 'harker', 'kashkari', 'mester', 'daly', 'evans', 'bullard', 'goolsbee',
+    // Politicians  
+    'trump', 'biden', 'harris', 'yellen', 'schumer', 'mccarthy', 'pelosi',
+    // CEOs
+    'musk', 'zuckerberg', 'pichai', 'nadella', 'bezos', 'altman',
+  ];
+  for (const name of peopleNames) {
+    if (new RegExp(`\\b${name}\\b`, 'i').test(lower)) {
+      people.add(name);
+    }
+  }
+  
+  // Extract companies
+  const companies = new Set<string>();
+  const companyNames = [
+    'apple', 'microsoft', 'google', 'amazon', 'meta', 'tesla', 'nvidia', 'netflix',
+    'disney', 'walmart', 'jpmorgan', 'goldman', 'wells fargo', 'bank of america', 'citigroup',
+  ];
+  for (const company of companyNames) {
+    if (lower.includes(company)) {
+      companies.add(company);
+    }
+  }
+  
+  // Extract topics
+  const topics = new Set<string>();
+  const topicKeywords = [
+    'inflation', 'rate cut', 'rate hike', 'monetary policy', 'interest rate',
+    'earnings', 'revenue', 'profit', 'guidance',
+    'tariff', 'trade war', 'sanctions',
+    'unemployment', 'jobs report', 'gdp', 'cpi',
+    'bitcoin', 'crypto', 'ethereum',
+    'ipo', 'merger', 'acquisition', 'bankruptcy',
+  ];
+  for (const keyword of topicKeywords) {
+    if (lower.includes(keyword)) {
+      topics.add(keyword);
+    }
+  }
+  
+  return { people, companies, topics };
+}
 
 function getTopicCluster(headline: string, summary: string): string | null {
   const text = ((headline || "") + " " + (summary || "")).toLowerCase();
+  const entities = extractEntities(text);
   
-  // Extract person names from Fed governor speeches (Cook, Waller, Bowman, etc.)
-  const fedGovernorMatch = text.match(/(cook|waller|bowman|barkin|jefferson|kugler|logan|williams|bostic|collins|harker|kashkari|mester|daly|evans|bullard|goolsbee)\s+(says|said|warns|notes|speaks|comments)/i);
-  if (fedGovernorMatch && /inflation|monetary policy|interest rate|economic outlook/i.test(text)) {
-    return `fed_gov_${fedGovernorMatch[1].toLowerCase()}`;
+  // ENTITY-BASED CLUSTERING: Person + Topic
+  // Example: "Cook says inflation risk" + "Cook warns on inflation" → "person_cook_inflation"
+  if (entities.people.size > 0 && entities.topics.size > 0) {
+    const primaryPerson = Array.from(entities.people).sort()[0]; // Alphabetical for consistency
+    const primaryTopic = Array.from(entities.topics).sort()[0];
+    return `person_${primaryPerson}_${primaryTopic.replace(/\s+/g, '_')}`;
   }
   
+  // ENTITY-BASED CLUSTERING: Company + Topic
+  // Example: "Nvidia earnings beat" + "Nvidia revenue surge" → "company_nvidia_earnings"
+  if (entities.companies.size > 0 && entities.topics.size > 0) {
+    const primaryCompany = Array.from(entities.companies).sort()[0];
+    const primaryTopic = Array.from(entities.topics).sort()[0];
+    return `company_${primaryCompany}_${primaryTopic.replace(/\s+/g, '_')}`;
+  }
+  
+  // FALLBACK: High-impact patterns for stories without clear entities
   const patterns: { pattern: RegExp; cluster: string }[] = [
-    { pattern: /powell.*(investigation|criminal|doj|indictment)/i, cluster: "powell_investigation" },
-    { pattern: /(investigation|criminal|doj).*(powell|fed chair)/i, cluster: "powell_investigation" },
-    { pattern: /supreme court.*(fed|federal reserve|powell)/i, cluster: "scotus_fed" },
-    { pattern: /(fed|federal reserve).*(supreme court|independence)/i, cluster: "scotus_fed" },
-    { pattern: /trump.*(powell|fed chair|federal reserve)/i, cluster: "trump_fed" },
-    { pattern: /powell.*(trump|president)/i, cluster: "trump_fed" },
-    { pattern: /bitcoin.*(etf|price|rally|crash)/i, cluster: "bitcoin_price" },
-    { pattern: /ethereum.*(etf|price|rally|crash)/i, cluster: "ethereum_price" },
-    { pattern: /nvidia.*(earnings|stock|shares|revenue)/i, cluster: "nvidia" },
-    { pattern: /apple.*(earnings|stock|shares|revenue|iphone)/i, cluster: "apple" },
-    { pattern: /tesla.*(earnings|stock|shares|musk)/i, cluster: "tesla" },
     { pattern: /rate (cut|hike|decision).*(fed|fomc)/i, cluster: "fed_rates" },
-    { pattern: /(fed|fomc).*(rate|rates|policy)/i, cluster: "fed_rates" },
     { pattern: /inflation.*(cpi|report|data)/i, cluster: "inflation_data" },
     { pattern: /jobs report|employment.*(data|report)/i, cluster: "jobs_data" },
     { pattern: /all-time high|all-time low|record high|record low/i, cluster: "ath_atl" },
@@ -128,6 +180,7 @@ function getTopicCluster(headline: string, summary: string): string | null {
   for (const { pattern, cluster } of patterns) {
     if (pattern.test(text)) return cluster;
   }
+  
   return null;
 }
 
@@ -159,7 +212,32 @@ function isNearDuplicate(a: any, b: any): boolean {
   
   if (!aHeadline || !bHeadline) return false;
   
-  // Extract significant words
+  // 1. ENTITY OVERLAP (strongest signal for duplicates)
+  const aEntities = extractEntities(aHeadline);
+  const bEntities = extractEntities(bHeadline);
+  
+  // Count shared entities
+  let sharedPeople = 0;
+  for (const person of aEntities.people) {
+    if (bEntities.people.has(person)) sharedPeople++;
+  }
+  
+  let sharedCompanies = 0;
+  for (const company of aEntities.companies) {
+    if (bEntities.companies.has(company)) sharedCompanies++;
+  }
+  
+  let sharedTopics = 0;
+  for (const topic of aEntities.topics) {
+    if (bEntities.topics.has(topic)) sharedTopics++;
+  }
+  
+  // If stories share same person/company + same topic → likely duplicate
+  // Example: "Cook says inflation" + "Cook warns inflation" → both have Cook + inflation
+  if (sharedPeople > 0 && sharedTopics > 0) return true;
+  if (sharedCompanies > 0 && sharedTopics > 0) return true;
+  
+  // 2. WORD OVERLAP (fallback for stories without clear entities)
   const getWords = (text: string) => {
     const stopWords = new Set([
       "the", "a", "an", "and", "or", "but", "to", "of", "in", "on", "for", 
@@ -182,8 +260,6 @@ function isNearDuplicate(a: any, b: any): boolean {
   }
   
   const overlapRatio = overlap / Math.min(aWords.size, bWords.size);
-  
-  // Lower threshold to catch more near-duplicates (e.g., multiple Fed governor speeches about same topic)
   return overlapRatio > 0.5;
 }
 
