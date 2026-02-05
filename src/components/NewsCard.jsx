@@ -81,7 +81,7 @@ export default function NewsCard({ story, index }) {
                 {isExpanded ? (
                     <p className="text-slate-600 text-sm leading-relaxed">{expandedText}</p>
                 ) : (
-                    <p className="text-slate-500 text-sm leading-relaxed line-clamp-2">{descriptionText}</p>
+                    <p className="text-slate-500 text-sm leading-relaxed line-clamp-3">{descriptionText}</p>
                 )}
                 {needsExpansion && (
                     <button

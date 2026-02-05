@@ -23,6 +23,70 @@ const SMOOTH_DURATION = 0.4;
 
 const LAYOUT_TRANSITION = { layout: { duration: 0.32, ease: [0.25, 0.46, 0.45, 0.94] } };
 
+// Format summary text with section headers
+function FormattedSummary({ text }) {
+  if (!text) return null;
+
+  // Parse sections marked with **Section Name:**
+  const sections = [];
+  const sectionPattern = /\*\*([^:*]+):\*\*\s*([^*]+?)(?=\*\*|$)/g;
+  let match;
+  let lastIndex = 0;
+
+  while ((match = sectionPattern.exec(text)) !== null) {
+    // Add any text before this section
+    if (match.index > lastIndex) {
+      const beforeText = text.slice(lastIndex, match.index).trim();
+      if (beforeText) {
+        sections.push({ type: 'text', content: beforeText });
+      }
+    }
+
+    // Add the section
+    sections.push({
+      type: 'section',
+      title: match[1].trim(),
+      content: match[2].trim()
+    });
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Add any remaining text
+  if (lastIndex < text.length) {
+    const remainingText = text.slice(lastIndex).trim().replace(/\*\*/g, '');
+    if (remainingText) {
+      sections.push({ type: 'text', content: remainingText });
+    }
+  }
+
+  // If no sections found, just return the text without asterisks
+  if (sections.length === 0) {
+    return <p className="text-slate-700 leading-relaxed">{text.replace(/\*\*/g, '')}</p>;
+  }
+
+  return (
+    <div className="space-y-4">
+      {sections.map((section, index) => (
+        section.type === 'section' ? (
+          <div key={index} className="space-y-2">
+            <h4 className="text-sm font-semibold text-amber-600 uppercase tracking-wide">
+              {section.title}
+            </h4>
+            <p className="text-slate-700 leading-relaxed">
+              {section.content}
+            </p>
+          </div>
+        ) : (
+          <p key={index} className="text-slate-700 leading-relaxed">
+            {section.content}
+          </p>
+        )
+      ))}
+    </div>
+  );
+}
+
 function MarketSection({ marketSectionOpen, setMarketSectionOpen, setLastExpandedSection, marketStories, isSecond, gridOrder }) {
   return (
     <motion.div
@@ -844,7 +908,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
           >
             {todayBriefing?.summary ? (
               <div className="bg-white rounded-2xl p-6 border border-slate-100 mb-6">
-                <p className="text-slate-700 leading-relaxed">{todayBriefing.summary}</p>
+                <FormattedSummary text={todayBriefing.summary} />
               </div>
             ) : null}
 

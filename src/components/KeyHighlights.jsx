@@ -15,19 +15,31 @@ export default function KeyHighlights({ highlights = [] }) {
                 <Zap className="h-4 w-4 text-amber-500" />
                 <h3 className="font-semibold text-slate-900">Key Takeaways</h3>
             </div>
-            <ul className="space-y-3">
-                {highlights.map((highlight, index) => (
-                    <motion.li
-                        key={index}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.1 }}
-                        className="flex items-start gap-3"
-                    >
-                        <div className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-2 flex-shrink-0" />
-                        <p className="text-slate-700 text-sm leading-relaxed">{highlight}</p>
-                    </motion.li>
-                ))}
+            <ul className="space-y-4">
+                {highlights.map((highlight, index) => {
+                    // Parse highlight with **Title**: format
+                    const titleMatch = highlight.match(/^\*\*([^:*]+):\*\*\s*(.+)$/);
+                    
+                    return (
+                        <motion.li
+                            key={index}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: index * 0.1 }}
+                            className="flex items-start gap-3"
+                        >
+                            <div className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-2 flex-shrink-0" />
+                            {titleMatch ? (
+                                <div className="flex-1">
+                                    <span className="font-semibold text-slate-800 text-sm">{titleMatch[1]}: </span>
+                                    <span className="text-slate-600 text-sm leading-relaxed">{titleMatch[2]}</span>
+                                </div>
+                            ) : (
+                                <p className="text-slate-700 text-sm leading-relaxed flex-1">{highlight.replace(/\*\*/g, '')}</p>
+                            )}
+                        </motion.li>
+                    );
+                })}
             </ul>
         </motion.div>
     );
