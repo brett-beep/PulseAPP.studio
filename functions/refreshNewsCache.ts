@@ -329,14 +329,14 @@ async function fetchFinlightNews(apiKey: string): Promise<any[]> {
       page: 1,
     }),
   });
-  
-  if (!response.ok) {
+    
+    if (!response.ok) {
     const errText = await response.text();
     console.error(`❌ Finlight error:`, response.status, errText);
     throw new Error(`Finlight API error: ${response.status}`);
-  }
-  
-  const data = await response.json();
+    }
+    
+    const data = await response.json();
   const articles = data.articles || [];
   console.log(`✅ Finlight: ${articles.length} articles`);
   

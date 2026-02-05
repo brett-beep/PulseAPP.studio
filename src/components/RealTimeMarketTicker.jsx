@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
+// API keys (consider moving to env: VITE_FINNHUB_API_KEY, VITE_FINLIGHT_API_KEY)
+const FINNHUB_API_KEY = 'd5n7s19r01qh5ppc5ln0d5n7s19r01qh5ppc5lng';
+const FINLIGHT_API_KEY = import.meta.env.VITE_FINLIGHT_API_KEY || '';
+
 export default function RealTimeMarketTicker({ watchlist = [] }) {
   const [marketData, setMarketData] = useState({
     sp500: null,
@@ -16,44 +20,98 @@ export default function RealTimeMarketTicker({ watchlist = [] }) {
   console.log("🎯 topStocks (first 3):", topStocks);
   console.log("🎯 symbols to fetch:", symbols);
 
+  // Fetch quote with Finnhub primary, Finlight fallback
+  async function fetchQuoteWithFallback(symbol) {
+    // Try Finnhub first (free tier, 60/min)
+    try {
+      const response = await fetch(
+        `https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${FINNHUB_API_KEY}`
+      );
+      
+      if (response.status === 429) {
+        console.warn(`⚠️ Finnhub rate limit (429) for ${symbol}, trying Finlight fallback...`);
+        return await fetchFinlightQuote(symbol);
+      }
+      
+      if (!response.ok) {
+        console.error(`Finnhub error for ${symbol}: ${response.status}`);
+        return await fetchFinlightQuote(symbol);
+      }
+      
+      const data = await response.json();
+      
+      if (!data || data.c === undefined || data.c === null) {
+        console.error(`No Finnhub price data for ${symbol}, trying Finlight...`);
+        return await fetchFinlightQuote(symbol);
+      }
+      
+      return {
+        symbol,
+        price: data.c,
+        change: data.d || 0,
+        changePercent: data.dp || 0,
+        provider: 'finnhub'
+      };
+    } catch (err) {
+      console.error(`Finnhub fetch failed for ${symbol}:`, err.message);
+      return await fetchFinlightQuote(symbol);
+    }
+  }
+
+  // Finlight fallback (premium, 100/min, 10k/month on Pro Light)
+  async function fetchFinlightQuote(symbol) {
+    if (!FINLIGHT_API_KEY) {
+      console.warn(`⚠️ No Finlight API key configured, skipping fallback for ${symbol}`);
+      return null;
+    }
+    
+    try {
+      const response = await fetch(
+        `https://finlight.me/api/stock/realtime/${symbol}`,
+        {
+          headers: {
+            'X-API-KEY': FINLIGHT_API_KEY
+          }
+        }
+      );
+      
+      if (!response.ok) {
+        console.error(`Finlight error for ${symbol}: ${response.status}`);
+        return null;
+      }
+      
+      const data = await response.json();
+      
+      // Map Finlight response to our format (adjust based on actual response)
+      const price = data.price || data.close || data.c || 0;
+      const change = data.change || data.d || 0;
+      const changePercent = data.changePercent || data.dp || data.changePercentage || 0;
+      
+      if (!price) {
+        console.error(`No Finlight price data for ${symbol}`);
+        return null;
+      }
+      
+      console.log(`✅ Using Finlight fallback for ${symbol}`);
+      return {
+        symbol,
+        price,
+        change,
+        changePercent,
+        provider: 'finlight'
+      };
+    } catch (err) {
+      console.error(`Finlight fetch failed for ${symbol}:`, err.message);
+      return null;
+    }
+  }
+
   useEffect(() => {
     async function fetchMarketData() {
       try {
         setIsLoading(true);
         
-        // Using Finnhub API with your key
-        const apiKey = 'd5n7s19r01qh5ppc5ln0d5n7s19r01qh5ppc5lng';
-        
-        const promises = symbols.map(async (symbol) => {
-          try {
-            const response = await fetch(
-              `https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${apiKey}`
-            );
-            
-            if (!response.ok) {
-              console.error(`API error for ${symbol}: ${response.status}`);
-              return null;
-            }
-            
-            const data = await response.json();
-            
-            // Validate data exists
-            if (!data || data.c === undefined || data.c === null) {
-              console.error(`No price data for ${symbol}`);
-              return null;
-            }
-            
-            return {
-              symbol,
-              price: data.c, // current price
-              change: data.d || 0, // change
-              changePercent: data.dp || 0, // change percent
-            };
-          } catch (err) {
-            console.error(`Error fetching ${symbol}:`, err);
-            return null;
-          }
-        });
+        const promises = symbols.map(symbol => fetchQuoteWithFallback(symbol));
 
         const results = await Promise.all(promises);
         const validResults = results.filter(Boolean);

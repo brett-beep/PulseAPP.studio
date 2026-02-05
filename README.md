@@ -15,7 +15,7 @@ Any change pushed to the repo will also be reflected in the Base44 Builder.
 1. Clone the repository using the project's Git URL 
 2. Navigate to the project directory
 3. Install dependencies: `npm install`
-4. Create an `.env.local` file and set the right environment variables
+4. Create an `.env.local` file and set the right environment variables (see `.env.example`)
 
 ```
 VITE_BASE44_APP_ID=your_app_id
@@ -24,7 +24,15 @@ VITE_BASE44_APP_BASE_URL=your_backend_url
 e.g.
 VITE_BASE44_APP_ID=cbef744a8545c389ef439ea6
 VITE_BASE44_APP_BASE_URL=https://my-to-do-list-81bfaad7.base44.app
+
+# Optional: Add Finlight API key for stock price fallback
+VITE_FINLIGHT_API_KEY=your_finlight_api_key_here
 ```
+
+**Stock Price Provider Fallback:**
+- **Primary:** Finnhub (free tier, 60 calls/min) - used for stock picker search and real-time quotes
+- **Fallback:** Finlight (premium, 100 calls/min) - kicks in automatically if Finnhub rate limits (429 error)
+- To enable Finlight fallback, add `VITE_FINLIGHT_API_KEY` to your `.env.local` file
 
 Run the app: `npm run dev`
 
