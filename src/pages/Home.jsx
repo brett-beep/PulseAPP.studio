@@ -707,12 +707,26 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
   const parseJsonArray = (value) => {
     if (Array.isArray(value)) return value;
     if (typeof value === "string") {
+      // Try JSON parse first
       try {
         const parsed = JSON.parse(value);
-        return Array.isArray(parsed) ? parsed : [];
+        if (Array.isArray(parsed)) return parsed;
+        // If it parsed as an object, try extracting array values
+        if (parsed && typeof parsed === "object") {
+          const vals = Object.values(parsed);
+          if (vals.length > 0 && typeof vals[0] === "string") return vals;
+        }
+        return [];
       } catch {
+        // If it's a non-JSON string that looks like content, wrap it
+        if (value.trim().length > 10) return [value.trim()];
         return [];
       }
+    }
+    // Handle object with array-like values (e.g., {0: "a", 1: "b"})
+    if (value && typeof value === "object") {
+      const vals = Object.values(value);
+      if (vals.length > 0 && typeof vals[0] === "string") return vals;
     }
     return [];
   };
@@ -808,6 +822,10 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
   console.log("🎵 [AudioPlayer] todayBriefing object:", todayBriefing);
 
   const highlights = parseJsonArray(todayBriefing?.key_highlights);
+  console.log("🔍 [Key Highlights] raw:", todayBriefing?.key_highlights);
+  console.log("🔍 [Key Highlights] type:", typeof todayBriefing?.key_highlights);
+  console.log("🔍 [Key Highlights] parsed:", highlights);
+  console.log("🔍 [Key Highlights] count:", highlights.length);
 
   const userWatchlist = parseJsonArray(preferences?.portfolio_holdings || []);
   console.log("userWatchlist:", userWatchlist);

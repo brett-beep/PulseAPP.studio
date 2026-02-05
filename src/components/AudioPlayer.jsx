@@ -239,7 +239,10 @@ export default function AudioPlayer({
 
   const sectionSummary = useMemo(() => {
     if (!currentSectionStory) return "";
-    return (currentSectionStory.what_happened || currentSectionStory.title || "").trim();
+    let text = (currentSectionStory.what_happened || currentSectionStory.title || "").trim();
+    // Remove trailing source attribution like "(Source: Bloomberg)" or "(Source: Reuters)"
+    text = text.replace(/\s*\(Source:\s*[^)]+\)\s*$/i, '').trim();
+    return text;
   }, [currentSectionStory]);
 
   // Image per section: seed from headline so same story = same image, varied across stories (picsum; no topic filter)
