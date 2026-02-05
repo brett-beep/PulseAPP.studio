@@ -5,7 +5,7 @@
 // Fetches from Finlight (broad financial news). Scores by:
 // recency, MACRO/BREAKING first (oil, bitcoin, shutdown, funding deal, broad market),
 // single-stock/earnings noise demoted (-40), source + summary quality, topic clustering.
-// Never caches "Details emerging...". Caches top 20 RAW articles.
+// Never caches "Details emerging...". Summary length loosened (min 12 chars, then headline-only) so more news surfaces; card uses title as fallback when summary empty. Caches top 20 RAW articles.
 // Manually adding a line here to redeploy on Base44
 // ============================================================
 
@@ -29,13 +29,23 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
 
 function categorizeArticle(title: string, description: string): string {
   const text = `${title} ${description}`.toLowerCase();
-  
-  for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+
+  // Avoid "Olympic Gold" / "World Cup gold" matching commodities
+  const isSportsGold = /(olympic|world\s+cup|medal|championship).*gold|gold.*(medal|olympic)/i.test(text);
+  const commoditiesKeywords = isSportsGold
+    ? CATEGORY_KEYWORDS.commodities.filter(kw => kw !== "gold")
+    : CATEGORY_KEYWORDS.commodities;
+
+  const categoriesToCheck: [string, string[]][] = [
+    ...Object.entries(CATEGORY_KEYWORDS).filter(([cat]) => cat !== "commodities"),
+    ["commodities", commoditiesKeywords],
+  ];
+  for (const [category, keywords] of categoriesToCheck) {
     if (keywords.some(kw => text.includes(kw))) {
       return category;
     }
   }
-  
+
   return "markets"; // Default category
 }
 
@@ -117,16 +127,21 @@ function getTopicCluster(headline: string, summary: string): string | null {
 // DUPLICATE DETECTION
 // ============================================================
 
-// Minimum summary length to cache (avoids "Details emerging..." and junk)
-const MIN_SUMMARY_LENGTH = 30;
-const MIN_SUMMARY_LENGTH_RELAXED = 20; // Safety: allow slightly shorter if we'd have too few
+// Minimum summary length to cache (loosened so more news surfaces; we can refine + add generated summaries later)
+const MIN_SUMMARY_LENGTH = 12;         // ~2–3 words (was 30); avoids totally empty
+const MIN_SUMMARY_LENGTH_RELAXED = 0;  // Allow headline-only (use title as fallback on card)
 const MIN_ARTICLES_SAFETY = 12;        // If we have fewer than this after filter, relax once
 const TRIVIAL_SUMMARY_PATTERN = /^details\s+emerging\.?\.?\.?\s*$/i;
 
 function hasRealSummary(article: any, minLength: number): boolean {
   const s = (article.summary || article.what_happened || "").trim();
-  if (!s || s.length < minLength) return false;
   if (TRIVIAL_SUMMARY_PATTERN.test(s)) return false;
+  if (minLength === 0) {
+    // Allow headline-only: no summary required, but must have a real title
+    const title = (article.title || "").trim();
+    return title.length >= 8;
+  }
+  if (!s || s.length < minLength) return false;
   return true;
 }
 
@@ -206,7 +221,7 @@ function calculateUrgencyScore(article: any, nowTimestamp: number): number {
   const title = (article.title || "").toLowerCase();
   const text = `${title} ${(article.what_happened || "").toLowerCase()}`;
   
-  // 3a. MACRO / BREAKING (WSJ-level: oil, bitcoin, shutdown, funding deal, broad market) – highest priority
+  // 3a. MACRO / BREAKING (WSJ-level: oil, bitcoin, shutdown, jobs, M&A, broad market) – highest priority
   const MACRO_BREAKING = [
     { keywords: ["shutdown", "funding deal", "house advances", "government shutdown"], points: 55 },
     { keywords: ["oil jumps", "oil surges", "oil price", "crude oil", "oil rally"], points: 52 },
@@ -215,7 +230,8 @@ function calculateUrgencyScore(article: any, nowTimestamp: number): number {
     { keywords: ["fed", "powell", "fomc", "federal reserve"], points: 50 },
     { keywords: ["rate cut", "rate hike", "basis points", "bps"], points: 45 },
     { keywords: ["inflation", "cpi", "ppi", "core inflation"], points: 42 },
-    { keywords: ["jobs report", "unemployment", "payroll", "jobless"], points: 40 },
+    { keywords: ["jobs report", "unemployment", "payroll", "jobless", "layoffs", "job cuts", "challenger"], points: 48 },
+    { keywords: ["merger", "acquisition", "to acquire", "xai", "x.ai", "spacex merger", "musk"], points: 46 },
     { keywords: ["gdp", "recession", "economic growth"], points: 38 },
     { keywords: ["tariff", "trade war", "sanctions"], points: 40 },
     { keywords: ["trump", "biden", "white house"], points: 32 },
@@ -240,15 +256,24 @@ function calculateUrgencyScore(article: any, nowTimestamp: number): number {
   ];
   const looksLikeSingleStock = singleStockPatterns.some(p => p.test(title));
   if (looksLikeSingleStock) score -= 40;
-  
-  // 3c. Other impact keywords (only if no macro match yet – avoid double-counting)
+
+  // 3b-alt. NON-FINANCE DEMOTION – sports, PR fluff so layoffs/M&A surface
+  const nonFinancePatterns = [
+    /olympic|olympics|skiing|acl\s+torn|torn\s+acl|world\s+cup/i,
+    /soccer|football\s+club|fc\s+announces|inaugural\s+sleeve|sleeve\s+sponsorship/i,
+    /prnewswire.*sponsorship|announces\s+inaugural\s+(sleeve|partnership)/i,
+  ];
+  if (nonFinancePatterns.some(p => p.test(title))) score -= 50;
+
+  // 3d. Other impact keywords (only if no macro match yet)
   const hadMacroMatch = MACRO_BREAKING.some(({ keywords }) => keywords.some(kw => text.includes(kw)));
   if (!hadMacroMatch) {
     const OTHER_KEYWORDS = [
       { keywords: ["crash", "plunge", "selloff"], points: 42 },
       { keywords: ["record high", "record low", "all-time"], points: 32 },
       { keywords: ["volatility", "vix", "circuit breaker"], points: 38 },
-      { keywords: ["layoffs", "restructuring", "bankruptcy"], points: 35 },
+      { keywords: ["layoffs", "restructuring", "bankruptcy", "job cuts"], points: 38 },
+      { keywords: ["merger", "acquisition", "acquires", "xai", "spacex"], points: 35 },
       { keywords: ["earnings", "revenue", "guidance", "outlook"], points: 22 },
     ];
     for (const { keywords, points } of OTHER_KEYWORDS) {
@@ -476,6 +501,19 @@ function selectTopStories(
   
   // 4. Sort by urgency score (highest first)
   allCandidates.sort((a, b) => b.urgency_score - a.urgency_score);
+
+  // 4b. Summary-length analytics (see how many we drop due to word count)
+  const summaryLen = (a: any) => (a.summary || a.what_happened || "").trim().length;
+  const bucket = (len: number) => (len === 0 ? "0" : len < 12 ? "1-11" : len < 30 ? "12-29" : "30+");
+  const byBucket: Record<string, number> = { "0": 0, "1-11": 0, "12-29": 0, "30+": 0 };
+  for (const a of allCandidates) {
+    byBucket[bucket(summaryLen(a))]++;
+  }
+  const blockedAt30 = allCandidates.filter(a => !hasRealSummary(a, 30)).length;
+  const blockedAt12 = allCandidates.filter(a => !hasRealSummary(a, 12)).length;
+  const allowedAt0 = allCandidates.filter(a => hasRealSummary(a, 0)).length;
+  console.log(`📊 Summary length: 0 chars=${byBucket["0"]}, 1-11=${byBucket["1-11"]}, 12-29=${byBucket["12-29"]}, 30+=${byBucket["30+"]}`);
+  console.log(`📊 If min=30: ${blockedAt30} blocked | If min=12: ${blockedAt12} blocked | If min=0 (title OK): ${allowedAt0} allowed`);
   
   // 5. Pick top stories with diversity (topic clustering + category cap)
   const selected: ScoredArticle[] = [];
@@ -488,7 +526,7 @@ function selectTopStories(
   for (const article of allCandidates) {
     if (selected.length >= targetCount) return;
     
-    // Never cache "Details emerging..." or empty/short summaries
+    // Allow short/empty summary when relaxed; "Details emerging..." still blocked
     if (!hasRealSummary(article, minSummaryLen)) continue;
     
     // Skip duplicates
@@ -506,11 +544,12 @@ function selectTopStories(
     
     if (cluster) usedClusters.add(cluster);
     
-    // Format the article (summary is always real here due to hasRealSummary filter)
+    // Format the article; use title as fallback when summary is empty/short so cards still show something
+    const rawSummary = safeText(article.summary, "");
     const formattedArticle: ScoredArticle = {
       id: article.id || randomId(),
       title: safeText(article.title, "Breaking News"),
-      what_happened: safeText(article.summary, ""),
+      what_happened: rawSummary || safeText(article.title, ""),
       why_it_matters: "", // Will be filled by LLM or fetchNewsCards
       href: safeText(article.url, "#"),
       imageUrl: article.image || categoryImageUrl(article.category),
@@ -536,7 +575,7 @@ function selectTopStories(
   // Safety: if we dropped too many, relax summary length once (still no "Details emerging...")
   if (selected.length < MIN_ARTICLES_SAFETY && minSummaryLen === MIN_SUMMARY_LENGTH) {
     minSummaryLen = MIN_SUMMARY_LENGTH_RELAXED;
-    console.log(`⚠️ Only ${selected.length} articles had summary ≥ ${MIN_SUMMARY_LENGTH} chars; relaxing to ≥ ${MIN_SUMMARY_LENGTH_RELAXED}`);
+    console.log(`⚠️ Only ${selected.length} articles had summary ≥ ${MIN_SUMMARY_LENGTH} chars; relaxing to allow headline-only (min=0)`);
     trySelect();
   }
 
