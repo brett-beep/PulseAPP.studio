@@ -1,6 +1,6 @@
 // generateBriefing function - synced Jan 26, 2026
 // Uses secrets: FINNHUB_API_KEY, FINLIGHT_API_KEY. If missing after GitHub deploy → Base44: edit this file (e.g. add newline), Save & Deploy (see DEPLOY.md).
-// Manual redeploy on Base44 V1
+// Adding this line ---- to manually redeploy on Base44
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
 
 function safeISODate(input) {
@@ -353,14 +353,15 @@ async function generateAudioFile(script, date, elevenLabsApiKey) {
     },
     body: JSON.stringify({
       text: script,
-      model_id: "eleven_v3",
+      model_id: "eleven_turbo_v2_5",
       output_format: "mp3_44100_128",
       voice_settings: {
-        stability: 0.5,
+        stability: 0.3,
         similarity_boost: 0.75,
         style: 0.3,
         use_speaker_boost: true,
       },
+      speed: 1.1,
     }),
   });
 
