@@ -9,7 +9,8 @@
     "lint": "eslint . --quiet",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc -p ./jsconfig.json",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "remind-secrets": "echo '\n⚠️  Base44: After pushing functions from GitHub, secrets may not inject. For each function that uses secrets: Code → Functions → [Function] → small edit → Save & Deploy. See DEPLOY.md.\n'"
   },
   "dependencies": {
     "@base44/sdk": "^0.8.3",

@@ -40,6 +40,10 @@ Run the app: `npm run dev`
 
 Open [Base44.com](http://Base44.com) and click on Publish.
 
+**Deploying functions from GitHub (secrets workaround)**
+
+If you push function code from GitHub, Base44 may not re-inject secrets. When a function reports "API key not configured" or similar, see **[DEPLOY.md](./DEPLOY.md)** for the step-by-step workaround (edit function in Base44 → Save & Deploy). After pushing, you can run `npm run remind-secrets` to print the steps.
+
 **Docs & Support**
 
 Documentation: [https://docs.base44.com/Integrations/Using-GitHub](https://docs.base44.com/Integrations/Using-GitHub)

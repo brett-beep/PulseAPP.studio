@@ -1,5 +1,6 @@
 // ============================================================
-// refreshNewsCache.ts - Base44 Function (v10 - Finlight) 
+// refreshNewsCache.ts - Base44 Function (v10 - Finlight)
+// Uses secret: FINLIGHT_API_KEY. If missing after GitHub deploy → Base44: edit this file (e.g. add newline), Save & Deploy (see DEPLOY.md).
 // Runs every 5 minutes (0 LLM credits)
 // Fetches from Finlight (broad financial news). Scores by:
 // recency, MACRO/BREAKING first (oil, bitcoin, shutdown, funding deal, broad market),
