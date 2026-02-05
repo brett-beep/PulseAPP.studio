@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Zap } from 'lucide-react';
 
+// Force rebuild - updated styling v2
 export default function KeyHighlights({ highlights = [] }) {
     if (!highlights || highlights.length === 0) return null;
 
