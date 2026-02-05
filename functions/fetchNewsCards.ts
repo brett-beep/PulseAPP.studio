@@ -2,7 +2,7 @@
 // fetchNewsCards.ts - Base44 Function (v4 - Category-Based)
 // Reads pre-generated cards from NewsCardCache (0 LLM credits per call)
 // Returns: { market_news: [5], portfolio_news: [5] }
-// Manually adding a line to redeploy on Base44
+// Manually adding a line --- to redeploy on Base44
 // ============================================================
 
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
