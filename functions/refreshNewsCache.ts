@@ -1,11 +1,12 @@
 // ============================================================
-// refreshNewsCache.ts - Base44 Function (v10 - Finlight)
+// refreshNewsCache.ts - Base44 Function (v11 - Finlight + Better Deduplication)
 // Uses secret: FINLIGHT_API_KEY. If missing after GitHub deploy → Base44: edit this file (e.g. add newline), Save & Deploy (see DEPLOY.md).
 // Runs every 5 minutes (0 LLM credits)
 // Fetches from Finlight (broad financial news). Scores by:
 // recency, MACRO/BREAKING first (oil, bitcoin, shutdown, funding deal, broad market),
 // single-stock/earnings noise demoted (-40), source + summary quality, topic clustering.
 // Never caches "Details emerging...". Summary length loosened (min 12 chars, then headline-only) so more news surfaces; card uses title as fallback when summary empty. Caches top 20 RAW articles.
+// v11: Improved duplicate detection (0.5 threshold) + Fed governor speech clustering to prevent multiple Cook/Waller/etc stories about same topic
 // Manually adding a line ---- here to redeploy on Base44
 // ============================================================
 
@@ -99,6 +100,13 @@ function categoryImageUrl(categoryRaw: string): string {
 
 function getTopicCluster(headline: string, summary: string): string | null {
   const text = ((headline || "") + " " + (summary || "")).toLowerCase();
+  
+  // Extract person names from Fed governor speeches (Cook, Waller, Bowman, etc.)
+  const fedGovernorMatch = text.match(/(cook|waller|bowman|barkin|jefferson|kugler|logan|williams|bostic|collins|harker|kashkari|mester|daly|evans|bullard|goolsbee)\s+(says|said|warns|notes|speaks|comments)/i);
+  if (fedGovernorMatch && /inflation|monetary policy|interest rate|economic outlook/i.test(text)) {
+    return `fed_gov_${fedGovernorMatch[1].toLowerCase()}`;
+  }
+  
   const patterns: { pattern: RegExp; cluster: string }[] = [
     { pattern: /powell.*(investigation|criminal|doj|indictment)/i, cluster: "powell_investigation" },
     { pattern: /(investigation|criminal|doj).*(powell|fed chair)/i, cluster: "powell_investigation" },
@@ -174,7 +182,9 @@ function isNearDuplicate(a: any, b: any): boolean {
   }
   
   const overlapRatio = overlap / Math.min(aWords.size, bWords.size);
-  return overlapRatio > 0.6;
+  
+  // Lower threshold to catch more near-duplicates (e.g., multiple Fed governor speeches about same topic)
+  return overlapRatio > 0.5;
 }
 
 // ============================================================
