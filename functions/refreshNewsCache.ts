@@ -7,7 +7,7 @@
 // single-stock/earnings noise demoted (-40), source + summary quality, topic clustering.
 // Never caches "Details emerging...". Summary length loosened (min 12 chars, then headline-only) so more news surfaces; card uses title as fallback when summary empty. Caches top 20 RAW articles.
 // v13: General-purpose entity extraction (people/companies/topics) → clusters ANY person+topic or company+topic combo
-//      Example: "Cook + inflation", "Musk + Tesla", "nvidia + earnings" all auto-cluster without hardcoded rules
+// Example: "Cook + inflation", "Musk + Tesla", "nvidia + earnings" all auto-cluster without hardcoded rules
 // ============================================================
 
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
