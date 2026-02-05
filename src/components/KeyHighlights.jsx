@@ -33,8 +33,8 @@ export default function KeyHighlights({ highlights = [] }) {
                             {titleMatch ? (
                                 <div className="flex-1 space-y-1">
                                     <div className="inline-flex items-center gap-2">
-                                        <span className="font-semibold text-amber-700 text-sm tracking-wide">{titleMatch[1]}</span>
-                                        <span className="text-amber-400 text-xs">•</span>
+                                        <span className="font-semibold text-orange-600 text-sm tracking-wide">{titleMatch[1]}</span>
+                                        <span className="text-orange-400 text-xs">•</span>
                                     </div>
                                     <p className="text-slate-600 text-sm leading-relaxed">{titleMatch[2]}</p>
                                 </div>
