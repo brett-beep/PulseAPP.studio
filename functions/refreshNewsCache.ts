@@ -6,7 +6,7 @@
 // recency, MACRO/BREAKING first (oil, bitcoin, shutdown, funding deal, broad market),
 // single-stock/earnings noise demoted (-40), source + summary quality, topic clustering.
 // Never caches "Details emerging...". Summary length loosened (min 12 chars, then headline-only) so more news surfaces; card uses title as fallback when summary empty. Caches top 20 RAW articles.
-// Manually adding a line here to redeploy on Base44
+// Manually adding a line ---- here to redeploy on Base44
 // ============================================================
 
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
