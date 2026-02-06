@@ -971,23 +971,23 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
           transition={{ delay: 0.3 }}
           className="space-y-6"
         >
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-slate-900">News for You</h2>
-            <div className="flex items-center gap-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-0">
+            <h2 className="text-lg md:text-xl font-semibold text-slate-900 shrink-0">News for You</h2>
+            <div className="flex flex-wrap items-center gap-2 md:gap-4 min-w-0">
               {lastRefreshTime && (
-                <span className="text-xs text-slate-400">
+                <span className="text-[10px] md:text-xs text-slate-400 shrink-0">
                   Updated {formatDistanceToNow(lastRefreshTime, { addSuffix: true })}
                 </span>
               )}
               <button
                 onClick={refreshNewsCards}
                 disabled={isLoadingNews}
-                className="text-sm text-amber-600 hover:text-amber-700 transition-colors disabled:opacity-50 flex items-center gap-1"
+                className="text-xs md:text-sm text-amber-600 hover:text-amber-700 transition-colors disabled:opacity-50 flex items-center gap-1 shrink-0"
               >
-                {isLoadingNews ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                {isLoadingNews ? <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 md:w-4 md:h-4" />}
                 Refresh
               </button>
-              <span className="text-sm text-slate-400">
+              <span className="text-[10px] md:text-sm text-slate-400 shrink-0">
                 {marketStories.length + portfolioStories.length} stories
               </span>
             </div>

@@ -537,10 +537,10 @@ export default function AudioPlayer({
           )}
         </AnimatePresence>
 
-        {/* Waveform/Info Card - mobile optimized */}
-        <div className={`rounded-xl md:rounded-2xl overflow-visible relative ${showWaveform ? "h-16 md:h-24" : "min-h-16 md:min-h-24"} ${showInfoCard ? "" : "mb-6 md:mb-8"}`}>
+        {/* Waveform/Info Card - smaller on mobile, same on desktop */}
+        <div className={`rounded-xl md:rounded-2xl overflow-visible relative ${showWaveform ? "h-12 md:h-24" : "min-h-12 md:min-h-24"} ${showInfoCard ? "" : "mb-6 md:mb-8"}`}>
           {showWaveform ? (
-            <div className="absolute inset-0 rounded-xl md:rounded-2xl flex items-center justify-center gap-0.5 px-1 md:px-2">
+            <div className="absolute inset-0 rounded-xl md:rounded-2xl flex items-center justify-center gap-px md:gap-0.5 px-1 md:px-2">
               {bars.map(({ i }, idx) => {
                 const level = isPlaying && frequencyData[idx] != null
                   ? 0.18 + 0.82 * frequencyData[idx]
@@ -548,9 +548,8 @@ export default function AudioPlayer({
                 return (
                   <motion.div
                     key={i}
-                    className="w-1 md:w-1.5 rounded-full flex-shrink-0 origin-center"
+                    className="w-0.5 md:w-1.5 h-3.5 md:h-[26px] rounded-full flex-shrink-0 origin-center"
                     style={{
-                      height: 26,
                       background: "linear-gradient(180deg, rgba(255,200,140,0.95) 0%, rgba(230,115,26,0.85) 35%, rgba(219,114,67,0.7) 100%)",
                       boxShadow: "0 0 12px rgba(230,115,26,0.5)",
                       scaleY: level,
