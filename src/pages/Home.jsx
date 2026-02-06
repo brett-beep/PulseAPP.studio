@@ -973,23 +973,25 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
         >
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-0">
             <h2 className="text-lg md:text-xl font-semibold text-slate-900 shrink-0">News for You</h2>
-            <div className="flex flex-wrap items-center gap-2 md:gap-4 min-w-0">
+            <div className="flex flex-col items-end gap-0.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4 sm:min-w-0">
+              <div className="flex items-center gap-2 sm:gap-4">
+                <button
+                  onClick={refreshNewsCards}
+                  disabled={isLoadingNews}
+                  className="text-xs md:text-sm text-amber-600 hover:text-amber-700 transition-colors disabled:opacity-50 flex items-center gap-1 shrink-0"
+                >
+                  {isLoadingNews ? <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 md:w-4 md:h-4" />}
+                  Refresh
+                </button>
+                <span className="text-[10px] md:text-sm text-slate-400 shrink-0">
+                  {marketStories.length + portfolioStories.length} stories
+                </span>
+              </div>
               {lastRefreshTime && (
-                <span className="text-[10px] md:text-xs text-slate-400 shrink-0">
+                <span className="text-xs text-slate-400">
                   Updated {formatDistanceToNow(lastRefreshTime, { addSuffix: true })}
                 </span>
               )}
-              <button
-                onClick={refreshNewsCards}
-                disabled={isLoadingNews}
-                className="text-xs md:text-sm text-amber-600 hover:text-amber-700 transition-colors disabled:opacity-50 flex items-center gap-1 shrink-0"
-              >
-                {isLoadingNews ? <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 md:w-4 md:h-4" />}
-                Refresh
-              </button>
-              <span className="text-[10px] md:text-sm text-slate-400 shrink-0">
-                {marketStories.length + portfolioStories.length} stories
-              </span>
             </div>
           </div>
 
