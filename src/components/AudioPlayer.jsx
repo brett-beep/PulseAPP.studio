@@ -911,7 +911,7 @@ export default function AudioPlayer({
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.2 }}
                 className="absolute inset-0 z-20 rounded-[32px] md:rounded-[40px] md:hidden"
-                style={{ background: "rgba(0,0,0,0.25)" }}
+                style={{ background: "transparent" }}
                 onClick={() => setShowControls(false)}
                 aria-hidden="true"
               />
