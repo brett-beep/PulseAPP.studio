@@ -782,8 +782,8 @@ export default function AudioPlayer({
           </div>
         </div>
 
-        {/* MOBILE CONTROLS: Single Play Button only (controls trigger moved next to Generate Briefing) */}
-        <div className="flex flex-col items-center gap-4 md:hidden">
+        {/* MOBILE CONTROLS: Single Play Button when collapsed; when expanded, all 5 are in overlay with equal spacing */}
+        <div className={`flex flex-col items-center gap-4 md:hidden ${showControls ? "invisible" : ""}`}>
           <motion.button
             whileHover={{ scale: 1.06 }}
             whileTap={{ scale: 0.96 }}
@@ -940,8 +940,8 @@ export default function AudioPlayer({
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
-                className="absolute right-0 z-30 pointer-events-auto flex flex-col items-end gap-2"
-                style={{ bottom: "9rem" }}
+                className="absolute right-0 bottom-0 z-30 pointer-events-auto flex flex-col items-end gap-3"
+                style={{ bottom: 0 }}
                 onClick={(e) => e.stopPropagation()}
               >
                 <motion.button whileHover={{ scale: 1.12 }} whileTap={{ scale: 0.94 }} onClick={toggleMute}
@@ -994,6 +994,30 @@ export default function AudioPlayer({
                     )}
                   </AnimatePresence>
                 </div>
+                <motion.button
+                  whileHover={{ scale: 1.06 }}
+                  whileTap={{ scale: 0.96 }}
+                  onClick={togglePlay}
+                  disabled={!audioUrl}
+                  className="w-20 h-20 rounded-full flex items-center justify-center shrink-0 disabled:opacity-50"
+                  style={{
+                    background: "linear-gradient(135deg, rgba(230, 115, 26, 0.95) 0%, rgba(219, 114, 67, 1) 100%)",
+                    border: "1px solid rgba(255, 255, 255, 0.5)",
+                    boxShadow: "0 12px 32px rgba(230, 115, 26, 0.4), 0 4px 12px rgba(230, 115, 26, 0.25), inset 0 2px 2px rgba(255, 255, 255, 0.4), inset 0 -2px 3px rgba(0, 0, 0, 0.15)",
+                  }}
+                >
+                  <AnimatePresence mode="wait">
+                    {isPlaying ? (
+                      <motion.div key="pause-m-o" initial={{ scale: 0, rotate: -90 }} animate={{ scale: 1, rotate: 0 }} exit={{ scale: 0, rotate: 90 }} transition={{ duration: 0.2 }}>
+                        <Pause className="h-8 w-8 text-white" fill="currentColor" />
+                      </motion.div>
+                    ) : (
+                      <motion.div key="play-m-o" initial={{ scale: 0, rotate: 90 }} animate={{ scale: 1, rotate: 0 }} exit={{ scale: 0, rotate: -90 }} transition={{ duration: 0.2 }}>
+                        <Play className="h-8 w-8 text-white ml-0.5" fill="currentColor" />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.button>
               </motion.div>
             </motion.div>
           )}

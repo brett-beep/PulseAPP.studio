@@ -879,9 +879,9 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
       {/* Animated Aurora Background */}
       <AmbientAurora />
       {/* Header */}
-      <header className="border-b border-slate-100 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-4xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+      <header className="border-b border-slate-100 bg-white/80 backdrop-blur-sm sticky top-0 z-50 overflow-hidden">
+        <div className="max-w-4xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between gap-3 min-w-0">
+          <div className="flex items-center gap-3 min-w-0 flex-shrink">
             <div className="h-12 w-12 flex items-center justify-center overflow-hidden flex-shrink-0">
               <img
                 src="/pulse-logo.svg"
@@ -889,21 +889,22 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
                 className="h-full w-full object-contain"
               />
             </div>
-            <span className="font-semibold text-slate-900 tracking-tight">PulseApp</span>
+            <span className="font-semibold text-slate-900 tracking-tight truncate">PulseApp</span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
             {!isPremium && (
               <Button
                 onClick={() => setShowUpgradeModal(true)}
-                className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white gap-2"
+                size="icon"
+                className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white gap-2 p-0 w-9 h-9 md:w-auto md:h-9 md:px-4 md:py-2"
               >
-                <Crown className="h-4 w-4" />
-                Upgrade
+                <Crown className="h-4 w-4 shrink-0" />
+                <span className="hidden md:inline">Upgrade</span>
               </Button>
             )}
             <Link to={createPageUrl("Settings")}>
-              <Button variant="ghost" size="icon" className="text-slate-400 hover:text-slate-600">
+              <Button variant="ghost" size="icon" className="text-slate-400 hover:text-slate-600 shrink-0 size-9 md:size-10">
                 <Settings className="h-5 w-5" />
               </Button>
             </Link>
