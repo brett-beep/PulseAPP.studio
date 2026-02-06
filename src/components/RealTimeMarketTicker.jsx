@@ -146,7 +146,7 @@ export default function RealTimeMarketTicker({ watchlist = [] }) {
     
     return (
       <div className="flex items-center gap-1.5 md:gap-2 flex-shrink-0">
-        <span className="font-semibold text-slate-700 text-xs md:text-sm">{data.symbol}</span>
+        <span className="font-semibold text-slate-700 text-xs md:text-base">{data.symbol}</span>
         
         {isFlat ? (
           <Minus className="h-3 w-3 md:h-4 md:w-4 text-slate-400 flex-shrink-0" />
@@ -156,7 +156,7 @@ export default function RealTimeMarketTicker({ watchlist = [] }) {
           <TrendingDown className="h-3 w-3 md:h-4 md:w-4 text-red-600 flex-shrink-0" />
         )}
         
-        <span className={`font-medium text-xs md:text-sm ${
+        <span className={`font-medium text-xs md:text-base ${
           isFlat ? 'text-slate-600' : 
           isPositive ? 'text-green-600' : 
           'text-red-600'
@@ -246,7 +246,7 @@ export default function RealTimeMarketTicker({ watchlist = [] }) {
           sentiment.label === 'Bearish' || sentiment.label === 'Negative' ? 'bg-red-500' :
           'bg-slate-400'
         }`} />
-        <span className={`font-medium text-xs md:text-sm ${sentiment.color}`}>
+        <span className={`font-medium text-xs md:text-base ${sentiment.color}`}>
           {sentiment.label}
         </span>
         <span className="text-slate-500 text-[10px] md:text-sm hidden sm:inline">

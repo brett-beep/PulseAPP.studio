@@ -40,7 +40,7 @@ export default function AudioPlayer({
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
   const [showControls, setShowControls] = useState(false);
-  const [frequencyData, setFrequencyData] = useState(() => Array(32).fill(0.3));
+  const [frequencyData, setFrequencyData] = useState(() => Array(48).fill(0.3));
 
   const mx = useMotionValue(300);
   const my = useMotionValue(200);
@@ -100,7 +100,7 @@ export default function AudioPlayer({
     }
   }, [playbackRate]);
 
-  // Audio-reactive waveform: AnalyserNode drives bar heights when playing (reduced to 32 bars for mobile)
+  // Audio-reactive waveform: AnalyserNode drives bar heights when playing
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !audioUrl || !isPlaying) {
@@ -123,7 +123,7 @@ export default function AudioPlayer({
     if (ctx.state === "suspended") ctx.resume().catch(() => {});
     const analyser = analyserRef.current;
     const dataArray = new Uint8Array(analyser.frequencyBinCount);
-    const barCount = 32;
+    const barCount = 48;
 
     const tick = () => {
       analyser.getByteFrequencyData(dataArray);
@@ -304,7 +304,7 @@ export default function AudioPlayer({
   };
 
   const bars = useMemo(() => {
-    const count = 32;
+    const count = 48;
     return Array.from({ length: count }, (_, i) => {
       const baseHeight = 14 + Math.sin(i * 0.38) * 14 + Math.cos(i * 0.62) * 10;
       return { i, p: i / (count - 1), baseHeight };
@@ -444,9 +444,9 @@ export default function AudioPlayer({
               {currentDate}
             </p>
             <p className="text-base md:text-lg" style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 300, letterSpacing: '0.15em' }}>
-              <span className="text-slate-800/90 uppercase text-sm md:text-base">{greeting},</span>
+              <span className="text-slate-800/90 uppercase text-sm md:text-[inherit]">{greeting},</span>
               <br />
-              <span className="font-semibold text-slate-900 normal-case" style={{ fontFamily: "'Italianno', 'Sacramento', cursive", fontSize: '2.5rem', lineHeight: '1', letterSpacing: '0.05em', fontWeight: 400, marginTop: '0.25rem', display: 'inline-block' }}>
+              <span className="font-semibold text-slate-900 normal-case text-[2.5rem] md:text-[3.5rem] leading-none md:leading-tight inline-block mt-1 md:mt-2" style={{ fontFamily: "'Italianno', 'Sacramento', cursive", letterSpacing: '0.05em', fontWeight: 400 }}>
                 {userName}
               </span>
             </p>
@@ -458,10 +458,11 @@ export default function AudioPlayer({
                 onClick={() => setShowTranscript((t) => !t)}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                className="text-[9px] md:text-[10px] font-semibold tracking-wider uppercase text-slate-500 hover:text-slate-700 transition-colors flex items-center gap-1 px-2 py-1 rounded"
+                className="text-[9px] md:text-[10px] font-semibold tracking-wider uppercase text-slate-500 hover:text-slate-700 transition-colors flex items-center gap-1 md:gap-1.5 px-2 py-1 rounded"
               >
                 <FileText className="w-3 h-3 md:w-3.5 md:h-3.5" />
-                <span className="hidden sm:inline">{showTranscript ? "Hide" : "Show"}</span>
+                <span className="hidden md:inline">{showTranscript ? "Hide transcript" : "Show transcript"}</span>
+                <span className="md:hidden">{showTranscript ? "Hide" : "Show"}</span>
               </motion.button>
             ) : null}
             <div className="flex items-center gap-2 md:gap-3">
@@ -549,9 +550,9 @@ export default function AudioPlayer({
                     key={i}
                     className="w-1 md:w-1.5 rounded-full flex-shrink-0 origin-center"
                     style={{
-                      height: 20,
+                      height: 26,
                       background: "linear-gradient(180deg, rgba(255,200,140,0.95) 0%, rgba(230,115,26,0.85) 35%, rgba(219,114,67,0.7) 100%)",
-                      boxShadow: "0 0 8px rgba(230,115,26,0.5)",
+                      boxShadow: "0 0 12px rgba(230,115,26,0.5)",
                       scaleY: level,
                     }}
                     transition={{ type: "spring", stiffness: 100, damping: 14, mass: 0.4 }}
@@ -564,13 +565,14 @@ export default function AudioPlayer({
               className="news-content relative rounded-[16px] md:rounded-[20px] overflow-hidden"
               style={{
                 padding: 0,
-                marginBottom: 48,
+                marginBottom: 60,
                 opacity: 0.75,
                 background: "rgba(240, 240, 240, 0.4)",
                 boxShadow: [
                   "0 0 0 1px rgba(0, 0, 0, 0.05)",
-                  "0 0 40px 10px rgba(0, 0, 0, 0.16)",
-                  "0 0 70px 18px rgba(0, 0, 0, 0.1)",
+                  "0 0 50px 12px rgba(0, 0, 0, 0.18)",
+                  "0 0 85px 20px rgba(0, 0, 0, 0.12)",
+                  "0 0 120px 28px rgba(0, 0, 0, 0.08)",
                 ].join(", "),
               }}
             >
@@ -584,7 +586,7 @@ export default function AudioPlayer({
                   className="relative flex flex-col md:flex-row items-stretch min-w-0"
                   style={{ background: "transparent" }}
                 >
-                  <div className="relative w-full md:w-[42%] md:min-w-[160px] flex-shrink-0 overflow-hidden md:rounded-l-[16px]">
+                  <div className="relative w-full md:w-[42%] md:min-w-[160px] flex-shrink-0 overflow-hidden md:rounded-l-[20px]">
                     <img
                       src={sectionImageUrl}
                       alt=""
@@ -592,7 +594,7 @@ export default function AudioPlayer({
                     />
                   </div>
                   <div className="flex-1 min-w-0 flex flex-col justify-center px-4 py-3 md:px-6 md:py-5">
-                    <p className="text-slate-800 text-xs md:text-[13px] font-semibold leading-tight drop-shadow-sm line-clamp-2" style={{ textShadow: "0 0 12px rgba(255,255,255,0.8)" }}>
+                    <p className="text-slate-800 text-xs md:text-[13px] font-semibold leading-tight drop-shadow-sm line-clamp-2 md:line-clamp-none" style={{ textShadow: "0 0 12px rgba(255,255,255,0.8)" }}>
                       {currentSectionStory.title || currentSectionStory.what_happened || "This section"}
                     </p>
                     {sectionSummary && (
@@ -628,15 +630,44 @@ export default function AudioPlayer({
           </div>
         </div>
 
-        {/* MOBILE-FIRST CONTROLS: Single Play Button + Expandable Menu */}
-        <div className="flex flex-col items-center gap-4 md:gap-6">
-          {/* Primary Play Button (always visible) */}
+        {/* DESKTOP CONTROLS: Original horizontal row (hidden on mobile) */}
+        <div className="hidden md:flex items-center justify-center gap-4">
+          <motion.button
+            whileHover={{ scale: 1.12 }}
+            whileTap={{ scale: 0.94 }}
+            onClick={toggleMute}
+            className="w-14 h-14 rounded-full flex items-center justify-center"
+            style={{
+              background: "rgba(255, 255, 255, 0.6)",
+              backdropFilter: "blur(10px)",
+              border: "0.5px solid rgba(255, 255, 255, 0.8)",
+              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
+            }}
+          >
+            {isMuted ? <VolumeX className="h-5 w-5 text-slate-600" /> : <Volume2 className="h-5 w-5 text-slate-600" />}
+          </motion.button>
+
+          <motion.button
+            whileHover={{ scale: 1.12 }}
+            whileTap={{ scale: 0.94 }}
+            onClick={() => skip(-15)}
+            className="w-14 h-14 rounded-full flex items-center justify-center"
+            style={{
+              background: "rgba(255, 255, 255, 0.6)",
+              backdropFilter: "blur(10px)",
+              border: "0.5px solid rgba(255, 255, 255, 0.8)",
+              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
+            }}
+          >
+            <RotateCcw className="h-5 w-5 text-slate-600" />
+          </motion.button>
+
           <motion.button
             whileHover={{ scale: 1.06 }}
             whileTap={{ scale: 0.96 }}
             onClick={togglePlay}
             disabled={!audioUrl}
-            className="w-20 h-20 md:w-24 md:h-24 rounded-full flex items-center justify-center disabled:opacity-50"
+            className="w-24 h-24 rounded-full flex items-center justify-center disabled:opacity-50"
             style={{
               background: "linear-gradient(135deg, rgba(230, 115, 26, 0.95) 0%, rgba(219, 114, 67, 1) 100%)",
               border: "1px solid rgba(255, 255, 255, 0.5)",
@@ -650,35 +681,128 @@ export default function AudioPlayer({
           >
             <AnimatePresence mode="wait">
               {isPlaying ? (
-                <motion.div
-                  key="pause"
-                  initial={{ scale: 0, rotate: -90 }}
-                  animate={{ scale: 1, rotate: 0 }}
-                  exit={{ scale: 0, rotate: 90 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <Pause className="h-8 w-8 md:h-9 md:w-9 text-white" fill="currentColor" />
+                <motion.div key="pause-d" initial={{ scale: 0, rotate: -90 }} animate={{ scale: 1, rotate: 0 }} exit={{ scale: 0, rotate: 90 }} transition={{ duration: 0.2 }}>
+                  <Pause className="h-9 w-9 text-white" fill="currentColor" />
                 </motion.div>
               ) : (
-                <motion.div
-                  key="play"
-                  initial={{ scale: 0, rotate: 90 }}
-                  animate={{ scale: 1, rotate: 0 }}
-                  exit={{ scale: 0, rotate: -90 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <Play className="h-8 w-8 md:h-9 md:w-9 text-white ml-0.5 md:ml-1" fill="currentColor" />
+                <motion.div key="play-d" initial={{ scale: 0, rotate: 90 }} animate={{ scale: 1, rotate: 0 }} exit={{ scale: 0, rotate: -90 }} transition={{ duration: 0.2 }}>
+                  <Play className="h-9 w-9 text-white ml-1" fill="currentColor" />
                 </motion.div>
               )}
             </AnimatePresence>
           </motion.button>
 
-          {/* Expandable Controls Menu Button */}
+          <motion.button
+            whileHover={{ scale: 1.12 }}
+            whileTap={{ scale: 0.94 }}
+            onClick={() => skip(30)}
+            className="w-14 h-14 rounded-full flex items-center justify-center"
+            style={{
+              background: "rgba(255, 255, 255, 0.6)",
+              backdropFilter: "blur(10px)",
+              border: "0.5px solid rgba(255, 255, 255, 0.8)",
+              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
+            }}
+          >
+            <FastForward className="h-5 w-5 text-slate-600" />
+          </motion.button>
+
+          <div className="relative">
+            <motion.button
+              whileHover={{ scale: 1.12 }}
+              whileTap={{ scale: 0.94 }}
+              onClick={() => setShowSpeedMenu(!showSpeedMenu)}
+              className="w-14 h-14 rounded-full flex items-center justify-center relative"
+              style={{
+                background: "rgba(255, 255, 255, 0.6)",
+                backdropFilter: "blur(10px)",
+                border: "0.5px solid rgba(255, 255, 255, 0.8)",
+                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
+              }}
+            >
+              <Gauge className="h-5 w-5 text-slate-600" />
+              <span className="absolute -bottom-0 text-[10px] font-semibold text-slate-700">
+                {playbackRate}x
+              </span>
+            </motion.button>
+
+            <AnimatePresence>
+              {showSpeedMenu && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute bottom-full mb-2 right-0 rounded-2xl overflow-hidden"
+                  style={{
+                    background: "rgba(255, 255, 255, 0.95)",
+                    backdropFilter: "blur(20px)",
+                    border: "0.5px solid rgba(255, 255, 255, 0.8)",
+                    boxShadow: "0 8px 24px rgba(0, 0, 0, 0.12), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
+                  }}
+                >
+                  <div className="p-2 flex flex-col gap-1">
+                    {speedOptions.map((speed) => (
+                      <motion.button
+                        key={speed}
+                        whileHover={{ scale: 1.05, x: 2 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => changeSpeed(speed)}
+                        className="px-4 py-2 rounded-xl text-sm font-medium text-left transition-colors"
+                        style={{
+                          background: playbackRate === speed 
+                            ? "linear-gradient(135deg, rgba(230, 115, 26, 0.2) 0%, rgba(219, 114, 67, 0.2) 100%)"
+                            : "transparent",
+                          color: playbackRate === speed ? "rgb(219, 114, 67)" : "rgb(71, 85, 105)",
+                        }}
+                      >
+                        {speed}x
+                      </motion.button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+
+        {/* MOBILE CONTROLS: Single Play Button + Expandable Menu (hidden on desktop) */}
+        <div className="flex flex-col items-center gap-4 md:hidden">
+          <motion.button
+            whileHover={{ scale: 1.06 }}
+            whileTap={{ scale: 0.96 }}
+            onClick={togglePlay}
+            disabled={!audioUrl}
+            className="w-20 h-20 rounded-full flex items-center justify-center disabled:opacity-50"
+            style={{
+              background: "linear-gradient(135deg, rgba(230, 115, 26, 0.95) 0%, rgba(219, 114, 67, 1) 100%)",
+              border: "1px solid rgba(255, 255, 255, 0.5)",
+              boxShadow: `
+                0 12px 32px rgba(230, 115, 26, 0.4),
+                0 4px 12px rgba(230, 115, 26, 0.25),
+                inset 0 2px 2px rgba(255, 255, 255, 0.4),
+                inset 0 -2px 3px rgba(0, 0, 0, 0.15)
+              `,
+            }}
+          >
+            <AnimatePresence mode="wait">
+              {isPlaying ? (
+                <motion.div key="pause-m" initial={{ scale: 0, rotate: -90 }} animate={{ scale: 1, rotate: 0 }} exit={{ scale: 0, rotate: 90 }} transition={{ duration: 0.2 }}>
+                  <Pause className="h-8 w-8 text-white" fill="currentColor" />
+                </motion.div>
+              ) : (
+                <motion.div key="play-m" initial={{ scale: 0, rotate: 90 }} animate={{ scale: 1, rotate: 0 }} exit={{ scale: 0, rotate: -90 }} transition={{ duration: 0.2 }}>
+                  <Play className="h-8 w-8 text-white ml-0.5" fill="currentColor" />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.button>
+
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setShowControls(!showControls)}
-            className="flex items-center gap-2 px-4 py-2 rounded-full text-xs md:text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-medium text-slate-600 hover:text-slate-800 transition-colors"
             style={{
               background: "rgba(255, 255, 255, 0.6)",
               backdropFilter: "blur(10px)",
@@ -688,15 +812,11 @@ export default function AudioPlayer({
           >
             <Settings2 className="h-4 w-4" />
             <span>Controls</span>
-            <motion.div
-              animate={{ rotate: showControls ? 180 : 0 }}
-              transition={{ duration: 0.2 }}
-            >
+            <motion.div animate={{ rotate: showControls ? 180 : 0 }} transition={{ duration: 0.2 }}>
               <ChevronDown className="h-3 w-3" />
             </motion.div>
           </motion.button>
 
-          {/* Collapsible Controls */}
           <AnimatePresence>
             {showControls && (
               <motion.div
@@ -704,70 +824,36 @@ export default function AudioPlayer({
                 animate={{ opacity: 1, height: "auto", y: 0 }}
                 exit={{ opacity: 0, height: 0, y: -10 }}
                 transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
-                className="flex items-center justify-center gap-3 md:gap-4 flex-wrap"
+                className="flex items-center justify-center gap-3 flex-wrap"
               >
-                <motion.button
-                  whileHover={{ scale: 1.12 }}
-                  whileTap={{ scale: 0.94 }}
-                  onClick={toggleMute}
-                  className="w-12 h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center"
-                  style={{
-                    background: "rgba(255, 255, 255, 0.6)",
-                    backdropFilter: "blur(10px)",
-                    border: "0.5px solid rgba(255, 255, 255, 0.8)",
-                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
-                  }}
+                <motion.button whileHover={{ scale: 1.12 }} whileTap={{ scale: 0.94 }} onClick={toggleMute}
+                  className="w-12 h-12 rounded-full flex items-center justify-center"
+                  style={{ background: "rgba(255, 255, 255, 0.6)", backdropFilter: "blur(10px)", border: "0.5px solid rgba(255, 255, 255, 0.8)", boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)" }}
                 >
-                  {isMuted ? <VolumeX className="h-4 w-4 md:h-5 md:w-5 text-slate-600" /> : <Volume2 className="h-4 w-4 md:h-5 md:w-5 text-slate-600" />}
+                  {isMuted ? <VolumeX className="h-4 w-4 text-slate-600" /> : <Volume2 className="h-4 w-4 text-slate-600" />}
                 </motion.button>
 
-                <motion.button
-                  whileHover={{ scale: 1.12 }}
-                  whileTap={{ scale: 0.94 }}
-                  onClick={() => skip(-15)}
-                  className="w-12 h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center"
-                  style={{
-                    background: "rgba(255, 255, 255, 0.6)",
-                    backdropFilter: "blur(10px)",
-                    border: "0.5px solid rgba(255, 255, 255, 0.8)",
-                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
-                  }}
+                <motion.button whileHover={{ scale: 1.12 }} whileTap={{ scale: 0.94 }} onClick={() => skip(-15)}
+                  className="w-12 h-12 rounded-full flex items-center justify-center"
+                  style={{ background: "rgba(255, 255, 255, 0.6)", backdropFilter: "blur(10px)", border: "0.5px solid rgba(255, 255, 255, 0.8)", boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)" }}
                 >
-                  <RotateCcw className="h-4 w-4 md:h-5 md:w-5 text-slate-600" />
+                  <RotateCcw className="h-4 w-4 text-slate-600" />
                 </motion.button>
 
-                <motion.button
-                  whileHover={{ scale: 1.12 }}
-                  whileTap={{ scale: 0.94 }}
-                  onClick={() => skip(30)}
-                  className="w-12 h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center"
-                  style={{
-                    background: "rgba(255, 255, 255, 0.6)",
-                    backdropFilter: "blur(10px)",
-                    border: "0.5px solid rgba(255, 255, 255, 0.8)",
-                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
-                  }}
+                <motion.button whileHover={{ scale: 1.12 }} whileTap={{ scale: 0.94 }} onClick={() => skip(30)}
+                  className="w-12 h-12 rounded-full flex items-center justify-center"
+                  style={{ background: "rgba(255, 255, 255, 0.6)", backdropFilter: "blur(10px)", border: "0.5px solid rgba(255, 255, 255, 0.8)", boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)" }}
                 >
-                  <FastForward className="h-4 w-4 md:h-5 md:w-5 text-slate-600" />
+                  <FastForward className="h-4 w-4 text-slate-600" />
                 </motion.button>
 
                 <div className="relative">
-                  <motion.button
-                    whileHover={{ scale: 1.12 }}
-                    whileTap={{ scale: 0.94 }}
-                    onClick={() => setShowSpeedMenu(!showSpeedMenu)}
-                    className="w-12 h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center relative"
-                    style={{
-                      background: "rgba(255, 255, 255, 0.6)",
-                      backdropFilter: "blur(10px)",
-                      border: "0.5px solid rgba(255, 255, 255, 0.8)",
-                      boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
-                    }}
+                  <motion.button whileHover={{ scale: 1.12 }} whileTap={{ scale: 0.94 }} onClick={() => setShowSpeedMenu(!showSpeedMenu)}
+                    className="w-12 h-12 rounded-full flex items-center justify-center relative"
+                    style={{ background: "rgba(255, 255, 255, 0.6)", backdropFilter: "blur(10px)", border: "0.5px solid rgba(255, 255, 255, 0.8)", boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)" }}
                   >
-                    <Gauge className="h-4 w-4 md:h-5 md:w-5 text-slate-600" />
-                    <span className="absolute -bottom-0 text-[9px] md:text-[10px] font-semibold text-slate-700">
-                      {playbackRate}x
-                    </span>
+                    <Gauge className="h-4 w-4 text-slate-600" />
+                    <span className="absolute -bottom-0 text-[9px] font-semibold text-slate-700">{playbackRate}x</span>
                   </motion.button>
 
                   <AnimatePresence>
@@ -777,28 +863,14 @@ export default function AudioPlayer({
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 10, scale: 0.95 }}
                         transition={{ duration: 0.15 }}
-                        className="absolute bottom-full mb-2 right-0 rounded-xl md:rounded-2xl overflow-hidden"
-                        style={{
-                          background: "rgba(255, 255, 255, 0.95)",
-                          backdropFilter: "blur(20px)",
-                          border: "0.5px solid rgba(255, 255, 255, 0.8)",
-                          boxShadow: "0 8px 24px rgba(0, 0, 0, 0.12), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
-                        }}
+                        className="absolute bottom-full mb-2 right-0 rounded-xl overflow-hidden"
+                        style={{ background: "rgba(255, 255, 255, 0.95)", backdropFilter: "blur(20px)", border: "0.5px solid rgba(255, 255, 255, 0.8)", boxShadow: "0 8px 24px rgba(0, 0, 0, 0.12), inset 0 1px 1px rgba(255, 255, 255, 0.9)" }}
                       >
-                        <div className="p-1.5 md:p-2 flex flex-col gap-0.5 md:gap-1">
+                        <div className="p-1.5 flex flex-col gap-0.5">
                           {speedOptions.map((speed) => (
-                            <motion.button
-                              key={speed}
-                              whileHover={{ scale: 1.05, x: 2 }}
-                              whileTap={{ scale: 0.98 }}
-                              onClick={() => changeSpeed(speed)}
-                              className="px-3 md:px-4 py-1.5 md:py-2 rounded-lg md:rounded-xl text-xs md:text-sm font-medium text-left transition-colors"
-                              style={{
-                                background: playbackRate === speed 
-                                  ? "linear-gradient(135deg, rgba(230, 115, 26, 0.2) 0%, rgba(219, 114, 67, 0.2) 100%)"
-                                  : "transparent",
-                                color: playbackRate === speed ? "rgb(219, 114, 67)" : "rgb(71, 85, 105)",
-                              }}
+                            <motion.button key={speed} whileHover={{ scale: 1.05, x: 2 }} whileTap={{ scale: 0.98 }} onClick={() => changeSpeed(speed)}
+                              className="px-3 py-1.5 rounded-lg text-xs font-medium text-left transition-colors"
+                              style={{ background: playbackRate === speed ? "linear-gradient(135deg, rgba(230, 115, 26, 0.2) 0%, rgba(219, 114, 67, 0.2) 100%)" : "transparent", color: playbackRate === speed ? "rgb(219, 114, 67)" : "rgb(71, 85, 105)" }}
                             >
                               {speed}x
                             </motion.button>
