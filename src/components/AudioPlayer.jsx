@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence, useMotionValue, useSpring } from "framer-motion";
-import { Play, Pause, RotateCcw, FastForward, Volume2, VolumeX, Gauge, Clock, Loader2, FileText, X, Settings2 } from "lucide-react";
+import { Play, Pause, RotateCcw, FastForward, Volume2, VolumeX, Gauge, Clock, Loader2, FileText, X, Settings2, ChevronDown } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { GlassFilter } from "@/components/ui/liquid-glass-button";
 
