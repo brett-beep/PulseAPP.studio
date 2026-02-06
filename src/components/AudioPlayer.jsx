@@ -332,7 +332,7 @@ export default function AudioPlayer({
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
       onPointerMove={onPointerMove}
-      className="relative overflow-hidden rounded-[32px] md:rounded-[40px] p-5 md:p-10"
+      className="relative overflow-visible md:overflow-hidden rounded-[32px] md:rounded-[40px] p-5 md:p-10"
       style={{
         background: "linear-gradient(145deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.55) 100%)",
         backdropFilter: "blur(60px) saturate(1.5) url(#container-glass)",
@@ -817,8 +817,8 @@ export default function AudioPlayer({
               exit={{ opacity: 0, y: -10 }}
               className="flex flex-col items-center mt-6 md:mt-8 gap-2"
             >
-              {/* Mobile: Generate centered under play; controls button bottom-right; expansion goes up */}
-              <div className="w-full md:hidden flex flex-col-reverse items-end">
+              {/* Mobile: fixed row so Generate button never moves; controls open as overlay (see below) */}
+              <div className="w-full md:hidden relative">
                 <div className="relative w-full flex justify-end items-center min-h-[44px]">
                   <motion.button
                     whileHover={canGenerateNew ? { scale: 1.06 } : {}}
@@ -852,70 +852,6 @@ export default function AudioPlayer({
                     <Settings2 className="h-5 w-5 text-slate-600" />
                   </motion.button>
                 </div>
-                <AnimatePresence>
-                  {showControls && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
-                      className="overflow-hidden flex flex-col items-end mb-2"
-                    >
-                      <div className="flex flex-col items-end gap-2 pb-2">
-                        <motion.button whileHover={{ scale: 1.12 }} whileTap={{ scale: 0.94 }} onClick={toggleMute}
-                          className="w-12 h-12 rounded-full flex items-center justify-center"
-                          style={{ background: "rgba(255, 255, 255, 0.6)", backdropFilter: "blur(10px)", border: "0.5px solid rgba(255, 255, 255, 0.8)", boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)" }}
-                        >
-                          {isMuted ? <VolumeX className="h-4 w-4 text-slate-600" /> : <Volume2 className="h-4 w-4 text-slate-600" />}
-                        </motion.button>
-                        <motion.button whileHover={{ scale: 1.12 }} whileTap={{ scale: 0.94 }} onClick={() => skip(-15)}
-                          className="w-12 h-12 rounded-full flex items-center justify-center"
-                          style={{ background: "rgba(255, 255, 255, 0.6)", backdropFilter: "blur(10px)", border: "0.5px solid rgba(255, 255, 255, 0.8)", boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)" }}
-                        >
-                          <RotateCcw className="h-4 w-4 text-slate-600" />
-                        </motion.button>
-                        <motion.button whileHover={{ scale: 1.12 }} whileTap={{ scale: 0.94 }} onClick={() => skip(30)}
-                          className="w-12 h-12 rounded-full flex items-center justify-center"
-                          style={{ background: "rgba(255, 255, 255, 0.6)", backdropFilter: "blur(10px)", border: "0.5px solid rgba(255, 255, 255, 0.8)", boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)" }}
-                        >
-                          <FastForward className="h-4 w-4 text-slate-600" />
-                        </motion.button>
-                        <div className="relative">
-                          <motion.button whileHover={{ scale: 1.12 }} whileTap={{ scale: 0.94 }} onClick={() => setShowSpeedMenu(!showSpeedMenu)}
-                            className="w-12 h-12 rounded-full flex items-center justify-center relative"
-                            style={{ background: "rgba(255, 255, 255, 0.6)", backdropFilter: "blur(10px)", border: "0.5px solid rgba(255, 255, 255, 0.8)", boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)" }}
-                          >
-                            <Gauge className="h-4 w-4 text-slate-600" />
-                            <span className="absolute -bottom-0 text-[9px] font-semibold text-slate-700">{playbackRate}x</span>
-                          </motion.button>
-                          <AnimatePresence>
-                            {showSpeedMenu && (
-                              <motion.div
-                                initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                                animate={{ opacity: 1, y: 0, scale: 1 }}
-                                exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                                transition={{ duration: 0.15 }}
-                                className="absolute bottom-full mb-2 right-0 rounded-xl overflow-hidden"
-                                style={{ background: "rgba(255, 255, 255, 0.95)", backdropFilter: "blur(20px)", border: "0.5px solid rgba(255, 255, 255, 0.8)", boxShadow: "0 8px 24px rgba(0, 0, 0, 0.12), inset 0 1px 1px rgba(255, 255, 255, 0.9)" }}
-                              >
-                                <div className="p-1.5 flex flex-col gap-0.5">
-                                  {speedOptions.map((speed) => (
-                                    <motion.button key={speed} whileHover={{ scale: 1.05, x: 2 }} whileTap={{ scale: 0.98 }} onClick={() => changeSpeed(speed)}
-                                      className="px-3 py-1.5 rounded-lg text-xs font-medium text-left transition-colors"
-                                      style={{ background: playbackRate === speed ? "linear-gradient(135deg, rgba(230, 115, 26, 0.2) 0%, rgba(219, 114, 67, 0.2) 100%)" : "transparent", color: playbackRate === speed ? "rgb(219, 114, 67)" : "rgb(71, 85, 105)" }}
-                                    >
-                                      {speed}x
-                                    </motion.button>
-                                  ))}
-                                </div>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </div>
 
               {/* Desktop: Generate button only */}
@@ -962,6 +898,84 @@ export default function AudioPlayer({
                 </motion.div>
               )}
             </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Mobile: overlay mask + controls panel when expanded (on top of player, tap outside to close) */}
+        <AnimatePresence>
+          {showControls && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="absolute inset-0 z-20 rounded-[32px] md:rounded-[40px] md:hidden"
+                style={{ background: "rgba(0,0,0,0.25)" }}
+                onClick={() => setShowControls(false)}
+                aria-hidden="true"
+              />
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 8 }}
+                transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
+                className="absolute right-0 z-30 md:hidden flex flex-col items-end gap-2"
+                style={{ bottom: "3.5rem" }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <motion.button whileHover={{ scale: 1.12 }} whileTap={{ scale: 0.94 }} onClick={toggleMute}
+                  className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
+                  style={{ background: "rgba(255, 255, 255, 0.95)", backdropFilter: "blur(10px)", border: "0.5px solid rgba(255, 255, 255, 0.8)", boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)" }}
+                >
+                  {isMuted ? <VolumeX className="h-4 w-4 text-slate-600" /> : <Volume2 className="h-4 w-4 text-slate-600" />}
+                </motion.button>
+                <motion.button whileHover={{ scale: 1.12 }} whileTap={{ scale: 0.94 }} onClick={() => skip(-15)}
+                  className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
+                  style={{ background: "rgba(255, 255, 255, 0.95)", backdropFilter: "blur(10px)", border: "0.5px solid rgba(255, 255, 255, 0.8)", boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)" }}
+                >
+                  <RotateCcw className="h-4 w-4 text-slate-600" />
+                </motion.button>
+                <motion.button whileHover={{ scale: 1.12 }} whileTap={{ scale: 0.94 }} onClick={() => skip(30)}
+                  className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
+                  style={{ background: "rgba(255, 255, 255, 0.95)", backdropFilter: "blur(10px)", border: "0.5px solid rgba(255, 255, 255, 0.8)", boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)" }}
+                >
+                  <FastForward className="h-4 w-4 text-slate-600" />
+                </motion.button>
+                <div className="relative">
+                  <motion.button whileHover={{ scale: 1.12 }} whileTap={{ scale: 0.94 }} onClick={() => setShowSpeedMenu(!showSpeedMenu)}
+                    className="w-12 h-12 rounded-full flex items-center justify-center relative shrink-0"
+                    style={{ background: "rgba(255, 255, 255, 0.95)", backdropFilter: "blur(10px)", border: "0.5px solid rgba(255, 255, 255, 0.8)", boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)" }}
+                  >
+                    <Gauge className="h-4 w-4 text-slate-600" />
+                    <span className="absolute -bottom-0 text-[9px] font-semibold text-slate-700">{playbackRate}x</span>
+                  </motion.button>
+                  <AnimatePresence>
+                    {showSpeedMenu && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute bottom-full mb-2 right-0 rounded-xl overflow-hidden z-40"
+                        style={{ background: "rgba(255, 255, 255, 0.98)", backdropFilter: "blur(20px)", border: "0.5px solid rgba(255, 255, 255, 0.8)", boxShadow: "0 8px 24px rgba(0, 0, 0, 0.12), inset 0 1px 1px rgba(255, 255, 255, 0.9)" }}
+                      >
+                        <div className="p-1.5 flex flex-col gap-0.5">
+                          {speedOptions.map((speed) => (
+                            <motion.button key={speed} whileHover={{ scale: 1.05, x: 2 }} whileTap={{ scale: 0.98 }} onClick={() => changeSpeed(speed)}
+                              className="px-3 py-1.5 rounded-lg text-xs font-medium text-left transition-colors"
+                              style={{ background: playbackRate === speed ? "linear-gradient(135deg, rgba(230, 115, 26, 0.2) 0%, rgba(219, 114, 67, 0.2) 100%)" : "transparent", color: playbackRate === speed ? "rgb(219, 114, 67)" : "rgb(71, 85, 105)" }}
+                            >
+                              {speed}x
+                            </motion.button>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </motion.div>
+            </>
           )}
         </AnimatePresence>
       </div>
