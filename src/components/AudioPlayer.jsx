@@ -905,13 +905,16 @@ export default function AudioPlayer({
         {/* Mobile: overlay mask + controls panel when expanded (on top of player, tap outside to close) */}
         <AnimatePresence>
           {showControls && (
-            <>
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="absolute inset-0 z-20 rounded-[32px] md:rounded-[40px] md:hidden"
+            <motion.div
+              key="mobile-controls-overlay"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="absolute inset-0 z-20 pointer-events-none rounded-[32px] md:rounded-[40px] md:hidden"
+            >
+              <div
+                className="absolute inset-0 rounded-[32px] md:rounded-[40px] pointer-events-auto"
                 style={{ background: "transparent" }}
                 onClick={() => setShowControls(false)}
                 aria-hidden="true"
@@ -919,9 +922,8 @@ export default function AudioPlayer({
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 8 }}
                 transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
-                className="absolute right-0 z-30 md:hidden flex flex-col items-end gap-2"
+                className="absolute right-0 z-30 pointer-events-auto flex flex-col items-end gap-2"
                 style={{ bottom: "3.5rem" }}
                 onClick={(e) => e.stopPropagation()}
               >
@@ -976,7 +978,7 @@ export default function AudioPlayer({
                   </AnimatePresence>
                 </div>
               </motion.div>
-            </>
+            </motion.div>
           )}
         </AnimatePresence>
       </div>
