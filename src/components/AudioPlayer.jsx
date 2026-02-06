@@ -827,6 +827,7 @@ export default function AudioPlayer({
                     disabled={isButtonDisabled}
                     className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 px-5 py-2.5 rounded-full text-xs font-semibold ${isButtonDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                     style={{
+                      transformOrigin: "center center",
                       background: isButtonDisabled
                         ? "linear-gradient(135deg, rgba(180, 180, 180, 0.6) 0%, rgba(150, 150, 150, 0.7) 100%)"
                         : "linear-gradient(135deg, rgba(230, 115, 26, 0.95) 0%, rgba(219, 114, 67, 1) 100%)",
