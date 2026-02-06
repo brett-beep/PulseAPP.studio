@@ -971,10 +971,10 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
           transition={{ delay: 0.3 }}
           className="space-y-6"
         >
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-0">
+          <div className="flex items-center justify-between flex-wrap gap-y-1">
             <h2 className="text-lg md:text-xl font-semibold text-slate-900 shrink-0">News for You</h2>
-            <div className="flex flex-col items-end gap-0.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4 sm:min-w-0">
-              <div className="flex items-center gap-2 sm:gap-4">
+            <div className="flex flex-col items-end gap-0.5">
+              <div className="flex items-center gap-2 md:gap-4">
                 <button
                   onClick={refreshNewsCards}
                   disabled={isLoadingNews}

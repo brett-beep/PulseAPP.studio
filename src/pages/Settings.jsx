@@ -126,7 +126,7 @@ export default function Settings() {
         <div className="min-h-screen" style={{ backgroundColor: 'hsl(45, 40%, 95%)' }}>
             {/* Header */}
             <header className="border-b border-slate-100 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-                <div className="max-w-2xl mx-auto px-6 py-4 flex items-center justify-between">
+                <div className="max-w-2xl mx-auto px-4 md:px-6 py-4 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-4">
                         <Link to={createPageUrl('Home')}>
                             <Button variant="ghost" size="icon" className="text-slate-400 hover:text-slate-600">
@@ -146,7 +146,7 @@ export default function Settings() {
                 </div>
             </header>
 
-            <main className="max-w-2xl mx-auto px-6 py-12 space-y-12">
+            <main className="max-w-2xl mx-auto px-4 md:px-6 py-8 md:py-12 space-y-10 md:space-y-12">
                 {/* Display Name */}
                 <motion.section
                     initial={{ opacity: 0, y: 20 }}
@@ -311,26 +311,26 @@ export default function Settings() {
 
                 <Separator />
 
-                {/* Briefing Preferences */}
+                {/* Briefing Preferences - mobile: more padding, stacked options to avoid squeeze */}
                 <motion.section
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.5 }}
                 >
-                    <div className="flex items-center gap-3 mb-6">
-                        <div className="w-10 h-10 bg-cyan-50 rounded-xl flex items-center justify-center">
+                    <div className="flex items-start gap-3 mb-6">
+                        <div className="w-10 h-10 bg-cyan-50 rounded-xl flex items-center justify-center shrink-0">
                             <Mic className="h-5 w-5 text-cyan-500" />
                         </div>
-                        <div>
-                            <h2 className="font-semibold text-slate-900">Briefing Preferences</h2>
-                            <p className="text-sm text-slate-500">Customize your audio experience</p>
+                        <div className="min-w-0 flex-1">
+                            <h2 className="font-semibold text-slate-900 text-base md:text-lg break-words">Briefing Preferences</h2>
+                            <p className="text-sm text-slate-500 mt-0.5">Customize your audio experience</p>
                         </div>
                     </div>
 
                     <div className="space-y-6">
                         <div>
                             <Label className="text-slate-700 mb-3 block">Briefing Length</Label>
-                            <div className="grid grid-cols-3 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
                                 {[
                                     { value: 'short', label: '~5 min' },
                                     { value: 'medium', label: '~8 min' },
@@ -339,14 +339,14 @@ export default function Settings() {
                                     <button
                                         key={opt.value}
                                         onClick={() => setEditedPrefs(prev => ({ ...prev, briefing_length: opt.value }))}
-                                        className={`p-3 rounded-xl border-2 transition-all ${
+                                        className={`p-3 rounded-xl border-2 transition-all flex items-center justify-center gap-2 ${
                                             editedPrefs.briefing_length === opt.value
                                                 ? 'border-amber-500 bg-amber-50'
                                                 : 'border-slate-200 hover:border-slate-300'
                                         }`}
                                     >
-                                        <Clock className="h-4 w-4 mx-auto mb-1 text-slate-400" />
-                                        <span className="font-medium text-slate-900">{opt.label}</span>
+                                        <Clock className="h-4 w-4 text-slate-400 shrink-0" />
+                                        <span className="font-medium text-slate-900 text-sm sm:text-base">{opt.label}</span>
                                     </button>
                                 ))}
                             </div>
@@ -354,7 +354,7 @@ export default function Settings() {
 
                         <div>
                             <Label className="text-slate-700 mb-3 block">Voice Style</Label>
-                            <div className="grid grid-cols-3 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
                                 {[
                                     { value: 'professional', label: 'Professional' },
                                     { value: 'conversational', label: 'Conversational' },
@@ -369,7 +369,7 @@ export default function Settings() {
                                                 : 'border-slate-200 hover:border-slate-300'
                                         }`}
                                     >
-                                        <span className="font-medium text-slate-900">{opt.label}</span>
+                                        <span className="font-medium text-slate-900 text-sm sm:text-base block text-center">{opt.label}</span>
                                     </button>
                                 ))}
                             </div>

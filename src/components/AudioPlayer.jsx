@@ -817,15 +817,15 @@ export default function AudioPlayer({
               exit={{ opacity: 0, y: -10 }}
               className="flex flex-col items-center mt-6 md:mt-8 gap-2"
             >
-              {/* Mobile: Generate + circular controls button; controls expand upward */}
-              <div className="w-full md:hidden flex flex-col-reverse items-center">
-                <div className="flex items-center justify-center gap-3">
+              {/* Mobile: Generate centered under play; controls button bottom-right; expansion goes up */}
+              <div className="w-full md:hidden flex flex-col-reverse items-end">
+                <div className="relative w-full flex justify-end items-center min-h-[44px]">
                   <motion.button
                     whileHover={canGenerateNew ? { scale: 1.06 } : {}}
                     whileTap={canGenerateNew ? { scale: 0.96 } : {}}
                     onClick={canGenerateNew ? onGenerate : undefined}
                     disabled={isButtonDisabled}
-                    className={`px-5 py-2.5 rounded-full text-xs font-semibold ${isButtonDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                    className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 px-5 py-2.5 rounded-full text-xs font-semibold ${isButtonDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                     style={{
                       background: isButtonDisabled
                         ? "linear-gradient(135deg, rgba(180, 180, 180, 0.6) 0%, rgba(150, 150, 150, 0.7) 100%)"
@@ -841,7 +841,7 @@ export default function AudioPlayer({
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => setShowControls(!showControls)}
-                    className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
+                    className="relative z-10 w-12 h-12 rounded-full flex items-center justify-center shrink-0"
                     style={{
                       background: "rgba(255, 255, 255, 0.6)",
                       backdropFilter: "blur(10px)",
@@ -859,9 +859,9 @@ export default function AudioPlayer({
                       animate={{ opacity: 1, height: "auto" }}
                       exit={{ opacity: 0, height: 0 }}
                       transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
-                      className="overflow-hidden flex justify-center mb-2"
+                      className="overflow-hidden flex flex-col items-end mb-2"
                     >
-                      <div className="flex items-center justify-center gap-3 flex-wrap pb-2">
+                      <div className="flex flex-col items-end gap-2 pb-2">
                         <motion.button whileHover={{ scale: 1.12 }} whileTap={{ scale: 0.94 }} onClick={toggleMute}
                           className="w-12 h-12 rounded-full flex items-center justify-center"
                           style={{ background: "rgba(255, 255, 255, 0.6)", backdropFilter: "blur(10px)", border: "0.5px solid rgba(255, 255, 255, 0.8)", boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)" }}
