@@ -128,7 +128,7 @@ function MarketSection({ marketSectionOpen, setMarketSectionOpen, setLastExpande
             setMarketSectionOpen((o) => !o);
             setLastExpandedSection("market");
           }}
-          className="w-full text-left p-6 flex flex-col gap-4 hover:opacity-90 transition-opacity"
+          className="w-full text-left p-4 md:p-6 flex flex-col gap-3 md:gap-4 hover:opacity-90 transition-opacity"
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 flex-shrink-0">
@@ -174,7 +174,7 @@ function MarketSection({ marketSectionOpen, setMarketSectionOpen, setLastExpande
             initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.22, ease: SMOOTH_EASE }}
-            className="px-6 pb-6 pt-4"
+            className="px-4 md:px-6 pb-4 md:pb-6 pt-3 md:pt-4"
           >
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
               {marketStories.map((story, index) => (
@@ -208,26 +208,26 @@ function PortfolioSection({ portfolioSectionOpen, setPortfolioSectionOpen, setLa
             setPortfolioSectionOpen((o) => !o);
             setLastExpandedSection("portfolio");
           }}
-          className="w-full text-left p-6 flex flex-col gap-4 hover:opacity-90 transition-opacity"
+          className="w-full text-left p-4 md:p-6 flex flex-col gap-3 md:gap-4 hover:opacity-90 transition-opacity"
         >
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3 flex-shrink-0">
-              <div className="w-10 h-10 rounded-2xl flex items-center justify-center shadow-sm flex-shrink-0" style={{ background: "linear-gradient(135deg, rgba(253, 230, 138, 0.6) 0%, rgba(251, 191, 36, 0.45) 100%)", boxShadow: "0 0 24px -4px rgba(251, 191, 36, 0.28)" }}>
-                <svg className="w-5 h-5 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
+              <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl md:rounded-2xl flex items-center justify-center shadow-sm flex-shrink-0" style={{ background: "linear-gradient(135deg, rgba(253, 230, 138, 0.6) 0%, rgba(251, 191, 36, 0.45) 100%)", boxShadow: "0 0 24px -4px rgba(251, 191, 36, 0.28)" }}>
+                <svg className="w-4 h-4 md:w-5 md:h-5 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                 </svg>
               </div>
               <div className="min-w-0">
-                <h3 className="font-semibold text-slate-900 text-lg">Your Portfolio</h3>
-                <p className="text-xs text-slate-500">{portfolioStories.length} stories</p>
+                <h3 className="font-semibold text-slate-900 text-base md:text-lg">Your Portfolio</h3>
+                <p className="text-[10px] md:text-xs text-slate-500">{portfolioStories.length} stories</p>
               </div>
             </div>
             <motion.div
               animate={{ rotate: portfolioSectionOpen ? 180 : 0 }}
               transition={{ duration: 0.2 }}
-              className="w-8 h-8 rounded-full bg-slate-100/80 flex items-center justify-center flex-shrink-0"
+              className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-slate-100/80 flex items-center justify-center flex-shrink-0"
             >
-              <ChevronDown className="w-4 h-4 text-slate-500" />
+              <ChevronDown className="w-3.5 h-3.5 md:w-4 md:h-4 text-slate-500" />
             </motion.div>
           </div>
           {!portfolioSectionOpen && portfolioStories.length > 0 && (
@@ -254,7 +254,7 @@ function PortfolioSection({ portfolioSectionOpen, setPortfolioSectionOpen, setLa
             initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.22, ease: SMOOTH_EASE }}
-            className="px-6 pb-6 pt-4"
+            className="px-4 md:px-6 pb-4 md:pb-6 pt-3 md:pt-4"
           >
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
               {portfolioStories.map((story, index) => (
@@ -806,8 +806,8 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
   // Loading state
   if (userLoading || prefsLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white p-6">
-        <div className="max-w-4xl mx-auto space-y-8">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white p-4 md:p-6">
+        <div className="max-w-4xl mx-auto space-y-6 md:space-y-8">
           <Skeleton className="h-12 w-64" />
           <Skeleton className="h-64 w-full rounded-3xl" />
           <Skeleton className="h-32 w-full rounded-2xl" />
@@ -880,7 +880,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
       <AmbientAurora />
       {/* Header */}
       <header className="border-b border-slate-100 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-4xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="h-12 w-12 flex items-center justify-center overflow-hidden flex-shrink-0">
               <img
@@ -911,7 +911,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-6 py-12 relative z-10">
+      <main className="max-w-4xl mx-auto px-4 md:px-6 py-8 md:py-12 relative z-10">
         {/* AUDIO PLAYER */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}

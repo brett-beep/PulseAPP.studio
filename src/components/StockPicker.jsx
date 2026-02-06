@@ -111,28 +111,28 @@ export default function StockPicker({ selectedStocks = [], onAdd, onRemove, maxS
 
           {/* Dropdown Results */}
           {showDropdown && searchResults.length > 0 && (
-            <div className="absolute z-10 w-full mt-2 bg-white rounded-lg shadow-lg border border-slate-200 max-h-64 overflow-y-auto">
+            <div className="absolute z-10 w-full mt-2 bg-white rounded-lg shadow-lg border border-slate-200 max-h-56 md:max-h-64 overflow-y-auto">
               {searchResults.map((stock) => (
                 <button
                   key={stock.symbol}
                   onClick={() => handleSelectStock(stock)}
                   disabled={selectedStocks.includes(stock.symbol)}
-                  className={`w-full px-4 py-3 text-left hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0 ${
+                  className={`w-full px-3 md:px-4 py-2.5 md:py-3 text-left hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0 ${
                     selectedStocks.includes(stock.symbol) ? 'opacity-50 cursor-not-allowed' : ''
                   }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-semibold text-slate-900">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-semibold text-slate-900 text-sm md:text-base">
                         {stock.symbol}
                         {stock.isCustom && (
                           <span className="ml-2 text-xs text-amber-600">(Custom)</span>
                         )}
                       </div>
-                      <div className="text-sm text-slate-500">{stock.name}</div>
+                      <div className="text-xs md:text-sm text-slate-500 truncate">{stock.name}</div>
                     </div>
                     {selectedStocks.includes(stock.symbol) && (
-                      <Badge variant="secondary" className="text-xs">Added</Badge>
+                      <Badge variant="secondary" className="text-xs flex-shrink-0">Added</Badge>
                     )}
                   </div>
                 </button>
@@ -145,18 +145,18 @@ export default function StockPicker({ selectedStocks = [], onAdd, onRemove, maxS
       {/* Selected Stocks */}
       <div>
         {selectedStocks.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5 md:gap-2">
             {selectedStocks.map((symbol) => (
               <Badge
                 key={symbol}
                 variant="secondary"
-                className="px-3 py-2 text-sm flex items-center gap-2 bg-amber-50 border-amber-200"
+                className="px-2.5 md:px-3 py-1.5 md:py-2 text-xs md:text-sm flex items-center gap-1.5 md:gap-2 bg-amber-50 border-amber-200"
               >
                 <TrendingUp className="h-3 w-3 text-amber-600" />
                 <span className="font-semibold text-slate-900">{symbol}</span>
                 <button 
                   onClick={() => onRemove(symbol)}
-                  className="hover:text-red-500 transition-colors ml-1"
+                  className="hover:text-red-500 transition-colors ml-0.5 md:ml-1"
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -164,22 +164,22 @@ export default function StockPicker({ selectedStocks = [], onAdd, onRemove, maxS
             ))}
           </div>
         ) : (
-          <p className="text-sm text-slate-400 italic">No stocks selected yet. Search to add up to {maxStocks} stocks.</p>
+          <p className="text-xs md:text-sm text-slate-400 italic">No stocks selected yet. Search to add up to {maxStocks} stocks.</p>
         )}
       </div>
 
       {/* Quick Add Popular Stocks */}
       {canAddMore && selectedStocks.length < 3 && (
         <div>
-          <p className="text-xs text-slate-500 mb-2">Quick add popular stocks:</p>
-          <div className="flex flex-wrap gap-2">
+          <p className="text-[10px] md:text-xs text-slate-500 mb-2">Quick add popular stocks:</p>
+          <div className="flex flex-wrap gap-1.5 md:gap-2">
             {POPULAR_STOCKS.slice(0, 8)
               .filter(stock => !selectedStocks.includes(stock.symbol))
               .map((stock) => (
                 <button
                   key={stock.symbol}
                   onClick={() => handleSelectStock(stock)}
-                  className="px-3 py-1 text-xs rounded-full border border-slate-200 hover:border-amber-400 hover:bg-amber-50 transition-colors text-slate-600 hover:text-amber-700"
+                  className="px-2.5 md:px-3 py-1 text-[10px] md:text-xs rounded-full border border-slate-200 hover:border-amber-400 hover:bg-amber-50 transition-colors text-slate-600 hover:text-amber-700"
                 >
                   {stock.symbol}
                 </button>
@@ -189,7 +189,7 @@ export default function StockPicker({ selectedStocks = [], onAdd, onRemove, maxS
       )}
 
       {!canAddMore && (
-        <p className="text-sm text-amber-600">Maximum {maxStocks} stocks reached</p>
+        <p className="text-xs md:text-sm text-amber-600">Maximum {maxStocks} stocks reached</p>
       )}
     </div>
   );

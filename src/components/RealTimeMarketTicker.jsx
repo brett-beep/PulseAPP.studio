@@ -145,18 +145,18 @@ export default function RealTimeMarketTicker({ watchlist = [] }) {
     const isFlat = Math.abs(data.change) < 0.01;
     
     return (
-      <div className="flex items-center gap-2">
-        <span className="font-semibold text-slate-700">{data.symbol}</span>
+      <div className="flex items-center gap-1.5 md:gap-2 flex-shrink-0">
+        <span className="font-semibold text-slate-700 text-xs md:text-sm">{data.symbol}</span>
         
         {isFlat ? (
-          <Minus className="h-4 w-4 text-slate-400" />
+          <Minus className="h-3 w-3 md:h-4 md:w-4 text-slate-400 flex-shrink-0" />
         ) : isPositive ? (
-          <TrendingUp className="h-4 w-4 text-green-600" />
+          <TrendingUp className="h-3 w-3 md:h-4 md:w-4 text-green-600 flex-shrink-0" />
         ) : (
-          <TrendingDown className="h-4 w-4 text-red-600" />
+          <TrendingDown className="h-3 w-3 md:h-4 md:w-4 text-red-600 flex-shrink-0" />
         )}
         
-        <span className={`font-medium ${
+        <span className={`font-medium text-xs md:text-sm ${
           isFlat ? 'text-slate-600' : 
           isPositive ? 'text-green-600' : 
           'text-red-600'
@@ -164,7 +164,7 @@ export default function RealTimeMarketTicker({ watchlist = [] }) {
           ${data.price.toFixed(2)}
         </span>
         
-        <span className={`text-sm ${
+        <span className={`text-[10px] md:text-sm ${
           isFlat ? 'text-slate-500' : 
           isPositive ? 'text-green-600' : 
           'text-red-600'
@@ -210,10 +210,10 @@ export default function RealTimeMarketTicker({ watchlist = [] }) {
 
   if (isLoading) {
     return (
-      <div className="flex items-center gap-6">
+      <div className="flex items-center gap-3 md:gap-6">
         <div className="flex items-center gap-2">
           <div className="h-2 w-2 bg-slate-300 rounded-full animate-pulse" />
-          <span className="text-sm text-slate-400">Loading market data...</span>
+          <span className="text-xs md:text-sm text-slate-400">Loading market data...</span>
         </div>
       </div>
     );
@@ -222,12 +222,12 @@ export default function RealTimeMarketTicker({ watchlist = [] }) {
   // If API failed completely, show fallback
   if (!marketData.sp500 && marketData.userStocks.length === 0) {
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <div className="h-2 w-2 bg-slate-400 rounded-full" />
-        <span className="text-sm text-slate-600">Neutral</span>
-        <span className="text-sm text-slate-500">Markets trading sideways</span>
+        <span className="text-xs md:text-sm text-slate-600">Neutral</span>
+        <span className="text-xs md:text-sm text-slate-500">Markets trading sideways</span>
         {topStocks.length > 0 && (
-          <span className="text-sm text-slate-400 ml-4">
+          <span className="text-[10px] md:text-sm text-slate-400 ml-2 md:ml-4">
             (API key required for live prices)
           </span>
         )}
@@ -238,29 +238,29 @@ export default function RealTimeMarketTicker({ watchlist = [] }) {
   const sentiment = getSP500Sentiment();
 
   return (
-    <div className="flex items-center gap-6 flex-wrap">
+    <div className="flex items-center gap-3 md:gap-6 flex-wrap">
       {/* Nasdaq Sentiment */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 md:gap-2 flex-shrink-0">
         <div className={`h-2 w-2 rounded-full ${
           sentiment.label === 'Bullish' || sentiment.label === 'Positive' ? 'bg-green-500' :
           sentiment.label === 'Bearish' || sentiment.label === 'Negative' ? 'bg-red-500' :
           'bg-slate-400'
         }`} />
-        <span className={`font-medium ${sentiment.color}`}>
+        <span className={`font-medium text-xs md:text-sm ${sentiment.color}`}>
           {sentiment.label}
         </span>
-        <span className="text-slate-500 text-sm">
+        <span className="text-slate-500 text-[10px] md:text-sm hidden sm:inline">
           {sentiment.description}
         </span>
       </div>
 
       {/* Divider */}
       {marketData.userStocks.length > 0 && (
-        <div className="h-4 w-px bg-slate-200" />
+        <div className="h-3 md:h-4 w-px bg-slate-200 flex-shrink-0" />
       )}
 
       {/* User's Top 3 Stocks */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 md:gap-4 flex-wrap">
         {marketData.userStocks.map((stock) => (
           <React.Fragment key={stock.symbol}>
             {renderTicker(stock)}
@@ -270,7 +270,7 @@ export default function RealTimeMarketTicker({ watchlist = [] }) {
 
       {/* Show "Add stocks" hint if no watchlist */}
       {topStocks.length === 0 && (
-        <span className="text-sm text-slate-400 italic">
+        <span className="text-xs md:text-sm text-slate-400 italic">
           Add stocks to your watchlist in Settings
         </span>
       )}

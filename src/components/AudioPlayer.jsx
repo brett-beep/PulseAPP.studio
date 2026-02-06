@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence, useMotionValue, useSpring } from "framer-motion";
-import { Play, Pause, RotateCcw, FastForward, Volume2, VolumeX, Gauge, Clock, Loader2, FileText, X } from "lucide-react";
+import { Play, Pause, RotateCcw, FastForward, Volume2, VolumeX, Gauge, Clock, Loader2, FileText, X, Settings2 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { GlassFilter } from "@/components/ui/liquid-glass-button";
 
@@ -39,7 +39,8 @@ export default function AudioPlayer({
   const [playbackRate, setPlaybackRate] = useState(1);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
-  const [frequencyData, setFrequencyData] = useState(() => Array(48).fill(0.3));
+  const [showControls, setShowControls] = useState(false);
+  const [frequencyData, setFrequencyData] = useState(() => Array(32).fill(0.3));
 
   const mx = useMotionValue(300);
   const my = useMotionValue(200);
@@ -99,7 +100,7 @@ export default function AudioPlayer({
     }
   }, [playbackRate]);
 
-  // Audio-reactive waveform: AnalyserNode drives bar heights when playing
+  // Audio-reactive waveform: AnalyserNode drives bar heights when playing (reduced to 32 bars for mobile)
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !audioUrl || !isPlaying) {
@@ -122,7 +123,7 @@ export default function AudioPlayer({
     if (ctx.state === "suspended") ctx.resume().catch(() => {});
     const analyser = analyserRef.current;
     const dataArray = new Uint8Array(analyser.frequencyBinCount);
-    const barCount = 48;
+    const barCount = 32;
 
     const tick = () => {
       analyser.getByteFrequencyData(dataArray);
@@ -146,7 +147,6 @@ export default function AudioPlayer({
   const sectionCount = Math.min(6, sectionStories?.length || 0);
 
   // Section boundaries: derived from transcript and scaled to actual audio duration (real-time)
-  // Boundaries = when to switch to next card; computed as (word position / total words) * totalDuration
   const sectionBoundariesSeconds = useMemo(() => {
     const raw = (transcript || "").trim();
     if (!raw || sectionCount === 0 || !totalDuration || totalDuration <= 0) return [];
@@ -155,7 +155,6 @@ export default function AudioPlayer({
     const totalWords = words.length;
     if (totalWords === 0) return [];
 
-    // Phrases that cue "NEXT story" only – NOT "first up" (that starts section 0). Boundaries = when to switch to next card.
     const transitionPhrases = [
       "next up",
       "up next",
@@ -200,7 +199,6 @@ export default function AudioPlayer({
     if (sorted.length === 0) {
       return Array.from({ length: needBoundaries }, (_, i) => Math.max(0, ((i + 1) / 6) * totalDuration - earlySec));
     }
-    // First 5 transition positions = boundaries 1→2, 2→3, ..., 5→6 ("first up" excluded so section 0 runs until first "next up")
     const take = Math.min(needBoundaries, sorted.length);
     const selected = sorted
       .slice(0, take)
@@ -231,7 +229,7 @@ export default function AudioPlayer({
       ? sectionStories[currentSectionIndex]
       : null;
 
-  // Intro: short waveform, then all 6 section cards (including "In breaking news" / section 0)
+  // Intro: short waveform, then all 6 section cards
   const INTRO_SECONDS = 4;
   const introEndSeconds = INTRO_SECONDS;
   const showWaveform = sectionCount === 0 || currentTime < introEndSeconds;
@@ -240,12 +238,12 @@ export default function AudioPlayer({
   const sectionSummary = useMemo(() => {
     if (!currentSectionStory) return "";
     let text = (currentSectionStory.what_happened || currentSectionStory.title || "").trim();
-    // Remove trailing source attribution like "(Source: Bloomberg)" or "(Source: Reuters)"
+    // Remove trailing source attribution
     text = text.replace(/\s*\(Source:\s*[^)]+\)\s*$/i, '').trim();
     return text;
   }, [currentSectionStory]);
 
-  // Image per section: seed from headline so same story = same image, varied across stories (picsum; no topic filter)
+  // Image per section
   const sectionImageSeed = useMemo(() => {
     if (!currentSectionStory) return String(currentSectionIndex + 1);
     const raw = (currentSectionStory.title || currentSectionStory.what_happened || "").slice(0, 50);
@@ -306,7 +304,7 @@ export default function AudioPlayer({
   };
 
   const bars = useMemo(() => {
-    const count = 48;
+    const count = 32;
     return Array.from({ length: count }, (_, i) => {
       const baseHeight = 14 + Math.sin(i * 0.38) * 14 + Math.cos(i * 0.62) * 10;
       return { i, p: i / (count - 1), baseHeight };
@@ -334,7 +332,7 @@ export default function AudioPlayer({
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
       onPointerMove={onPointerMove}
-      className="relative overflow-hidden rounded-[40px] p-10"
+      className="relative overflow-hidden rounded-[32px] md:rounded-[40px] p-5 md:p-10"
       style={{
         background: "linear-gradient(145deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.55) 100%)",
         backdropFilter: "blur(60px) saturate(1.5) url(#container-glass)",
@@ -360,13 +358,13 @@ export default function AudioPlayer({
       <GlassFilter />
 
       <div
-        className="pointer-events-none absolute inset-[0.5px] rounded-[39.5px]"
+        className="pointer-events-none absolute inset-[0.5px] rounded-[31.5px] md:rounded-[39.5px]"
         style={{
           background: "linear-gradient(180deg, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0) 50%)",
         }}
       />
       <div
-        className="pointer-events-none absolute inset-[1px] rounded-[39px]"
+        className="pointer-events-none absolute inset-[1px] rounded-[31px] md:rounded-[39px]"
         style={{
           border: "0.5px solid rgba(0, 0, 0, 0.04)",
           boxShadow: "inset 0 0 0 0.5px rgba(255, 255, 255, 0.5)",
@@ -374,7 +372,7 @@ export default function AudioPlayer({
       />
 
       <motion.div
-        className="pointer-events-none absolute inset-0 rounded-[40px]"
+        className="pointer-events-none absolute inset-0 rounded-[32px] md:rounded-[40px]"
         style={{
           "--highlight-x": sx,
           "--highlight-y": sy,
@@ -383,12 +381,11 @@ export default function AudioPlayer({
         }}
       />
 
-      {/* UPDATED: Better generating overlay with progress status */}
       {isGenerating && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="absolute inset-0 flex flex-col items-center justify-center bg-white/5 backdrop-blur-sm rounded-[40px] z-30 gap-4 pointer-events-none"
+          className="absolute inset-0 flex flex-col items-center justify-center bg-white/5 backdrop-blur-sm rounded-[32px] md:rounded-[40px] z-30 gap-4 pointer-events-none"
         >
           <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'hsl(25, 80%, 50%)' }} />
           {statusLabel && (
@@ -425,7 +422,7 @@ export default function AudioPlayer({
       />
 
       <div
-        className="pointer-events-none absolute inset-0 opacity-[0.035] mix-blend-overlay rounded-[40px]"
+        className="pointer-events-none absolute inset-0 opacity-[0.035] mix-blend-overlay rounded-[32px] md:rounded-[40px]"
         style={{
           backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
         }}
@@ -441,15 +438,17 @@ export default function AudioPlayer({
       ) : null}
 
       <div className="relative z-10">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <p className="text-slate-500/80 text-xs font-medium tracking-wider uppercase mb-1">
+        <div className="flex items-start md:items-center justify-between mb-6 md:mb-8 gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-slate-500/80 text-[10px] md:text-xs font-medium tracking-wider uppercase mb-1">
               {currentDate}
             </p>
-            <p className="text-lg" style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 300, letterSpacing: '0.15em' }}>
-              <span className="text-slate-800/90 uppercase">{greeting},</span>
+            <p className="text-base md:text-lg" style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 300, letterSpacing: '0.15em' }}>
+              <span className="text-slate-800/90 uppercase text-sm md:text-base">{greeting},</span>
               <br />
-              <span className="font-semibold text-slate-900 normal-case" style={{ fontFamily: "'Italianno', 'Sacramento', cursive", fontSize: '3.5rem', letterSpacing: '0.05em', fontWeight: 400, marginTop: '0.5rem', display: 'inline-block' }}>{userName}</span>
+              <span className="font-semibold text-slate-900 normal-case" style={{ fontFamily: "'Italianno', 'Sacramento', cursive", fontSize: '2.5rem', lineHeight: '1', letterSpacing: '0.05em', fontWeight: 400, marginTop: '0.25rem', display: 'inline-block' }}>
+                {userName}
+              </span>
             </p>
           </div>
           <div className="flex flex-col items-end gap-2">
@@ -459,16 +458,16 @@ export default function AudioPlayer({
                 onClick={() => setShowTranscript((t) => !t)}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                className="text-[10px] font-semibold tracking-wider uppercase text-slate-500 hover:text-slate-700 transition-colors flex items-center gap-1.5 px-2 py-1 rounded"
+                className="text-[9px] md:text-[10px] font-semibold tracking-wider uppercase text-slate-500 hover:text-slate-700 transition-colors flex items-center gap-1 px-2 py-1 rounded"
               >
-                <FileText className="w-3.5 h-3.5" />
-                {showTranscript ? "Hide transcript" : "Show transcript"}
+                <FileText className="w-3 h-3 md:w-3.5 md:h-3.5" />
+                <span className="hidden sm:inline">{showTranscript ? "Hide" : "Show"}</span>
               </motion.button>
             ) : null}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 md:gap-3">
               <div className="text-right">
-                <p className="text-slate-400 text-[10px] font-medium tracking-wider uppercase">Today</p>
-                <p className="text-slate-700 text-sm font-semibold">{briefingCount} / 3</p>
+                <p className="text-slate-400 text-[9px] md:text-[10px] font-medium tracking-wider uppercase">Today</p>
+                <p className="text-slate-700 text-xs md:text-sm font-semibold">{briefingCount} / 3</p>
               </div>
             <motion.div
               animate={{ 
@@ -476,7 +475,7 @@ export default function AudioPlayer({
                 opacity: isPlaying ? [0.7, 1, 0.7] : 0.75
               }}
               transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
-              className="w-2.5 h-2.5 rounded-full"
+              className="w-2 h-2 md:w-2.5 md:h-2.5 rounded-full"
               style={{ background: "linear-gradient(135deg, rgba(230, 115, 26, 0.95) 0%, rgba(219, 114, 67, 1) 100%)" }}
             />
             </div>
@@ -498,8 +497,8 @@ export default function AudioPlayer({
                   boxShadow: "0 4px 24px -4px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.8)",
                 }}
               >
-                <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200/80 bg-white/70">
-                  <span className="text-xs font-semibold tracking-wider uppercase text-slate-500">Briefing transcript</span>
+                <div className="flex items-center justify-between px-4 md:px-5 py-2.5 md:py-3 border-b border-slate-200/80 bg-white/70">
+                  <span className="text-[10px] md:text-xs font-semibold tracking-wider uppercase text-slate-500">Briefing transcript</span>
                   <motion.button
                     type="button"
                     onClick={() => setShowTranscript(false)}
@@ -510,7 +509,7 @@ export default function AudioPlayer({
                     <X className="w-4 h-4" />
                   </motion.button>
                 </div>
-                <div className="px-5 py-5 max-h-[320px] overflow-y-auto">
+                <div className="px-4 md:px-5 py-4 md:py-5 max-h-[280px] md:max-h-[320px] overflow-y-auto">
                   {transcript
                     .trim()
                     .split(/\n\n+/)
@@ -520,7 +519,7 @@ export default function AudioPlayer({
                       return (
                         <p
                           key={i}
-                          className="text-slate-700 text-sm leading-relaxed mb-4 last:mb-0"
+                          className="text-slate-700 text-xs md:text-sm leading-relaxed mb-3 md:mb-4 last:mb-0"
                         >
                           {lines.map((line, j) => (
                             <span key={j}>
@@ -537,10 +536,10 @@ export default function AudioPlayer({
           )}
         </AnimatePresence>
 
-        {/* Waveform during intro (audio-reactive + orange); news content card + vignette once in news */}
-        <div className={`rounded-2xl overflow-visible relative ${showWaveform ? "h-24" : "min-h-24"} ${showInfoCard ? "" : "mb-8"}`}>
+        {/* Waveform/Info Card - mobile optimized */}
+        <div className={`rounded-xl md:rounded-2xl overflow-visible relative ${showWaveform ? "h-16 md:h-24" : "min-h-16 md:min-h-24"} ${showInfoCard ? "" : "mb-6 md:mb-8"}`}>
           {showWaveform ? (
-            <div className="absolute inset-0 rounded-2xl flex items-center justify-center gap-0.5 px-2">
+            <div className="absolute inset-0 rounded-xl md:rounded-2xl flex items-center justify-center gap-0.5 px-1 md:px-2">
               {bars.map(({ i }, idx) => {
                 const level = isPlaying && frequencyData[idx] != null
                   ? 0.18 + 0.82 * frequencyData[idx]
@@ -548,11 +547,11 @@ export default function AudioPlayer({
                 return (
                   <motion.div
                     key={i}
-                    className="w-1.5 rounded-full flex-shrink-0 origin-center"
+                    className="w-1 md:w-1.5 rounded-full flex-shrink-0 origin-center"
                     style={{
-                      height: 26,
+                      height: 20,
                       background: "linear-gradient(180deg, rgba(255,200,140,0.95) 0%, rgba(230,115,26,0.85) 35%, rgba(219,114,67,0.7) 100%)",
-                      boxShadow: "0 0 12px rgba(230,115,26,0.5)",
+                      boxShadow: "0 0 8px rgba(230,115,26,0.5)",
                       scaleY: level,
                     }}
                     transition={{ type: "spring", stiffness: 100, damping: 14, mass: 0.4 }}
@@ -562,21 +561,19 @@ export default function AudioPlayer({
             </div>
           ) : showInfoCard ? (
             <div
-              className="news-content relative rounded-[20px] overflow-hidden"
+              className="news-content relative rounded-[16px] md:rounded-[20px] overflow-hidden"
               style={{
                 padding: 0,
-                marginBottom: 60,
+                marginBottom: 48,
                 opacity: 0.75,
                 background: "rgba(240, 240, 240, 0.4)",
                 boxShadow: [
                   "0 0 0 1px rgba(0, 0, 0, 0.05)",
-                  "0 0 50px 12px rgba(0, 0, 0, 0.18)",
-                  "0 0 85px 20px rgba(0, 0, 0, 0.12)",
-                  "0 0 120px 28px rgba(0, 0, 0, 0.08)",
+                  "0 0 40px 10px rgba(0, 0, 0, 0.16)",
+                  "0 0 70px 18px rgba(0, 0, 0, 0.1)",
                 ].join(", "),
               }}
             >
-              {/* Content: image fills to border, text in padded area */}
               <AnimatePresence mode="wait">
                 <motion.div
                   key={currentSectionIndex}
@@ -584,22 +581,22 @@ export default function AudioPlayer({
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -4 }}
                   transition={{ duration: 0.42, ease: [0.25, 0.46, 0.45, 0.94] }}
-                  className="relative flex items-stretch min-w-0"
+                  className="relative flex flex-col md:flex-row items-stretch min-w-0"
                   style={{ background: "transparent" }}
                 >
-                  <div className="relative w-[42%] min-w-[160px] flex-shrink-0 overflow-hidden rounded-l-[20px]">
+                  <div className="relative w-full md:w-[42%] md:min-w-[160px] flex-shrink-0 overflow-hidden md:rounded-l-[16px]">
                     <img
                       src={sectionImageUrl}
                       alt=""
-                      className="w-full h-full min-h-[140px] object-cover"
+                      className="w-full h-32 md:h-full md:min-h-[140px] object-cover"
                     />
                   </div>
-                  <div className="flex-1 min-w-0 flex flex-col justify-center px-6 py-5">
-                    <p className="text-slate-800 text-[13px] font-semibold leading-tight drop-shadow-sm" style={{ textShadow: "0 0 12px rgba(255,255,255,0.8)" }}>
+                  <div className="flex-1 min-w-0 flex flex-col justify-center px-4 py-3 md:px-6 md:py-5">
+                    <p className="text-slate-800 text-xs md:text-[13px] font-semibold leading-tight drop-shadow-sm line-clamp-2" style={{ textShadow: "0 0 12px rgba(255,255,255,0.8)" }}>
                       {currentSectionStory.title || currentSectionStory.what_happened || "This section"}
                     </p>
                     {sectionSummary && (
-                      <p className="text-slate-600 text-sm leading-snug mt-1 max-w-xl drop-shadow-sm" style={{ textShadow: "0 0 10px rgba(255,255,255,0.6)" }}>
+                      <p className="text-slate-600 text-[11px] md:text-sm leading-snug mt-1 line-clamp-3 md:line-clamp-none max-w-xl drop-shadow-sm" style={{ textShadow: "0 0 10px rgba(255,255,255,0.6)" }}>
                         {sectionSummary}
                       </p>
                     )}
@@ -609,15 +606,15 @@ export default function AudioPlayer({
             </div>
           ) : (
             <div
-              className="absolute inset-0 rounded-2xl flex items-center justify-center"
+              className="absolute inset-0 rounded-xl md:rounded-2xl flex items-center justify-center"
               style={{ background: "transparent" }}
             >
-              <p className="text-slate-400 text-xs">Play your briefing to see this section</p>
+              <p className="text-slate-400 text-[10px] md:text-xs text-center px-4">Play your briefing to see this section</p>
             </div>
           )}
         </div>
 
-        <div className="mb-10 px-1">
+        <div className="mb-6 md:mb-10 px-1">
           <Slider
             value={[currentTime]}
             max={totalDuration || 100}
@@ -625,49 +622,21 @@ export default function AudioPlayer({
             onValueChange={handleSeek}
             className="cursor-pointer"
           />
-          <div className="flex justify-between mt-3 text-slate-600/70 text-sm font-mono tracking-tight">
+          <div className="flex justify-between mt-2 md:mt-3 text-slate-600/70 text-xs md:text-sm font-mono tracking-tight">
             <span>{formatTime(currentTime)}</span>
             <span>-{formatTime(Math.max(0, totalDuration - currentTime))}</span>
           </div>
         </div>
 
-        <div className="flex items-center justify-center gap-4">
-          <motion.button
-            whileHover={{ scale: 1.12 }}
-            whileTap={{ scale: 0.94 }}
-            onClick={toggleMute}
-            className="w-14 h-14 rounded-full flex items-center justify-center"
-            style={{
-              background: "rgba(255, 255, 255, 0.6)",
-              backdropFilter: "blur(10px)",
-              border: "0.5px solid rgba(255, 255, 255, 0.8)",
-              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
-            }}
-          >
-            {isMuted ? <VolumeX className="h-5 w-5 text-slate-600" /> : <Volume2 className="h-5 w-5 text-slate-600" />}
-          </motion.button>
-
-          <motion.button
-            whileHover={{ scale: 1.12 }}
-            whileTap={{ scale: 0.94 }}
-            onClick={() => skip(-15)}
-            className="w-14 h-14 rounded-full flex items-center justify-center"
-            style={{
-              background: "rgba(255, 255, 255, 0.6)",
-              backdropFilter: "blur(10px)",
-              border: "0.5px solid rgba(255, 255, 255, 0.8)",
-              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
-            }}
-          >
-            <RotateCcw className="h-5 w-5 text-slate-600" />
-          </motion.button>
-
+        {/* MOBILE-FIRST CONTROLS: Single Play Button + Expandable Menu */}
+        <div className="flex flex-col items-center gap-4 md:gap-6">
+          {/* Primary Play Button (always visible) */}
           <motion.button
             whileHover={{ scale: 1.06 }}
             whileTap={{ scale: 0.96 }}
             onClick={togglePlay}
             disabled={!audioUrl}
-            className="w-24 h-24 rounded-full flex items-center justify-center disabled:opacity-50"
+            className="w-20 h-20 md:w-24 md:h-24 rounded-full flex items-center justify-center disabled:opacity-50"
             style={{
               background: "linear-gradient(135deg, rgba(230, 115, 26, 0.95) 0%, rgba(219, 114, 67, 1) 100%)",
               border: "1px solid rgba(255, 255, 255, 0.5)",
@@ -688,7 +657,7 @@ export default function AudioPlayer({
                   exit={{ scale: 0, rotate: 90 }}
                   transition={{ duration: 0.2 }}
                 >
-                  <Pause className="h-9 w-9 text-white" fill="currentColor" />
+                  <Pause className="h-8 w-8 md:h-9 md:w-9 text-white" fill="currentColor" />
                 </motion.div>
               ) : (
                 <motion.div
@@ -698,17 +667,18 @@ export default function AudioPlayer({
                   exit={{ scale: 0, rotate: -90 }}
                   transition={{ duration: 0.2 }}
                 >
-                  <Play className="h-9 w-9 text-white ml-1" fill="currentColor" />
+                  <Play className="h-8 w-8 md:h-9 md:w-9 text-white ml-0.5 md:ml-1" fill="currentColor" />
                 </motion.div>
               )}
             </AnimatePresence>
           </motion.button>
 
+          {/* Expandable Controls Menu Button */}
           <motion.button
-            whileHover={{ scale: 1.12 }}
-            whileTap={{ scale: 0.94 }}
-            onClick={() => skip(30)}
-            className="w-14 h-14 rounded-full flex items-center justify-center"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setShowControls(!showControls)}
+            className="flex items-center gap-2 px-4 py-2 rounded-full text-xs md:text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors"
             style={{
               background: "rgba(255, 255, 255, 0.6)",
               backdropFilter: "blur(10px)",
@@ -716,66 +686,131 @@ export default function AudioPlayer({
               boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
             }}
           >
-            <FastForward className="h-5 w-5 text-slate-600" />
+            <Settings2 className="h-4 w-4" />
+            <span>Controls</span>
+            <motion.div
+              animate={{ rotate: showControls ? 180 : 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <ChevronDown className="h-3 w-3" />
+            </motion.div>
           </motion.button>
 
-          <div className="relative">
-            <motion.button
-              whileHover={{ scale: 1.12 }}
-              whileTap={{ scale: 0.94 }}
-              onClick={() => setShowSpeedMenu(!showSpeedMenu)}
-              className="w-14 h-14 rounded-full flex items-center justify-center relative"
-              style={{
-                background: "rgba(255, 255, 255, 0.6)",
-                backdropFilter: "blur(10px)",
-                border: "0.5px solid rgba(255, 255, 255, 0.8)",
-                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
-              }}
-            >
-              <Gauge className="h-5 w-5 text-slate-600" />
-              <span className="absolute -bottom-0 text-[10px] font-semibold text-slate-700">
-                {playbackRate}x
-              </span>
-            </motion.button>
-
-            <AnimatePresence>
-              {showSpeedMenu && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  transition={{ duration: 0.15 }}
-                  className="absolute bottom-full mb-2 right-0 rounded-2xl overflow-hidden"
+          {/* Collapsible Controls */}
+          <AnimatePresence>
+            {showControls && (
+              <motion.div
+                initial={{ opacity: 0, height: 0, y: -10 }}
+                animate={{ opacity: 1, height: "auto", y: 0 }}
+                exit={{ opacity: 0, height: 0, y: -10 }}
+                transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
+                className="flex items-center justify-center gap-3 md:gap-4 flex-wrap"
+              >
+                <motion.button
+                  whileHover={{ scale: 1.12 }}
+                  whileTap={{ scale: 0.94 }}
+                  onClick={toggleMute}
+                  className="w-12 h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center"
                   style={{
-                    background: "rgba(255, 255, 255, 0.95)",
-                    backdropFilter: "blur(20px)",
+                    background: "rgba(255, 255, 255, 0.6)",
+                    backdropFilter: "blur(10px)",
                     border: "0.5px solid rgba(255, 255, 255, 0.8)",
-                    boxShadow: "0 8px 24px rgba(0, 0, 0, 0.12), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
+                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
                   }}
                 >
-                  <div className="p-2 flex flex-col gap-1">
-                    {speedOptions.map((speed) => (
-                      <motion.button
-                        key={speed}
-                        whileHover={{ scale: 1.05, x: 2 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => changeSpeed(speed)}
-                        className="px-4 py-2 rounded-xl text-sm font-medium text-left transition-colors"
+                  {isMuted ? <VolumeX className="h-4 w-4 md:h-5 md:w-5 text-slate-600" /> : <Volume2 className="h-4 w-4 md:h-5 md:w-5 text-slate-600" />}
+                </motion.button>
+
+                <motion.button
+                  whileHover={{ scale: 1.12 }}
+                  whileTap={{ scale: 0.94 }}
+                  onClick={() => skip(-15)}
+                  className="w-12 h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center"
+                  style={{
+                    background: "rgba(255, 255, 255, 0.6)",
+                    backdropFilter: "blur(10px)",
+                    border: "0.5px solid rgba(255, 255, 255, 0.8)",
+                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
+                  }}
+                >
+                  <RotateCcw className="h-4 w-4 md:h-5 md:w-5 text-slate-600" />
+                </motion.button>
+
+                <motion.button
+                  whileHover={{ scale: 1.12 }}
+                  whileTap={{ scale: 0.94 }}
+                  onClick={() => skip(30)}
+                  className="w-12 h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center"
+                  style={{
+                    background: "rgba(255, 255, 255, 0.6)",
+                    backdropFilter: "blur(10px)",
+                    border: "0.5px solid rgba(255, 255, 255, 0.8)",
+                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
+                  }}
+                >
+                  <FastForward className="h-4 w-4 md:h-5 md:w-5 text-slate-600" />
+                </motion.button>
+
+                <div className="relative">
+                  <motion.button
+                    whileHover={{ scale: 1.12 }}
+                    whileTap={{ scale: 0.94 }}
+                    onClick={() => setShowSpeedMenu(!showSpeedMenu)}
+                    className="w-12 h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center relative"
+                    style={{
+                      background: "rgba(255, 255, 255, 0.6)",
+                      backdropFilter: "blur(10px)",
+                      border: "0.5px solid rgba(255, 255, 255, 0.8)",
+                      boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
+                    }}
+                  >
+                    <Gauge className="h-4 w-4 md:h-5 md:w-5 text-slate-600" />
+                    <span className="absolute -bottom-0 text-[9px] md:text-[10px] font-semibold text-slate-700">
+                      {playbackRate}x
+                    </span>
+                  </motion.button>
+
+                  <AnimatePresence>
+                    {showSpeedMenu && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute bottom-full mb-2 right-0 rounded-xl md:rounded-2xl overflow-hidden"
                         style={{
-                          background: playbackRate === speed 
-                            ? "linear-gradient(135deg, rgba(230, 115, 26, 0.2) 0%, rgba(219, 114, 67, 0.2) 100%)"
-                            : "transparent",
-                          color: playbackRate === speed ? "rgb(219, 114, 67)" : "rgb(71, 85, 105)",
+                          background: "rgba(255, 255, 255, 0.95)",
+                          backdropFilter: "blur(20px)",
+                          border: "0.5px solid rgba(255, 255, 255, 0.8)",
+                          boxShadow: "0 8px 24px rgba(0, 0, 0, 0.12), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
                         }}
                       >
-                        {speed}x
-                      </motion.button>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+                        <div className="p-1.5 md:p-2 flex flex-col gap-0.5 md:gap-1">
+                          {speedOptions.map((speed) => (
+                            <motion.button
+                              key={speed}
+                              whileHover={{ scale: 1.05, x: 2 }}
+                              whileTap={{ scale: 0.98 }}
+                              onClick={() => changeSpeed(speed)}
+                              className="px-3 md:px-4 py-1.5 md:py-2 rounded-lg md:rounded-xl text-xs md:text-sm font-medium text-left transition-colors"
+                              style={{
+                                background: playbackRate === speed 
+                                  ? "linear-gradient(135deg, rgba(230, 115, 26, 0.2) 0%, rgba(219, 114, 67, 0.2) 100%)"
+                                  : "transparent",
+                                color: playbackRate === speed ? "rgb(219, 114, 67)" : "rgb(71, 85, 105)",
+                              }}
+                            >
+                              {speed}x
+                            </motion.button>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         <AnimatePresence mode="wait">
@@ -785,9 +820,8 @@ export default function AudioPlayer({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="text-center mt-8"
+              className="text-center mt-6 md:mt-8"
             >
-              {/* Progress status is now shown in the overlay above, so we can keep this minimal */}
               <p className="text-slate-500 text-xs">Please wait while your briefing is being created...</p>
             </motion.div>
           ) : (
@@ -796,14 +830,14 @@ export default function AudioPlayer({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="flex flex-col items-center mt-8 gap-2"
+              className="flex flex-col items-center mt-6 md:mt-8 gap-2"
             >
               <motion.button
                 whileHover={canGenerateNew ? { scale: 1.06 } : {}}
                 whileTap={canGenerateNew ? { scale: 0.96 } : {}}
                 onClick={canGenerateNew ? onGenerate : undefined}
                 disabled={isButtonDisabled}
-                className={`px-6 py-3 rounded-full text-sm font-semibold ${
+                className={`px-5 md:px-6 py-2.5 md:py-3 rounded-full text-xs md:text-sm font-semibold ${
                   isButtonDisabled ? 'cursor-not-allowed' : 'cursor-pointer'
                 }`}
                 style={{
