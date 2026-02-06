@@ -40,6 +40,7 @@ export default function AudioPlayer({
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
   const [showControls, setShowControls] = useState(false);
+  const [infoCardExpanded, setInfoCardExpanded] = useState(false);
   const [frequencyData, setFrequencyData] = useState(() => Array(48).fill(0.3));
 
   const mx = useMotionValue(300);
@@ -250,6 +251,10 @@ export default function AudioPlayer({
     return raw.replace(/\s+/g, "-").replace(/[^a-zA-Z0-9-]/g, "").toLowerCase() || String(currentSectionIndex + 1);
   }, [currentSectionStory, currentSectionIndex]);
   const sectionImageUrl = `https://picsum.photos/seed/${encodeURIComponent(sectionImageSeed)}/400/280`;
+
+  useEffect(() => {
+    setInfoCardExpanded(false);
+  }, [currentSectionIndex]);
 
   const togglePlay = async () => {
     const a = audioRef.current;
@@ -462,7 +467,7 @@ export default function AudioPlayer({
               >
                 <FileText className="w-3 h-3 md:w-3.5 md:h-3.5" />
                 <span className="hidden md:inline">{showTranscript ? "Hide transcript" : "Show transcript"}</span>
-                <span className="md:hidden">{showTranscript ? "Hide" : "Show"}</span>
+                <span className="md:hidden">Transcript</span>
               </motion.button>
             ) : null}
             <div className="flex items-center gap-2 md:gap-3">
@@ -597,9 +602,21 @@ export default function AudioPlayer({
                       {currentSectionStory.title || currentSectionStory.what_happened || "This section"}
                     </p>
                     {sectionSummary && (
-                      <p className="text-slate-600 text-[11px] md:text-sm leading-snug mt-1 line-clamp-3 md:line-clamp-none max-w-xl drop-shadow-sm" style={{ textShadow: "0 0 10px rgba(255,255,255,0.6)" }}>
-                        {sectionSummary}
-                      </p>
+                      <div className="mt-1 max-w-xl">
+                        <p
+                          className={`text-slate-600 text-[11px] md:text-sm leading-snug drop-shadow-sm md:line-clamp-none ${infoCardExpanded ? "" : "line-clamp-3"}`}
+                          style={{ textShadow: "0 0 10px rgba(255,255,255,0.6)" }}
+                        >
+                          {sectionSummary}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setInfoCardExpanded((e) => !e)}
+                          className="md:hidden mt-1 text-[11px] font-semibold text-orange-600 hover:text-orange-700"
+                        >
+                          {infoCardExpanded ? "Less" : "More"}
+                        </button>
+                      </div>
                     )}
                   </div>
                 </motion.div>
@@ -924,7 +941,7 @@ export default function AudioPlayer({
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
                 className="absolute right-0 z-30 pointer-events-auto flex flex-col items-end gap-2"
-                style={{ bottom: "3.5rem" }}
+                style={{ bottom: "9rem" }}
                 onClick={(e) => e.stopPropagation()}
               >
                 <motion.button whileHover={{ scale: 1.12 }} whileTap={{ scale: 0.94 }} onClick={toggleMute}
