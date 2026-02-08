@@ -407,11 +407,23 @@ export default function Home() {
   // - cooldown starts from delivered_at if available
   // =========================================================
   
+  // Admin email: unlimited briefings for testing (no cooldown, no 3/day limit)
+  const ADMIN_EMAIL = "brett@audilin.com";
+  const isAdmin = user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+
   //====ENABLE THIS FOR COOLDOWN (FREE USERS ONLY)====//
   useEffect(() => {
     // Premium users bypass all limits
     if (isPremium) {
       console.log("👑 [Premium] User has premium access - no limits");
+      setCanGenerateNew(true);
+      setTimeUntilNextBriefing(null);
+      return;
+    }
+
+    // Admin bypass: unlimited for testing
+    if (isAdmin) {
+      console.log("🔧 [Admin] Admin account - no cooldown/limit");
       setCanGenerateNew(true);
       setTimeUntilNextBriefing(null);
       return;
@@ -512,7 +524,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
     checkEligibility();
     const interval = setInterval(checkEligibility, 1000);
     return () => clearInterval(interval);
-  }, [briefings, isPremium]);
+  }, [briefings, isPremium, isAdmin]);
 
   // Briefing count for UI (DELIVERED only)
   const getBriefingCount = () => {
