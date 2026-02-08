@@ -782,14 +782,13 @@ export default function AudioPlayer({
           </div>
         </div>
 
-        {/* MOBILE CONTROLS: Single Play Button (always visible); expanded overlay has 4 controls only, spaced above it */}
+        {/* MOBILE CONTROLS: Plain play button (no motion animations to prevent layout jump) */}
         <div className="flex flex-col items-center gap-4 md:hidden">
-          <motion.button
-            whileHover={{ scale: 1.06 }}
-            whileTap={{ scale: 0.96 }}
+          <button
+            type="button"
             onClick={togglePlay}
             disabled={!audioUrl}
-            className="w-20 h-20 rounded-full flex items-center justify-center disabled:opacity-50"
+            className="w-20 h-20 rounded-full flex items-center justify-center disabled:opacity-50 active:brightness-90 transition-[filter]"
             style={{
               background: "linear-gradient(135deg, rgba(230, 115, 26, 0.95) 0%, rgba(219, 114, 67, 1) 100%)",
               border: "1px solid rgba(255, 255, 255, 0.5)",
@@ -801,18 +800,12 @@ export default function AudioPlayer({
               `,
             }}
           >
-            <AnimatePresence mode="wait">
-              {isPlaying ? (
-                <motion.div key="pause-m" initial={{ scale: 0, rotate: -90 }} animate={{ scale: 1, rotate: 0 }} exit={{ scale: 0, rotate: 90 }} transition={{ duration: 0.2 }}>
-                  <Pause className="h-8 w-8 text-white" fill="currentColor" />
-                </motion.div>
-              ) : (
-                <motion.div key="play-m" initial={{ scale: 0, rotate: 90 }} animate={{ scale: 1, rotate: 0 }} exit={{ scale: 0, rotate: -90 }} transition={{ duration: 0.2 }}>
-                  <Play className="h-8 w-8 text-white ml-0.5" fill="currentColor" />
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.button>
+            {isPlaying ? (
+              <Pause className="h-8 w-8 text-white" fill="currentColor" />
+            ) : (
+              <Play className="h-8 w-8 text-white ml-0.5" fill="currentColor" />
+            )}
+          </button>
         </div>
 
         <AnimatePresence mode="wait">
