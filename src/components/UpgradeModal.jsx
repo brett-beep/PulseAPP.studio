@@ -47,11 +47,11 @@ export default function UpgradeModal({ isOpen, onClose }) {
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto max-h-[100dvh]"
           >
-            <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden">
+            <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden max-h-[calc(100dvh-2rem)] min-h-0 flex flex-col my-auto">
               {/* Header */}
-              <div className="relative bg-gradient-to-br from-amber-500 to-orange-600 p-8 text-white">
+              <div className="relative bg-gradient-to-br from-amber-500 to-orange-600 p-6 md:p-8 text-white flex-shrink-0">
                 <button
                   onClick={onClose}
                   className="absolute top-4 right-4 text-white/80 hover:text-white transition-colors"
@@ -60,14 +60,16 @@ export default function UpgradeModal({ isOpen, onClose }) {
                 </button>
                 
                 <div className="flex items-center gap-3 mb-2">
-                  <Crown className="h-8 w-8" />
-                  <h2 className="text-3xl font-bold">Go Premium</h2>
+                  <Crown className="h-8 w-8 flex-shrink-0" />
+                  <h2 className="text-2xl md:text-3xl font-bold">Go Premium</h2>
                 </div>
-                <p className="text-amber-50">Unlock unlimited briefings and advanced features</p>
+                <p className="text-amber-50 text-sm md:text-base">Unlock unlimited briefings and advanced features</p>
               </div>
 
+              {/* Scrollable body */}
+              <div className="overflow-y-auto flex-1 min-h-0">
               {/* Features */}
-              <div className="p-8 space-y-4">
+              <div className="p-6 md:p-8 space-y-4">
                 {[
                   { icon: Zap, text: 'Unlimited daily briefings (no 3/day limit)' },
                   { icon: TrendingUp, text: 'Advanced portfolio tracking & insights' },
@@ -90,7 +92,7 @@ export default function UpgradeModal({ isOpen, onClose }) {
               </div>
 
               {/* Pricing */}
-              <div className="px-8 pb-8">
+              <div className="px-6 md:px-8 pb-6 md:pb-8">
                 <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-2xl p-6 mb-6">
                   <div className="flex items-baseline justify-center gap-2">
                     <span className="text-4xl font-bold text-slate-900">$9.99</span>
@@ -108,6 +110,7 @@ export default function UpgradeModal({ isOpen, onClose }) {
                 >
                   {isProcessing ? 'Processing...' : 'Subscribe Now'}
                 </Button>
+              </div>
               </div>
             </div>
           </motion.div>

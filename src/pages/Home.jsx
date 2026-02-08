@@ -896,15 +896,14 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
             {!isPremium && (
               <Button
                 onClick={() => setShowUpgradeModal(true)}
-                size="icon"
-                className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white gap-2 p-0 w-9 h-9 md:w-auto md:h-9 md:px-4 md:py-2"
+                className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white gap-2"
               >
-                <Crown className="h-4 w-4 shrink-0" />
-                <span className="hidden md:inline">Upgrade</span>
+                <Crown className="h-4 w-4" />
+                Upgrade
               </Button>
             )}
             <Link to={createPageUrl("Settings")}>
-              <Button variant="ghost" size="icon" className="text-slate-400 hover:text-slate-600 shrink-0 size-9 md:size-10">
+              <Button variant="ghost" size="icon" className="text-slate-400 hover:text-slate-600">
                 <Settings className="h-5 w-5" />
               </Button>
             </Link>
