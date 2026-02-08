@@ -36,6 +36,8 @@ export default function AudioPlayer({
   const [currentTime, setCurrentTime] = useState(0);
   const [totalDuration, setTotalDuration] = useState((duration || 0) * 60 || 0);
   const [isMuted, setIsMuted] = useState(false);
+  const [volume, setVolume] = useState(1);
+  const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
@@ -294,6 +296,17 @@ export default function AudioPlayer({
     if (!a) return;
     a.muted = !isMuted;
     setIsMuted(!isMuted);
+  };
+
+  const changeVolume = (val) => {
+    const v = Array.isArray(val) ? val[0] : val;
+    const a = audioRef.current;
+    if (a) {
+      a.volume = v;
+      if (v === 0) { a.muted = true; setIsMuted(true); }
+      else if (isMuted) { a.muted = false; setIsMuted(false); }
+    }
+    setVolume(v);
   };
 
   const changeSpeed = (speed) => {
@@ -648,20 +661,53 @@ export default function AudioPlayer({
 
         {/* DESKTOP CONTROLS: Original horizontal row (hidden on mobile) */}
         <div className="hidden md:flex items-center justify-center gap-4">
-          <motion.button
-            whileHover={{ scale: 1.12 }}
-            whileTap={{ scale: 0.94 }}
-            onClick={toggleMute}
-            className="w-14 h-14 rounded-full flex items-center justify-center"
-            style={{
-              background: "rgba(255, 255, 255, 0.6)",
-              backdropFilter: "blur(10px)",
-              border: "0.5px solid rgba(255, 255, 255, 0.8)",
-              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
-            }}
+          <div className="relative"
+            onMouseEnter={() => setShowVolumeSlider(true)}
+            onMouseLeave={() => setShowVolumeSlider(false)}
           >
-            {isMuted ? <VolumeX className="h-5 w-5 text-slate-600" /> : <Volume2 className="h-5 w-5 text-slate-600" />}
-          </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.12 }}
+              whileTap={{ scale: 0.94 }}
+              onClick={toggleMute}
+              className="w-14 h-14 rounded-full flex items-center justify-center"
+              style={{
+                background: "rgba(255, 255, 255, 0.6)",
+                backdropFilter: "blur(10px)",
+                border: "0.5px solid rgba(255, 255, 255, 0.8)",
+                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
+              }}
+            >
+              {isMuted ? <VolumeX className="h-5 w-5 text-slate-600" /> : <Volume2 className="h-5 w-5 text-slate-600" />}
+            </motion.button>
+            <AnimatePresence>
+              {showVolumeSlider && (
+                <motion.div
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 6 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 rounded-2xl px-3 py-4 flex flex-col items-center"
+                  style={{
+                    background: "rgba(255, 255, 255, 0.95)",
+                    backdropFilter: "blur(20px)",
+                    border: "0.5px solid rgba(255, 255, 255, 0.8)",
+                    boxShadow: "0 8px 24px rgba(0, 0, 0, 0.12), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
+                    height: "120px",
+                    width: "40px",
+                  }}
+                >
+                  <Slider
+                    orientation="vertical"
+                    value={[isMuted ? 0 : volume]}
+                    max={1}
+                    step={0.01}
+                    onValueChange={changeVolume}
+                    className="h-full cursor-pointer"
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
 
           <motion.button
             whileHover={{ scale: 1.12 }}
@@ -930,12 +976,42 @@ export default function AudioPlayer({
                 style={{ bottom: "5.75rem" }}
                 onClick={(e) => e.stopPropagation()}
               >
-                <button type="button" onClick={toggleMute}
-                  className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
-                  style={{ background: "rgba(255, 255, 255, 0.95)", backdropFilter: "blur(10px)", border: "0.5px solid rgba(255, 255, 255, 0.8)", boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)" }}
-                >
-                  {isMuted ? <VolumeX className="h-4 w-4 text-slate-600" /> : <Volume2 className="h-4 w-4 text-slate-600" />}
-                </button>
+                <div className="relative flex flex-col items-end">
+                  <AnimatePresence>
+                    {showVolumeSlider && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 6 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute bottom-full mb-2 right-0 rounded-2xl px-3 py-4 flex flex-col items-center z-40"
+                        style={{
+                          background: "rgba(255, 255, 255, 0.98)",
+                          backdropFilter: "blur(20px)",
+                          border: "0.5px solid rgba(255, 255, 255, 0.8)",
+                          boxShadow: "0 8px 24px rgba(0, 0, 0, 0.12), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
+                          height: "100px",
+                          width: "36px",
+                        }}
+                      >
+                        <Slider
+                          orientation="vertical"
+                          value={[isMuted ? 0 : volume]}
+                          max={1}
+                          step={0.01}
+                          onValueChange={changeVolume}
+                          className="h-full cursor-pointer"
+                        />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                  <button type="button" onClick={() => setShowVolumeSlider((v) => !v)}
+                    className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
+                    style={{ background: "rgba(255, 255, 255, 0.95)", backdropFilter: "blur(10px)", border: "0.5px solid rgba(255, 255, 255, 0.8)", boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)" }}
+                  >
+                    {isMuted ? <VolumeX className="h-4 w-4 text-slate-600" /> : <Volume2 className="h-4 w-4 text-slate-600" />}
+                  </button>
+                </div>
                 <button type="button" onClick={() => skip(-15)}
                   className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
                   style={{ background: "rgba(255, 255, 255, 0.95)", backdropFilter: "blur(10px)", border: "0.5px solid rgba(255, 255, 255, 0.8)", boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)" }}
