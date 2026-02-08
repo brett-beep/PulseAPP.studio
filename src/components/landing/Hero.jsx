@@ -95,7 +95,7 @@ export function Hero({ onSignIn, onJoinWaitlist }) {
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </button>
               <span className="text-sm text-muted-foreground">
-                No credit card required
+                Free to start • Personalized daily briefings
               </span>
             </motion.div>
           </div>

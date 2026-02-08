@@ -20,7 +20,7 @@ export function CTASection({ onSignIn, onJoinWaitlist }) {
           {/* Badge */}
           <motion.div className="mb-6 inline-flex items-center gap-2 glass-subtle rounded-full px-4 py-2">
             <Sparkles className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium text-foreground/80">Open Beta</span>
+            <span className="text-sm font-medium text-foreground/80">Limited Beta Access</span>
           </motion.div>
 
           <h2 className="font-serif text-3xl font-medium text-foreground md:text-4xl lg:text-5xl text-balance leading-tight">
@@ -50,12 +50,12 @@ export function CTASection({ onSignIn, onJoinWaitlist }) {
               animate={{ opacity: [0, 0.4, 0] }}
               transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
             />
-            <span className="relative">Start Listening (Beta)</span>
+            <span className="relative">Early Access (Beta)</span>
             <ArrowRight className="relative h-5 w-5 transition-transform group-hover:translate-x-1" />
           </motion.button>
 
           <p className="mt-6 text-sm text-muted-foreground">
-            Free to start • First briefing tomorrow at 7am
+            Free to start • Personalized daily briefings
           </p>
         </motion.div>
       </div>
