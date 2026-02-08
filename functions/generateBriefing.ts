@@ -638,6 +638,7 @@ Deno.serve(async (req) => {
 
     // =========================================================
     // STEP 1D: TIER 2 - Select PERSONALIZED stories
+    // Strategy: UserNewsCache (ticker-specific) → shared NewsCache fallback
     // =========================================================
     const userInterests = prefProfile?.interests || [];
     const userHoldings = prefProfile?.holdings || [];
@@ -647,27 +648,95 @@ Deno.serve(async (req) => {
     console.log(`\n📊 [generateBriefing] User interests: ${userInterests.join(", ") || "none"}`);
     console.log(`📊 [generateBriefing] Matching categories: ${userCategories.join(", ") || "all"}`);
 
-    // Exclude rapid fire stories from personalization pool
-    const rapidFireIds = new Set(rapidFireStories.map(s => s.id));
-    const personalizedCandidates = scoredStories.filter(story => !rapidFireIds.has(story.id));
+    // --- Try reading ticker-specific stories from UserNewsCache ---
+    let tickerCacheStories: any[] = [];
+    const briefingTickers = userHoldings
+      .map((h: any) => (typeof h === "string" ? h : h?.symbol || h?.ticker || "").toUpperCase().trim())
+      .filter(Boolean);
 
-    // Score for personalization
-    const personalizedScored = personalizedCandidates.map(story => ({
-      ...story,
-      relevanceScore: getPersonalizationScore(story, userCategories, userKeywords, userHoldings)
-    }));
+    if (briefingTickers.length > 0) {
+      try {
+        const userCacheEntries = await base44.entities.UserNewsCache.filter({
+          user_email: userEmail,
+        });
+        if (userCacheEntries && userCacheEntries.length > 0) {
+          const latest = userCacheEntries.sort((a: any, b: any) =>
+            new Date(b.fetched_at).getTime() - new Date(a.fetched_at).getTime()
+          )[0];
+          const cacheAgeHours = (Date.now() - new Date(latest.fetched_at).getTime()) / (1000 * 60 * 60);
+          if (cacheAgeHours < 6) { // 6h TTL for briefing (more lenient — news cards refresh it anyway)
+            tickerCacheStories = typeof latest.stories === "string"
+              ? JSON.parse(latest.stories)
+              : (latest.stories || []);
+            console.log(`✅ [Tier 2] Found ${tickerCacheStories.length} ticker-specific stories from UserNewsCache (${cacheAgeHours.toFixed(1)}h old)`);
+          } else {
+            console.log(`⏰ [Tier 2] UserNewsCache too old (${cacheAgeHours.toFixed(1)}h), using shared pool`);
+          }
+        }
+      } catch (e: any) {
+        // Expected if UserNewsCache entity doesn't exist yet
+        console.log(`⚠️ [Tier 2] UserNewsCache read skipped: ${e.message}`);
+      }
+    }
 
-    // Sort by relevance, then by breaking score as tiebreaker
-    personalizedScored.sort((a, b) => {
-      if (b.relevanceScore !== a.relevanceScore) return b.relevanceScore - a.relevanceScore;
-      return b.breakingScore - a.breakingScore;
-    });
+    // --- Select personalized stories ---
+    let personalizedStories: any[];
 
-    const personalizedStories = personalizedScored.slice(0, 3);
+    if (tickerCacheStories.length >= 3) {
+      // USE TICKER-SPECIFIC STORIES (best path)
+      console.log(`🎯 [Tier 2] Using ${tickerCacheStories.length} ticker-specific stories`);
+
+      // Deduplicate against rapid fire stories by title similarity
+      const dedupedTickerStories = tickerCacheStories.filter((ts: any) => {
+        return !rapidFireStories.some((rf: any) => {
+          const tsTitle = (ts.title || "").toLowerCase();
+          const rfTitle = (rf.title || "").toLowerCase();
+          const tsWords = new Set(tsTitle.split(/\s+/).filter((w: string) => w.length > 3));
+          const rfWords = new Set(rfTitle.split(/\s+/).filter((w: string) => w.length > 3));
+          if (tsWords.size < 3 || rfWords.size < 3) return false;
+          let overlap = 0;
+          for (const w of tsWords) { if (rfWords.has(w)) overlap++; }
+          return overlap / Math.min(tsWords.size, rfWords.size) > 0.5;
+        });
+      });
+
+      // Score and rank even the ticker-specific stories
+      const tickerScored = dedupedTickerStories.map((story: any) => ({
+        ...story,
+        breakingScore: getBreakingScore(story, nowTimestamp).score,
+        ageHours: getBreakingScore(story, nowTimestamp).ageHours,
+        relevanceScore: getPersonalizationScore(story, userCategories, userKeywords, userHoldings),
+      }));
+
+      tickerScored.sort((a: any, b: any) => {
+        if (b.relevanceScore !== a.relevanceScore) return b.relevanceScore - a.relevanceScore;
+        return b.breakingScore - a.breakingScore;
+      });
+
+      personalizedStories = tickerScored.slice(0, 3);
+    } else {
+      // FALLBACK: Use shared NewsCache pool (existing behavior)
+      console.log(`📂 [Tier 2] Falling back to shared NewsCache (${tickerCacheStories.length} ticker stories < 3 minimum)`);
+
+      const rapidFireIds = new Set(rapidFireStories.map((s: any) => s.id));
+      const personalizedCandidates = scoredStories.filter((story: any) => !rapidFireIds.has(story.id));
+
+      const personalizedScored = personalizedCandidates.map((story: any) => ({
+        ...story,
+        relevanceScore: getPersonalizationScore(story, userCategories, userKeywords, userHoldings),
+      }));
+
+      personalizedScored.sort((a: any, b: any) => {
+        if (b.relevanceScore !== a.relevanceScore) return b.relevanceScore - a.relevanceScore;
+        return b.breakingScore - a.breakingScore;
+      });
+
+      personalizedStories = personalizedScored.slice(0, 3);
+    }
 
     console.log("\n📊 [generateBriefing] TIER 2 - PERSONALIZED (Deep Dives):");
-    personalizedStories.forEach((s, i) => {
-      console.log(`   ${i + 1}. [relevance:${s.relevanceScore}] [breaking:${s.breakingScore}] [${s.category}] ${(s.title || "").slice(0, 45)}...`);
+    personalizedStories.forEach((s: any, i: number) => {
+      console.log(`   ${i + 1}. [relevance:${s.relevanceScore || 0}] [breaking:${s.breakingScore || 0}] [${s.category}] ${(s.title || "").slice(0, 45)}...`);
     });
 
     // =========================================================
