@@ -232,11 +232,11 @@ export default function AudioPlayer({
       ? sectionStories[currentSectionIndex]
       : null;
 
-  // Intro: short waveform, then all 6 section cards
+  // Intro: short waveform, then all 6 section cards. When generating a new briefing, always show waveform (same loading look as first time).
   const INTRO_SECONDS = 4;
   const introEndSeconds = INTRO_SECONDS;
-  const showWaveform = sectionCount === 0 || currentTime < introEndSeconds;
-  const showInfoCard = sectionCount > 0 && currentSectionStory && currentTime >= introEndSeconds;
+  const showWaveform = isGenerating || sectionCount === 0 || currentTime < introEndSeconds;
+  const showInfoCard = !isGenerating && sectionCount > 0 && currentSectionStory && currentTime >= introEndSeconds;
 
   const sectionSummary = useMemo(() => {
     if (!currentSectionStory) return "";
