@@ -44,6 +44,30 @@ function getZonedParts(timeZone, d = new Date()) {
   return { dayOfWeek, hour, month, day };
 }
 
+/**
+ * Returns a natural-language phrase for when a story happened, in the user's timezone.
+ * Uses the story's actual datetime so the script can say "On Friday evening, ..." accurately.
+ * e.g. "earlier today", "yesterday afternoon", "on Friday evening"
+ */
+function getStoryWhenPhrase(storyDatetimeIso, timeZone, ageHours) {
+  if (!storyDatetimeIso) return "recently";
+  const storyDate = new Date(storyDatetimeIso);
+  if (isNaN(storyDate.getTime())) return "recently";
+
+  const fmt = (d, opts) => new Intl.DateTimeFormat("en-US", { timeZone, ...opts }).format(d);
+  const storyWeekday = fmt(storyDate, { weekday: "long" });
+  const hour = parseInt(fmt(storyDate, { hour: "2-digit", hour12: false }), 10) || 0;
+  const timeOfDay = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
+
+  if (ageHours != null && ageHours <= 24) {
+    if (ageHours < 12) return `earlier today (${timeOfDay})`;
+    return `yesterday (${storyWeekday}) ${timeOfDay}`;
+  }
+  if (ageHours != null && ageHours <= 48) return `on ${storyWeekday} ${timeOfDay}`;
+  if (ageHours != null && ageHours <= 168) return `on ${storyWeekday}`;
+  return `on ${storyWeekday}`;
+}
+
 function wordCount(text) {
   return String(text || "").split(/\s+/).filter(Boolean).length;
 }
@@ -351,18 +375,18 @@ async function generateAudioFile(script, date, elevenLabsApiKey) {
       "Content-Type": "application/json",
       "xi-api-key": elevenLabsApiKey,
     },
-    body: JSON.stringify({
-      text: script,
-      model_id: "eleven_turbo_v2_5",
-      output_format: "mp3_44100_128",
-      voice_settings: {
-        stability: 0.3,
-        similarity_boost: 0.75,
-        style: 0.3,
-        use_speaker_boost: true,
-      },
-      speed: 1.1,
-    }),
+      body: JSON.stringify({
+        text: script,
+        model_id: "eleven_turbo_v2_5",
+        output_format: "mp3_44100_128",
+        voice_settings: {
+          stability: 0.3,
+          similarity_boost: 0.75,
+          style: 0.3,
+          use_speaker_boost: true,
+        },
+        speed: 1.2,
+      }),
   });
 
   if (!ttsResponse.ok) {
@@ -825,6 +849,11 @@ Deno.serve(async (req) => {
       ? userHoldings.map(h => (typeof h === "string" ? h : h?.symbol)).filter(Boolean).join(", ")
       : "not specified";
 
+    // Format date naturally for the script
+    const dateObj = new Date(date);
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const naturalDate = `${monthNames[dateObj.getMonth()]} ${dateObj.getDate()}, ${dateObj.getFullYear()}`;
+
     const breakingNewsRelevance = rapidFireForPrompt.map(story => ({
       ...story,
       relevantToUserHoldings: detectRelevantHoldings(story, userHoldings),
@@ -837,64 +866,39 @@ You are writing a complete audio briefing package for "Pulse" - a personalized f
 
 LISTENER PROFILE:
 - Name: ${name}
-- Date: ${date}
+- Today's Date: ${naturalDate}
 - Time of Day: ${timeGreeting}
 ${holidayGreeting ? `- Holiday: ${holidayGreeting}` : ""}
-${isWeekend ? "- Context: Weekend" : ""}
+${isWeekend ? "- Context: Weekend (markets closed)" : ""}
 ${isMonday ? "- Context: Monday (start of week)" : ""}
 ${isFriday ? "- Context: Friday (end of week)" : ""}
 - Investment Interests: ${userInterestsStr}
-- Portfolio Holdings: ${userHoldingsStr}
+- Portfolio Holdings (PRIORITIZE THESE): ${userHoldingsStr}
 
 MARKET SNAPSHOT:
 - S&P 500: ${marketSnapshot.sp500_pct}
 - Nasdaq: ${marketSnapshot.nasdaq_pct}
 - Dow Jones: ${marketSnapshot.dow_pct}
 
-TYPICAL WEEKLY EVENTS (for "What to Watch" context):
-- Monday: Market digesting weekend news, sector rotation
-- Tuesday-Wednesday: Mid-week often has Fed speakers, FOMC minutes releases
-- Thursday: Weekly jobless claims (8:30am ET)
-- Friday: Often monthly jobs report (first Fri of month, 8:30am ET)
-- Month-end: CPI typically mid-month, GDP/PCE end of month, FOMC meetings ~8 times/year
-
 ---
 
 PART 1: GENERATE METADATA
-Create briefing metadata with:
 
 **SUMMARY (structured in 3 sections):**
-Format as a structured analysis with these sections:
 
-**Market Snapshot:** [Specific index movements with percentages] — [brief sector/style color commentary]
-Example: "Nasdaq -1.96%, S&P +0.12%, Dow +0.35% — tech under pressure while financials and energy hold steady."
+**Market Snapshot:** [Specific index movements with percentages] — [brief sector commentary]
+Example: "Nasdaq -1.96%, S&P +0.12%, Dow +0.35% — tech under pressure while financials hold steady."
 
-**Key Developments:** [1-2 top stories with specific company tickers and investor implications]
-- Lead with the most market-moving story from today's news
-- Include specific tickers where relevant (not generic "companies")
-- Add percentages, numbers, data points to make it concrete
-- Connect to portfolio implications (e.g., "could pressure freight rates and impact ZIM, MATX")
-Example: "Global shipping giants warn of 2026 margin squeeze as Red Sea normalizes—freight rates could drop 20-30%, watch ZIM, MATX for earnings revisions. Eve Air Mobility's firm eVTOL orders signal institutional confidence returning to electric aviation's $1T TAM."
+**Key Developments:** [1-2 top stories with SPECIFIC TICKERS FROM USER'S HOLDINGS]
+- CRITICAL: Prioritize stories about ${userHoldingsStr}. If no direct news, mention sector/competitor impact.
+- Include specific tickers, percentages, numbers
+Example: "Apple announces iPad/MacBook refresh for March—signals strong product momentum for AAPL holders."
 
-**What to Watch:** [Most important upcoming market-moving event in next 5 trading days with timing and what matters]
-- Priority: Fed meetings > CPI/inflation data > jobs reports > major earnings clusters > geopolitical events > key technical levels
-- Be SPECIFIC: include dates, times (if intraday), consensus estimates, key thresholds
-- Format: "[Event] [Timing] — [What specifically to watch for / market implication]"
-- If a major multi-day event is approaching (e.g., Fed meeting Wed), reference it daily with evolving framing until it passes
-Example: "Fed decision Wednesday 2pm ET. Market pricing 90% hold—watch dot plot revisions and Powell's inflation commentary for any shift on rate cut timeline."
-
-**KEY_HIGHLIGHTS (actionable bullets):**
-Format: 3-5 bullets, each structured as:
-**[Category/Hook]**: [What happened] + [Specific investor implication with tickers, percentages, numbers] + [What to watch or risk/opportunity]
-
-Rules:
-- Make ACTIONABLE, not just factual reporting
-- Include specific company tickers, not generic "firms" or "companies"
-- Include numbers, percentages, data points where relevant
-- Each bullet should provide UNIQUE insight—don't rehash the summary
-- Connect to portfolio implications: "watch X for...", "risk to Y sector...", "validates Z thesis..."
-
-Example: "**Shipping margin squeeze ahead**: Maersk warns Red Sea normalization could compress freight rates 20-30% in H1 2026—watch earnings revisions for ZIM, MATX, DAC; long-duration contracts (FedEx, UPS) less exposed."
+**KEY_HIGHLIGHTS (3-5 bullets):**
+Format: **[Hook]**: [What happened] + [Specific implication with tickers/numbers] + [Risk/opportunity]
+- MUST prioritize ${userHoldingsStr}
+- Include numbers, percentages, data
+- Make ACTIONABLE
 
 **MARKET_SENTIMENT:**
 - label: "bullish"|"bearish"|"neutral"|"mixed"
@@ -904,101 +908,100 @@ Example: "**Shipping margin squeeze ahead**: Maersk warns Red Sea normalization 
 
 PART 2: GENERATE AUDIO SCRIPT
 
-TARGET LENGTH: 5 MINUTES (650-750 words total)
+TARGET LENGTH: 650-750 words
 
-SCRIPT STRUCTURE - TWO-TIER FORMAT:
+CRITICAL RULES FOR AUDIO:
+1. **TEMPORAL CONTEXT**: Each story has a line "When it happened (USE THIS EXACT PHRASE in the script): ..."
+   - You MUST use that exact phrase (or very close) when introducing that story, so listeners know when it happened.
+   - Example: if we give you "on Friday evening", say "On Friday evening, [headline]..." not "Recently..." or "Earlier..."
+   
+2. **DATE FORMAT**: NEVER say "2026-02-08". Say "${naturalDate}" or use relative terms.
 
-1. PERSONAL OPENING (20-30 words):
-   - Start with: "${timeGreeting}, ${name}"
-   ${holidayGreeting ? `- Include: "${holidayGreeting}"` : ""}
-   ${isWeekend ? "- Add weekend acknowledgment" : ""}
-   ${isMonday ? "- Add: 'Hope you had a great weekend' or 'Let's start the week strong'" : ""}
-   ${isFriday ? "- Add: 'Let's wrap up the week' or similar end-of-week sentiment" : ""}
-   - Transition with conversational anchor:
-     Examples: "Let me catch you up on what happened in the markets overnight..."
-     "Here's what you need to know to start your day..."
-     "Let's dive into what's moving markets today..."
+3. **PERSONALIZATION**: 
+   - Stories 4-6 MUST relate to ${userHoldingsStr}
+   - If no direct news, discuss sector/competitor impact on their holdings
+   - Say "For your Apple shares" or "Since you own Microsoft"
+   
+4. **ACCURACY**: 
+   - NEVER recommend watching for events that already happened
+   - Check story age - if event is in the past, discuss implications, NOT "watch for it"
+   - NO made-up consensus numbers or dates
 
-2. RAPID FIRE BREAKING NEWS (Stories 1-3) - ~180 words total:
-   STYLE: Conversational Bloomberg/CNBC format with personality
+SCRIPT STRUCTURE:
+
+1. OPENING (20-30 words):
+   "${timeGreeting}, ${name}! ${isWeekend ? "Hope you're enjoying your weekend." : ""} Let me catch you up on what's happening in the markets."
+
+2. RAPID FIRE BREAKING NEWS (Stories 1-3) - ~180 words:
    For EACH story (~60 words):
-   - Lead with the headline using natural language
-   - What happened (facts + numbers, 2-3 sentences)
-   - **CONDITIONAL INVESTOR TAKEAWAY**:
-     ${userHoldings.length > 0 ? `
-     IF story affects user's holdings (${userHoldingsStr}):
-       "For your [HOLDING], this means [SPECIFIC IMPACT]"
-     ELSE:
-       Brief general context
-     ` : "General investor context"}
-   NO section headers. Keep momentum with natural transitions.
+   - Use TEMPORAL CONTEXT: "Yesterday," "This morning," "Earlier today"
+   - Lead with headline + what happened (facts + numbers)
+   - IF affects ${userHoldingsStr}: "For your [TICKER], this means [IMPACT]"
+   - ELSE: Brief general context
+   
+   NO section headers. Natural transitions.
 
 3. PORTFOLIO TRANSITION (10-15 words):
-   Re-engage user by name before personalized section.
-   Examples: "Alright, now let's zoom in on your portfolio, ${name}."
-   "Now, here's what matters for your holdings, ${name}."
+   "Now, let's talk about your holdings, ${name}."
 
-4. PERSONALIZED DEEP DIVES (Stories 4-6) - ~400-450 words total:
-   STYLE: Deeper narrative, portfolio-focused
-   For EACH holding-related story (~130-150 words):
-   - Start with the news hook (what happened)
-   - Add context and background (why it happened)
-   - **Portfolio implications** (what it means for ${name}'s holdings)
-   - Include forward-looking element: "The two risks to watch are..." "What matters going forward is..."
-   Use conversational connectors: "Since you also hold [TICKER]..." "Because you're exposed to [SECTOR]..."
+4. PERSONALIZED DEEP DIVES (Stories 4-6) - ~400 words:
+   **CRITICAL**: These MUST be about ${userHoldingsStr} or directly impact them.
+   
+   For EACH story (~130 words):
+   - Use TEMPORAL CONTEXT for when it happened
+   - Start with news hook (what happened)
+   - Context (why it happened)
+   - Portfolio implications: "For your Apple/Google/Microsoft/Shopify position, this means..."
+   - Forward-looking: "What matters going forward is..." (but NO predictions about already-passed events)
 
-5. PORTFOLIO SNAPSHOT (40-50 words):
-   - Overall portfolio context if relevant
-   - Market snapshot: "Markets: S&P ${marketSnapshot.sp500_pct}, Nasdaq ${marketSnapshot.nasdaq_pct}, Dow ${marketSnapshot.dow_pct}"
-   - Brief sentiment/context (1 sentence)
+5. MARKET SNAPSHOT (30-40 words):
+   "Today's markets: S&P ${marketSnapshot.sp500_pct}, Nasdaq ${marketSnapshot.nasdaq_pct}, Dow ${marketSnapshot.dow_pct}"
+   Brief sentiment (1 sentence)
 
-6. FORWARD-LOOKING "WHAT TO WATCH" (30-40 words):
-   Set up the user for what matters next. Format as conversational guidance (NOT bullets).
-   Examples: "Here's what to watch: [THEME 1], [THEME 2], and [THEME 3]."
-
-7. CLOSING (20-30 words):
-   - Quick wrap synthesizing the day
-   - Re-use name for personal touch
-   - Sign off with energy: "That's your Pulse for ${date}. Go crush it today, ${name}."
-   Avoid generic closings like "Thanks for listening"
-
-CRITICAL VOICE RULES:
-- Write like you're talking to a friend who's smart about markets
-- Use ${name} at least 3 times total (opening, portfolio transition, closing)
-- Conversational asides ("So quite a bit of uncertainty"), colloquialisms ("The Street's worried", "got crushed")
-- NO section labels visible in script. NO robotic transitions.
-- Percent moves ONLY for indices (never point values)
-
+6. CLOSING (15-20 words):
+   - Synthesize the day in one sentence
+   - Sign off: "That's your Pulse for ${naturalDate}. Have a great day, ${name}!"
+   
 ---
 
 DATA FOR RAPID FIRE (Stories 1-3):
 ${breakingNewsRelevance
   .map(
-    (s, i) => `
+    (s, i) => {
+      const whenPhrase = getStoryWhenPhrase(s.datetime, timeZone, s.ageHours);
+      return `
 Story ${i + 1}:
 Title: ${s.title}
 What Happened: ${s.what_happened}
 Source: ${s.outlet}
 Category: ${s.category}
-Age: ${(s.ageHours || 0).toFixed(1)}h
-Relevant to User's Holdings: ${s.relevantToUserHoldings}
-${s.relevantToUserHoldings !== "none" ? `→ Add specific takeaway for: ${s.relevantToUserHoldings}` : "→ Add general market context only"}
-`
+Age: ${(s.ageHours || 0).toFixed(1)} hours ago
+When it happened (USE THIS EXACT PHRASE in the script): "${whenPhrase}"
+Relevant to User's Holdings (${userHoldingsStr}): ${s.relevantToUserHoldings}
+${s.relevantToUserHoldings !== "none" ? `→ MUST add specific takeaway for: ${s.relevantToUserHoldings}` : "→ Brief general context only"}
+`;
+    }
   )
   .join("\n")}
 
 DATA FOR PERSONALIZED DEEP DIVES (Stories 4-6):
+**CRITICAL**: User holds ${userHoldingsStr}. Stories 4-6 MUST relate to these tickers or their sectors.
 ${personalizedForPrompt
   .map(
-    (s, i) => `
+    (s, i) => {
+      const whenPhrase = getStoryWhenPhrase(s.datetime, timeZone, s.ageHours);
+      return `
 Story ${i + 4}:
 Title: ${s.title}
 What Happened: ${s.what_happened}
 Why It Matters: ${s.why_it_matters || "Connect to investor implications"}
 Source: ${s.outlet}
 Category: ${s.category}
-Relevant to User's Holdings: ${detectRelevantHoldings(s, userHoldings)}
-`
+Age: ${(s.ageHours || 0).toFixed(1)} hours ago
+When it happened (USE THIS EXACT PHRASE in the script): "${whenPhrase}"
+Relevant to User's Holdings (${userHoldingsStr}): ${detectRelevantHoldings(s, userHoldings)}
+`;
+    }
   )
   .join("\n")}
 
