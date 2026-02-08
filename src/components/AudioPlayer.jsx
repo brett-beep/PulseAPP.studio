@@ -828,8 +828,8 @@ export default function AudioPlayer({
               className="flex flex-col items-center mt-6 md:mt-8 gap-2"
             >
               {/* Mobile: grid with fixed column widths so Generate and controls never overlap or jump */}
-              <div className="w-full md:hidden grid items-center min-h-[44px] gap-2" style={{ gridTemplateColumns: "1fr auto 3rem" }}>
-                <div className="min-w-0" aria-hidden="true" />
+              <div className="w-full md:hidden grid items-center min-h-[44px]" style={{ gridTemplateColumns: "3rem 1fr 3rem" }}>
+                <div aria-hidden="true" />
                 <button
                   type="button"
                   onClick={canGenerateNew ? onGenerate : undefined}
