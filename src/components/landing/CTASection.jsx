@@ -20,7 +20,7 @@ export function CTASection({ onSignIn, onJoinWaitlist }) {
           {/* Badge */}
           <motion.div className="mb-6 inline-flex items-center gap-2 glass-subtle rounded-full px-4 py-2">
             <Sparkles className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium text-foreground/80">Limited Beta Access</span>
+            <span className="text-sm font-medium text-foreground/80">Open Beta</span>
           </motion.div>
 
           <h2 className="font-serif text-3xl font-medium text-foreground md:text-4xl lg:text-5xl text-balance leading-tight">
@@ -28,7 +28,7 @@ export function CTASection({ onSignIn, onJoinWaitlist }) {
           </h2>
           
           <p className="mt-4 text-lg text-muted-foreground max-w-lg mx-auto">
-            Join thousands of investors who start their day informed, not overwhelmed.
+            Join investors who start their day informed, not overwhelmed.
           </p>
           
           <motion.button
@@ -38,7 +38,7 @@ export function CTASection({ onSignIn, onJoinWaitlist }) {
                 eventName: "cta_button_clicked",
                 properties: { location: "cta_section_bottom" }
               })
-              onJoinWaitlist()
+              onSignIn()
             }}
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.98 }}
@@ -50,12 +50,12 @@ export function CTASection({ onSignIn, onJoinWaitlist }) {
               animate={{ opacity: [0, 0.4, 0] }}
               transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
             />
-            <span className="relative">Join the Waitlist</span>
+            <span className="relative">Start Listening (Beta)</span>
             <ArrowRight className="relative h-5 w-5 transition-transform group-hover:translate-x-1" />
           </motion.button>
 
           <p className="mt-6 text-sm text-muted-foreground">
-            No credit card required • First briefing tomorrow at 7am
+            Free to start • First briefing tomorrow at 7am
           </p>
         </motion.div>
       </div>
