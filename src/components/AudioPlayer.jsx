@@ -834,14 +834,14 @@ export default function AudioPlayer({
               exit={{ opacity: 0, y: -10 }}
               className="flex flex-col items-center mt-6 md:mt-8 gap-2"
             >
-              {/* Mobile: grid keeps Generate + controls in fixed positions; no hover scale so nothing shifts */}
-              <div className="w-full md:hidden grid grid-cols-3 items-center justify-items-center gap-2 min-h-[44px]">
-                <div className="w-full" aria-hidden="true" />
-                <motion.button
-                  whileTap={canGenerateNew ? { scale: 0.96 } : {}}
+              {/* Mobile: grid with fixed column widths so Generate and controls never overlap or jump */}
+              <div className="w-full md:hidden grid items-center min-h-[44px] gap-2" style={{ gridTemplateColumns: "1fr auto 3rem" }}>
+                <div className="min-w-0" aria-hidden="true" />
+                <button
+                  type="button"
                   onClick={canGenerateNew ? onGenerate : undefined}
                   disabled={isButtonDisabled}
-                  className={`col-start-2 justify-self-center px-5 py-2.5 rounded-full text-xs font-semibold whitespace-nowrap ${isButtonDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                  className={`justify-self-center px-5 py-2.5 rounded-full text-xs font-semibold whitespace-nowrap min-w-0 ${isButtonDisabled ? "cursor-not-allowed" : "cursor-pointer"}`}
                   style={{
                     background: isButtonDisabled
                       ? "linear-gradient(135deg, rgba(180, 180, 180, 0.6) 0%, rgba(150, 150, 150, 0.7) 100%)"
@@ -852,11 +852,11 @@ export default function AudioPlayer({
                   }}
                 >
                   {getButtonText()}
-                </motion.button>
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
+                </button>
+                <button
+                  type="button"
                   onClick={() => setShowControls(!showControls)}
-                  className="col-start-3 justify-self-end w-12 h-12 rounded-full flex items-center justify-center shrink-0"
+                  className="w-12 h-12 rounded-full flex items-center justify-center shrink-0 justify-self-end"
                   style={{
                     background: "rgba(255, 255, 255, 0.6)",
                     backdropFilter: "blur(10px)",
@@ -865,7 +865,7 @@ export default function AudioPlayer({
                   }}
                 >
                   <Settings2 className="h-5 w-5 text-slate-600" />
-                </motion.button>
+                </button>
               </div>
 
               {/* Desktop: Generate button only */}
@@ -962,7 +962,7 @@ export default function AudioPlayer({
                   >
                     <Gauge className="h-4 w-4 text-slate-600" />
                     <span className="absolute -bottom-0 text-[9px] font-semibold text-slate-700">{playbackRate}x</span>
-                  </motion.button>
+                  </button>
                   <AnimatePresence>
                     {showSpeedMenu && (
                       <motion.div
