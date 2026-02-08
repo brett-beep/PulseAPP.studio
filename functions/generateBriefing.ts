@@ -610,13 +610,19 @@ Deno.serve(async (req) => {
     // STEP 1B: Score stories for "breaking-ness"
     // =========================================================
     const nowTimestamp = Date.now();
+    // Weekends / low-volume: relax age filter to 48h so we always have stories
+    const currentDayOfWeek = new Date().getUTCDay(); // 0=Sun, 6=Sat
+    const isWeekendDay = currentDayOfWeek === 0 || currentDayOfWeek === 6;
+    const maxAgeHours = isWeekendDay ? 48 : 24;
+
     const scoredStories = cachedStories
       .map(story => {
         const { score, ageHours } = getBreakingScore(story, nowTimestamp);
         return { ...story, breakingScore: score, ageHours };
       })
-      .filter(s => s.ageHours <= 24); // Only stories from last 24 hours
+      .filter(s => s.ageHours <= maxAgeHours);
 
+    console.log(`📅 Age filter: ${maxAgeHours}h (${isWeekendDay ? "weekend" : "weekday"}) → ${scoredStories.length} stories pass`);
     console.log("🔥 [generateBriefing] Top breaking scores:");
     scoredStories
       .sort((a, b) => b.breakingScore - a.breakingScore)
@@ -656,7 +662,7 @@ Deno.serve(async (req) => {
 
     if (briefingTickers.length > 0) {
       try {
-        const userCacheEntries = await base44.entities.UserNewsCache.filter({
+        const userCacheEntries = await base44.asServiceRole.entities.UserNewsCache.filter({
           user_email: userEmail,
         });
         if (userCacheEntries && userCacheEntries.length > 0) {
@@ -1057,6 +1063,23 @@ RETURN JSON FORMAT:
     const estimatedMinutes = Math.max(1, Math.round(wc / 150));
 
     console.log(`✅ [generateBriefing] Generated script: ${wc} words (~${estimatedMinutes} min)`);
+
+    // GUARD: Don't create a briefing with an empty or near-empty script
+    if (wc < 50) {
+      console.error(`❌ [generateBriefing] Script too short (${wc} words). LLM may have returned empty. Aborting.`);
+      console.error(`   Stories fed to prompt: ${allBriefingStories.length} (rapid:${rapidFireForPrompt.length}, personal:${personalizedForPrompt.length})`);
+      return Response.json({
+        error: `Briefing script was too short (${wc} words). This can happen when news data is stale or the LLM returned an incomplete response. Please try again.`,
+        success: false,
+        debug: {
+          scriptWordCount: wc,
+          storiesTotal: allBriefingStories.length,
+          rapidFireCount: rapidFireForPrompt.length,
+          personalizedCount: personalizedForPrompt.length,
+          scoredStoriesCount: scoredStories.length,
+        },
+      }, { status: 500 });
+    }
 
     // =========================================================
     // STEP 5: Save Briefing (ALWAYS CREATE NEW)
