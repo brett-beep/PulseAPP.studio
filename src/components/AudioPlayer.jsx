@@ -841,7 +841,7 @@ export default function AudioPlayer({
                   whileTap={canGenerateNew ? { scale: 0.96 } : {}}
                   onClick={canGenerateNew ? onGenerate : undefined}
                   disabled={isButtonDisabled}
-                  className={`col-start-2 justify-self-center px-5 py-2.5 rounded-full text-xs font-semibold ${isButtonDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                  className={`col-start-2 justify-self-center px-5 py-2.5 rounded-full text-xs font-semibold whitespace-nowrap ${isButtonDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                   style={{
                     background: isButtonDisabled
                       ? "linear-gradient(135deg, rgba(180, 180, 180, 0.6) 0%, rgba(150, 150, 150, 0.7) 100%)"
@@ -875,7 +875,7 @@ export default function AudioPlayer({
                   whileTap={canGenerateNew ? { scale: 0.96 } : {}}
                   onClick={canGenerateNew ? onGenerate : undefined}
                   disabled={isButtonDisabled}
-                  className={`px-6 py-3 rounded-full text-sm font-semibold ${isButtonDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                  className={`px-6 py-3 rounded-full text-sm font-semibold whitespace-nowrap ${isButtonDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                   style={{
                     background: isButtonDisabled
                       ? "linear-gradient(135deg, rgba(180, 180, 180, 0.6) 0%, rgba(150, 150, 150, 0.7) 100%)"
@@ -923,7 +923,7 @@ export default function AudioPlayer({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
+              transition={{ duration: 0.15 }}
               className="absolute inset-0 z-20 pointer-events-none rounded-[32px] md:rounded-[40px] md:hidden"
             >
               <div
@@ -932,34 +932,31 @@ export default function AudioPlayer({
                 onClick={() => setShowControls(false)}
                 aria-hidden="true"
               />
-              <motion.div
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
+              <div
                 className="absolute right-0 z-30 pointer-events-auto flex flex-col items-end gap-3"
                 style={{ bottom: "5.75rem" }}
                 onClick={(e) => e.stopPropagation()}
               >
-                <motion.button whileHover={{ scale: 1.12 }} whileTap={{ scale: 0.94 }} onClick={toggleMute}
+                <button type="button" onClick={toggleMute}
                   className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
                   style={{ background: "rgba(255, 255, 255, 0.95)", backdropFilter: "blur(10px)", border: "0.5px solid rgba(255, 255, 255, 0.8)", boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)" }}
                 >
                   {isMuted ? <VolumeX className="h-4 w-4 text-slate-600" /> : <Volume2 className="h-4 w-4 text-slate-600" />}
-                </motion.button>
-                <motion.button whileHover={{ scale: 1.12 }} whileTap={{ scale: 0.94 }} onClick={() => skip(-15)}
+                </button>
+                <button type="button" onClick={() => skip(-15)}
                   className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
                   style={{ background: "rgba(255, 255, 255, 0.95)", backdropFilter: "blur(10px)", border: "0.5px solid rgba(255, 255, 255, 0.8)", boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)" }}
                 >
                   <RotateCcw className="h-4 w-4 text-slate-600" />
-                </motion.button>
-                <motion.button whileHover={{ scale: 1.12 }} whileTap={{ scale: 0.94 }} onClick={() => skip(30)}
+                </button>
+                <button type="button" onClick={() => skip(30)}
                   className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
                   style={{ background: "rgba(255, 255, 255, 0.95)", backdropFilter: "blur(10px)", border: "0.5px solid rgba(255, 255, 255, 0.8)", boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)" }}
                 >
                   <FastForward className="h-4 w-4 text-slate-600" />
-                </motion.button>
+                </button>
                 <div className="relative">
-                  <motion.button whileHover={{ scale: 1.12 }} whileTap={{ scale: 0.94 }} onClick={() => setShowSpeedMenu(!showSpeedMenu)}
+                  <button type="button" onClick={() => setShowSpeedMenu(!showSpeedMenu)}
                     className="w-12 h-12 rounded-full flex items-center justify-center relative shrink-0"
                     style={{ background: "rgba(255, 255, 255, 0.95)", backdropFilter: "blur(10px)", border: "0.5px solid rgba(255, 255, 255, 0.8)", boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)" }}
                   >
@@ -990,7 +987,7 @@ export default function AudioPlayer({
                     )}
                   </AnimatePresence>
                 </div>
-              </motion.div>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
