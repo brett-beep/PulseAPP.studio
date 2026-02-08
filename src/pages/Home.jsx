@@ -672,8 +672,8 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
         if (market || portfolio) {
           setMarketNews(market ?? { summary: "Market News", stories: [], updated_at: null });
           setPortfolioNews(portfolio ?? { summary: "Your Portfolio", stories: [], updated_at: null });
-          const updatedAt = market?.updated_at || portfolio?.updated_at;
-          setLastRefreshTime(updatedAt ? new Date(updatedAt) : new Date());
+          // Manual refresh: show when the user clicked Refresh, not API cache time
+          setLastRefreshTime(new Date());
           localStorage.setItem(
             CACHE_KEY,
             JSON.stringify({ market_news: market, portfolio_news: portfolio })
@@ -686,7 +686,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
           const pn = { summary: "Your Portfolio", stories: stories.slice(half), updated_at: resp.data.cache_age };
           setMarketNews(mn);
           setPortfolioNews(pn);
-          setLastRefreshTime(resp.data.cache_age ? new Date(resp.data.cache_age) : new Date());
+          setLastRefreshTime(new Date());
           localStorage.setItem(CACHE_KEY, JSON.stringify({ market_news: mn, portfolio_news: pn }));
           localStorage.setItem(TIMESTAMP_KEY, Date.now().toString());
         }
