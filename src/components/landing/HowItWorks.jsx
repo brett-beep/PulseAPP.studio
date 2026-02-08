@@ -361,11 +361,11 @@ export function HowItWorks() {
             className="grid gap-10 lg:grid-cols-2 lg:gap-16 items-center"
           >
             <div>
-              <div className="flex items-center gap-4 mb-5">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-base font-bold text-primary-foreground shadow-lg">1</span>
-                <h3 className="font-serif text-2xl md:text-3xl font-medium text-foreground">What Matters To You</h3>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 mb-5">
+                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-base font-bold text-primary-foreground shadow-lg">1</span>
+                <h3 className="font-serif text-xl sm:text-2xl md:text-3xl font-medium text-foreground">What Matters To You</h3>
               </div>
-              <p className="text-lg text-muted-foreground leading-relaxed">
+              <p className="text-base sm:text-lg text-muted-foreground leading-relaxed">
                 Select your interests to personalize your briefings.
                 <br />
                 Choose the topics, sectors, and companies you care about.
@@ -384,11 +384,11 @@ export function HowItWorks() {
             className="grid gap-10 lg:grid-cols-2 lg:gap-16 items-center"
           >
             <div className="lg:order-2">
-              <div className="flex items-center gap-4 mb-5">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-base font-bold text-primary-foreground shadow-lg">2</span>
-                <h3 className="font-serif text-2xl md:text-3xl font-medium text-foreground">Get Your Briefings</h3>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 mb-5">
+                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-base font-bold text-primary-foreground shadow-lg">2</span>
+                <h3 className="font-serif text-xl sm:text-2xl md:text-3xl font-medium text-foreground">Get Your Briefings</h3>
               </div>
-              <p className="text-lg text-muted-foreground leading-relaxed">
+              <p className="text-base sm:text-lg text-muted-foreground leading-relaxed">
                 PulseApp generates up to <strong className="text-foreground font-semibold">3 audio market briefings</strong> per day.
                 <br />
                 Prioritize convenience and investor-related takeaways.
@@ -407,12 +407,12 @@ export function HowItWorks() {
             className="grid gap-10 lg:grid-cols-2 lg:gap-16 items-center"
           >
             <div>
-              <div className="flex items-center gap-4 mb-5">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-base font-bold text-primary-foreground shadow-lg">3</span>
-                <h3 className="font-serif text-2xl md:text-3xl font-medium text-foreground">Connect Your Workflow</h3>
-                <span className="glass-subtle rounded-full px-3 py-1 text-xs font-semibold text-muted-foreground">Coming Soon</span>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 mb-5 flex-wrap">
+                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-base font-bold text-primary-foreground shadow-lg">3</span>
+                <h3 className="font-serif text-xl sm:text-2xl md:text-3xl font-medium text-foreground">Connect Your Workflow</h3>
+                <span className="glass-subtle rounded-full px-3 py-1 text-xs font-semibold text-muted-foreground whitespace-nowrap">Coming Soon</span>
               </div>
-              <p className="text-lg text-muted-foreground leading-relaxed">
+              <p className="text-base sm:text-lg text-muted-foreground leading-relaxed">
                 Integrations with email, calendar, and financial planning tools.
                 <br />
                 An audio briefing assistant that fits your workflow.

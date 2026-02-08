@@ -15,19 +15,19 @@ export function CTASection({ onSignIn, onJoinWaitlist }) {
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-100px" }}
-          className="glass-card-strong rounded-3xl p-12 md:p-16 glow-primary"
+          className="glass-card-strong rounded-2xl sm:rounded-3xl p-8 sm:p-12 md:p-16 glow-primary"
         >
           {/* Badge */}
-          <motion.div className="mb-6 inline-flex items-center gap-2 glass-subtle rounded-full px-4 py-2">
-            <Sparkles className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium text-foreground/80">Limited Beta Access</span>
+          <motion.div className="mb-6 inline-flex items-center gap-2 glass-subtle rounded-full px-3 sm:px-4 py-1.5 sm:py-2">
+            <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary flex-shrink-0" />
+            <span className="text-xs sm:text-sm font-medium text-foreground/80 whitespace-nowrap">Limited Beta Access</span>
           </motion.div>
 
-          <h2 className="font-serif text-3xl font-medium text-foreground md:text-4xl lg:text-5xl text-balance leading-tight">
+          <h2 className="font-serif text-2xl sm:text-3xl font-medium text-foreground md:text-4xl lg:text-5xl text-balance leading-tight">
             Ready to transform your <span className="text-gradient">mornings</span>?
           </h2>
           
-          <p className="mt-4 text-lg text-muted-foreground max-w-lg mx-auto">
+          <p className="mt-4 text-base sm:text-lg text-muted-foreground max-w-lg mx-auto">
             Join investors who start their day informed, not overwhelmed.
           </p>
           
@@ -42,7 +42,7 @@ export function CTASection({ onSignIn, onJoinWaitlist }) {
             }}
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.98 }}
-            className="group relative mt-10 inline-flex items-center gap-3 overflow-hidden rounded-full bg-gradient-to-r from-primary to-accent px-10 py-5 text-lg font-semibold text-primary-foreground shadow-xl glow-primary transition-all hover:shadow-2xl"
+            className="group relative mt-8 sm:mt-10 inline-flex items-center gap-2 sm:gap-3 overflow-hidden rounded-full bg-gradient-to-r from-primary to-accent px-8 sm:px-10 py-4 sm:py-5 text-base sm:text-lg font-semibold text-primary-foreground shadow-xl glow-primary transition-all hover:shadow-2xl whitespace-nowrap"
           >
             {/* Pulse animation background */}
             <motion.div
@@ -51,7 +51,7 @@ export function CTASection({ onSignIn, onJoinWaitlist }) {
               transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
             />
             <span className="relative">Early Access (Beta)</span>
-            <ArrowRight className="relative h-5 w-5 transition-transform group-hover:translate-x-1" />
+            <ArrowRight className="relative h-4 w-4 sm:h-5 sm:w-5 transition-transform group-hover:translate-x-1 flex-shrink-0" />
           </motion.button>
 
           <p className="mt-6 text-sm text-muted-foreground">

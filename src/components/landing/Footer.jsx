@@ -10,25 +10,25 @@ export function Footer() {
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
-          className="flex flex-col items-center justify-between gap-8 md:flex-row"
+          className="flex flex-col items-center justify-between gap-6 sm:gap-8 md:flex-row"
         >
           {/* Logo */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <img
               src="/pulse-logo.svg"
               alt="PulseApp"
-              className="h-10 w-10 object-contain"
+              className="h-8 w-8 sm:h-10 sm:w-10 object-contain"
             />
-            <span className="font-serif text-xl font-medium text-foreground">PulseApp</span>
+            <span className="font-serif text-lg sm:text-xl font-medium text-foreground">PulseApp</span>
           </div>
 
           {/* Tagline */}
-          <p className="text-center text-muted-foreground font-medium">
+          <p className="text-center text-sm sm:text-base text-muted-foreground font-medium">
             Made for investors who value their time
           </p>
 
           {/* Social proof */}
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-center gap-3">
             <div className="flex -space-x-2">
               {[
                 "/team/investor-1.png",
@@ -59,11 +59,11 @@ export function Footer() {
         </motion.div>
 
         {/* Bottom section */}
-        <div className="mt-10 border-t border-border/20 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="mt-8 sm:mt-10 border-t border-border/20 pt-6 sm:pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-sm text-muted-foreground/70">
             © {currentYear} PulseApp. All rights reserved.
           </p>
-          <div className="flex items-center gap-6">
+          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6">
             <a href="#" className="text-sm text-muted-foreground/70 hover:text-foreground transition-colors">
               Privacy Policy
             </a>

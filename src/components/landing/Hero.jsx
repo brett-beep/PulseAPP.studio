@@ -33,7 +33,13 @@ export function Hero({ onSignIn, onJoinWaitlist }) {
             </div>
             <span className="font-serif text-2xl font-medium text-foreground">PulseApp</span>
           </div>
-          {/* Sign In button hidden for waitlist phase */}
+          <button
+            type="button"
+            onClick={onSignIn}
+            className="glass-card rounded-full px-4 md:px-6 py-2 md:py-2.5 text-xs md:text-sm font-medium text-foreground transition-all hover:bg-white/80 hover:shadow-lg whitespace-nowrap"
+          >
+            Sign In
+          </button>
         </motion.nav>
 
         {/* Hero content */}
@@ -55,11 +61,13 @@ export function Hero({ onSignIn, onJoinWaitlist }) {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.1 }}
-              className="font-serif text-5xl font-medium leading-[1.1] tracking-tight text-foreground md:text-6xl lg:text-7xl"
+              className="font-serif text-4xl sm:text-5xl font-medium leading-[1.1] tracking-tight text-foreground md:text-6xl lg:text-7xl"
             >
-              Your <span className="text-gradient">Personal</span>
+              Your Personal
               <br />
-              Financial News Anchor
+              <span className="text-gradient">Financial</span>
+              <br />
+              News Anchor
             </motion.h1>
             
             <motion.p
@@ -77,7 +85,7 @@ export function Hero({ onSignIn, onJoinWaitlist }) {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.5 }}
-              className="mt-10 flex flex-col items-center gap-4 sm:flex-row lg:justify-start"
+              className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:gap-4 lg:justify-start"
             >
               <button
                 type="button"
@@ -94,7 +102,7 @@ export function Hero({ onSignIn, onJoinWaitlist }) {
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </button>
               <span className="text-sm text-muted-foreground whitespace-nowrap">
-                Free to start. No credit card required
+                Free to start.
               </span>
             </motion.div>
           </div>

@@ -107,17 +107,17 @@ export function AudioPlayerPreview() {
         className="relative mx-auto max-w-md"
       >
         {/* Glass card */}
-        <div className="glass-card-strong rounded-3xl p-8 glow-primary">
+        <div className="glass-card-strong rounded-2xl sm:rounded-3xl p-6 sm:p-8 glow-primary">
           {/* Greeting */}
           <div className="mb-6 mt-2 text-center">
-            <p className="font-montserrat-light text-sm text-muted-foreground">Good Morning,</p>
-            <p className="mt-5 font-momo text-5xl text-foreground" style={{ letterSpacing: '0.05em' }}>
+            <p className="font-montserrat-light text-xs sm:text-sm text-muted-foreground">Good Morning,</p>
+            <p className="mt-3 sm:mt-5 font-momo text-3xl sm:text-4xl md:text-5xl text-foreground" style={{ letterSpacing: '0.05em' }}>
               Alex
             </p>
           </div>
 
           {/* Waveform visualization - realistic audio waveform pattern */}
-          <div className="mb-8 flex h-16 items-center justify-center gap-[2px]">
+          <div className="mb-6 sm:mb-8 flex h-12 sm:h-16 items-center justify-center gap-[2px]">
             {[...Array(48)].map((_, i) => {
               // Create a more realistic waveform pattern with varied heights
               const waveformPattern = [
@@ -173,7 +173,7 @@ export function AudioPlayerPreview() {
           </div>
 
           {/* Controls */}
-          <div className="flex items-center justify-center gap-8">
+          <div className="flex items-center justify-center gap-6 sm:gap-8">
             <button
               type="button"
               onClick={() => skip(-10)}
@@ -184,7 +184,7 @@ export function AudioPlayerPreview() {
             <button
               type="button"
               onClick={togglePlayPause}
-              className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent text-primary-foreground shadow-xl glow-primary transition-all hover:scale-105 hover:shadow-2xl"
+              className="flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent text-primary-foreground shadow-xl glow-primary transition-all hover:scale-105 hover:shadow-2xl"
             >
               {isPlaying ? (
                 <Pause className="h-7 w-7" fill="currentColor" />
