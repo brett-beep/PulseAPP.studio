@@ -834,42 +834,38 @@ export default function AudioPlayer({
               exit={{ opacity: 0, y: -10 }}
               className="flex flex-col items-center mt-6 md:mt-8 gap-2"
             >
-              {/* Mobile: fixed row so Generate button never moves; controls open as overlay (see below) */}
-              <div className="w-full md:hidden relative">
-                <div className="relative w-full flex justify-end items-center min-h-[44px]">
-                  <motion.button
-                    whileHover={canGenerateNew ? { scale: 1.06 } : {}}
-                    whileTap={canGenerateNew ? { scale: 0.96 } : {}}
-                    onClick={canGenerateNew ? onGenerate : undefined}
-                    disabled={isButtonDisabled}
-                    className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 px-5 py-2.5 rounded-full text-xs font-semibold ${isButtonDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-                    style={{
-                      transformOrigin: "center center",
-                      background: isButtonDisabled
-                        ? "linear-gradient(135deg, rgba(180, 180, 180, 0.6) 0%, rgba(150, 150, 150, 0.7) 100%)"
-                        : "linear-gradient(135deg, rgba(230, 115, 26, 0.95) 0%, rgba(219, 114, 67, 1) 100%)",
-                      border: "1px solid rgba(255, 255, 255, 0.5)",
-                      boxShadow: isButtonDisabled ? "0 4px 12px rgba(0, 0, 0, 0.1)" : "0 8px 24px rgba(230, 115, 26, 0.3), 0 4px 12px rgba(230, 115, 26, 0.2), inset 0 1px 1px rgba(255, 255, 255, 0.3)",
-                      color: isButtonDisabled ? "rgba(255, 255, 255, 0.8)" : "white",
-                    }}
-                  >
-                    {getButtonText()}
-                  </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setShowControls(!showControls)}
-                    className="relative z-10 w-12 h-12 rounded-full flex items-center justify-center shrink-0"
-                    style={{
-                      background: "rgba(255, 255, 255, 0.6)",
-                      backdropFilter: "blur(10px)",
-                      border: "0.5px solid rgba(255, 255, 255, 0.8)",
-                      boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
-                    }}
-                  >
-                    <Settings2 className="h-5 w-5 text-slate-600" />
-                  </motion.button>
-                </div>
+              {/* Mobile: grid keeps Generate + controls in fixed positions; no hover scale so nothing shifts */}
+              <div className="w-full md:hidden grid grid-cols-3 items-center justify-items-center gap-2 min-h-[44px]">
+                <div className="w-full" aria-hidden="true" />
+                <motion.button
+                  whileTap={canGenerateNew ? { scale: 0.96 } : {}}
+                  onClick={canGenerateNew ? onGenerate : undefined}
+                  disabled={isButtonDisabled}
+                  className={`col-start-2 justify-self-center px-5 py-2.5 rounded-full text-xs font-semibold ${isButtonDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                  style={{
+                    background: isButtonDisabled
+                      ? "linear-gradient(135deg, rgba(180, 180, 180, 0.6) 0%, rgba(150, 150, 150, 0.7) 100%)"
+                      : "linear-gradient(135deg, rgba(230, 115, 26, 0.95) 0%, rgba(219, 114, 67, 1) 100%)",
+                    border: "1px solid rgba(255, 255, 255, 0.5)",
+                    boxShadow: isButtonDisabled ? "0 4px 12px rgba(0, 0, 0, 0.1)" : "0 8px 24px rgba(230, 115, 26, 0.3), 0 4px 12px rgba(230, 115, 26, 0.2), inset 0 1px 1px rgba(255, 255, 255, 0.3)",
+                    color: isButtonDisabled ? "rgba(255, 255, 255, 0.8)" : "white",
+                  }}
+                >
+                  {getButtonText()}
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setShowControls(!showControls)}
+                  className="col-start-3 justify-self-end w-12 h-12 rounded-full flex items-center justify-center shrink-0"
+                  style={{
+                    background: "rgba(255, 255, 255, 0.6)",
+                    backdropFilter: "blur(10px)",
+                    border: "0.5px solid rgba(255, 255, 255, 0.8)",
+                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
+                  }}
+                >
+                  <Settings2 className="h-5 w-5 text-slate-600" />
+                </motion.button>
               </div>
 
               {/* Desktop: Generate button only */}
