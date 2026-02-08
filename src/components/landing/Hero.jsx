@@ -57,10 +57,9 @@ export function Hero({ onSignIn, onJoinWaitlist }) {
               transition={{ duration: 0.6, delay: 0.1 }}
               className="font-serif text-5xl font-medium leading-[1.1] tracking-tight text-foreground md:text-6xl lg:text-7xl"
             >
-              Your Daily{" "}
-              <span className="text-gradient">Financial</span>
+              Your <span className="text-gradient">Personal</span>
               <br />
-              Market Briefing
+              Financial News Anchor
             </motion.h1>
             
             <motion.p
@@ -89,13 +88,13 @@ export function Hero({ onSignIn, onJoinWaitlist }) {
                   })
                   onSignIn()
                 }}
-                className="group flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-primary to-accent px-8 py-4 text-base font-semibold text-primary-foreground shadow-xl glow-primary transition-all hover:shadow-2xl hover:scale-[1.02] sm:w-auto"
+                className="group flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-primary to-accent px-8 py-4 text-base font-semibold text-primary-foreground shadow-xl glow-primary transition-all hover:shadow-2xl hover:scale-[1.02] sm:w-auto whitespace-nowrap"
               >
                 Start Listening (Beta)
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </button>
-              <span className="text-sm text-muted-foreground">
-                Free to start • Personalized daily briefings
+              <span className="text-sm text-muted-foreground whitespace-nowrap">
+                Free to start. No credit card required
               </span>
             </motion.div>
           </div>
