@@ -288,6 +288,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const preferences = body?.preferences || {};
     const userHoldings = preferences?.portfolio_holdings || preferences?.holdings || [];
+    const forceRefresh = Boolean(body?.force_refresh);
 
     const timeVariant = getTimeVariant();
     const portfolioCategory = determineUserPortfolioCategory(userHoldings);
@@ -331,6 +332,7 @@ Deno.serve(async (req) => {
     const userTickers = extractTickers(userHoldings);
 
     console.log(`🎯 User tickers: ${userTickers.join(", ") || "none"}`);
+    if (forceRefresh) console.log("🔄 Force refresh: skipping UserNewsCache, fetching live from Finlight");
 
     // ---------------------------------------------------------
     // STRATEGY 1: Ticker-specific news from UserNewsCache / Finlight
@@ -339,41 +341,43 @@ Deno.serve(async (req) => {
       const tickersKey = userTickers.slice().sort().join(",");
       const tickersHash = simpleHash(tickersKey);
 
-      // 1a. Check UserNewsCache for a fresh hit
-      try {
-        const userCacheEntries = await base44.asServiceRole.entities.UserNewsCache.filter({
-          user_email: user.email,
-        });
+      // 1a. Check UserNewsCache for a fresh hit (skip when user clicked Refresh)
+      if (!forceRefresh) {
+        try {
+          const userCacheEntries = await base44.asServiceRole.entities.UserNewsCache.filter({
+            user_email: user.email,
+          });
 
-        if (userCacheEntries && userCacheEntries.length > 0) {
-          const latest = userCacheEntries.sort(
-            (a: any, b: any) => new Date(b.fetched_at).getTime() - new Date(a.fetched_at).getTime()
-          )[0];
+          if (userCacheEntries && userCacheEntries.length > 0) {
+            const latest = userCacheEntries.sort(
+              (a: any, b: any) => new Date(b.fetched_at).getTime() - new Date(a.fetched_at).getTime()
+            )[0];
 
-          const cacheAgeHours = (Date.now() - new Date(latest.fetched_at).getTime()) / (1000 * 60 * 60);
-          const tickersMatch = latest.tickers_hash === tickersHash;
+            const cacheAgeHours = (Date.now() - new Date(latest.fetched_at).getTime()) / (1000 * 60 * 60);
+            const tickersMatch = latest.tickers_hash === tickersHash;
 
-          if (cacheAgeHours < USER_CACHE_TTL_HOURS && tickersMatch) {
-            const stories = typeof latest.stories === "string" ? JSON.parse(latest.stories) : latest.stories;
-            if (stories && stories.length >= 2) {
-              portfolioNews = {
-                summary: `News for ${userTickers.slice(0, 5).join(", ")}${userTickers.length > 5 ? ` +${userTickers.length - 5} more` : ""}`,
-                stories,
-                updated_at: latest.fetched_at,
-                source: "ticker_cache",
-              };
-              console.log(`✅ Portfolio news from UserNewsCache (${cacheAgeHours.toFixed(1)}h old, ${stories.length} stories)`);
+            if (cacheAgeHours < USER_CACHE_TTL_HOURS && tickersMatch) {
+              const stories = typeof latest.stories === "string" ? JSON.parse(latest.stories) : latest.stories;
+              if (stories && stories.length >= 2) {
+                portfolioNews = {
+                  summary: `News for ${userTickers.slice(0, 5).join(", ")}${userTickers.length > 5 ? ` +${userTickers.length - 5} more` : ""}`,
+                  stories,
+                  updated_at: latest.fetched_at,
+                  source: "ticker_cache",
+                };
+                console.log(`✅ Portfolio news from UserNewsCache (${cacheAgeHours.toFixed(1)}h old, ${stories.length} stories)`);
+              }
+            } else {
+              console.log(`⏰ UserNewsCache stale (${cacheAgeHours.toFixed(1)}h) or tickers changed`);
             }
-          } else {
-            console.log(`⏰ UserNewsCache stale (${cacheAgeHours.toFixed(1)}h) or tickers changed`);
           }
+        } catch (e: any) {
+          // Expected if UserNewsCache entity doesn't exist yet — graceful degradation
+          console.log(`⚠️ UserNewsCache read skipped: ${e.message}`);
         }
-      } catch (e: any) {
-        // Expected if UserNewsCache entity doesn't exist yet — graceful degradation
-        console.log(`⚠️ UserNewsCache read skipped: ${e.message}`);
       }
 
-      // 1b. No cache hit → fetch live from Finlight
+      // 1b. No cache hit (or force refresh) → fetch live from Finlight
       if (!portfolioNews) {
         const finlightKey = Deno.env.get("FINLIGHT_API_KEY");
 
