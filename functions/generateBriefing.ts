@@ -1,4 +1,4 @@
-// generateBriefing function - synced Jan 26, 2026
+// generateBriefing function - synced Jan 26, 2026 (redeploy for env vars)
 // Uses secrets: FINNHUB_API_KEY, FINLIGHT_API_KEY. If missing after GitHub deploy → Base44: edit this file (e.g. add newline), Save & Deploy (see DEPLOY.md).
 // Adding this line ---- to manually redeploy on Base44
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
