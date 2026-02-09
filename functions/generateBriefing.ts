@@ -669,6 +669,15 @@ Deno.serve(async (req) => {
     // =========================================================
     // STEP 1D: TIER 2 - Select PERSONALIZED stories
     // Strategy: UserNewsCache (ticker-specific) → shared NewsCache fallback
+    //
+    // HOW PORTFOLIO PERSONALIZATION WORKS (end-to-end):
+    // 1. fetchNewsCards (Home load / Refresh) calls Finlight with the user's tickers
+    //    (5 articles per ticker, 24h weekdays / 48h weekends), writes mix to UserNewsCache.
+    // 2. generateBriefing reads UserNewsCache (no Finlight call) and passes that batch
+    //    to the LLM to synthesize into one portfolio segment.
+    //
+    // PORTFOLIO vs MARKET/BREAKING: Different sources. Tier 1 (Stories 1–3) = market/breaking
+    // from shared NewsCache. Tier 2 (portfolio section) = UserNewsCache = ticker-specific only.
     // =========================================================
     const userInterests = prefProfile?.interests || [];
     const userHoldings = prefProfile?.holdings || [];
@@ -678,7 +687,7 @@ Deno.serve(async (req) => {
     console.log(`\n📊 [generateBriefing] User interests: ${userInterests.join(", ") || "none"}`);
     console.log(`📊 [generateBriefing] Matching categories: ${userCategories.join(", ") || "all"}`);
 
-    // --- Try reading ticker-specific stories from UserNewsCache ---
+    // --- Read ticker-specific stories from UserNewsCache (populated by fetchNewsCards) ---
     let tickerCacheStories: any[] = [];
     const briefingTickers = userHoldings
       .map((h: any) => (typeof h === "string" ? h : h?.symbol || h?.ticker || "").toUpperCase().trim())
@@ -709,14 +718,16 @@ Deno.serve(async (req) => {
       }
     }
 
-    // --- Select personalized stories ---
+    // --- Select personalized stories: NO scoring. Pass a BATCH for LLM to synthesize. ---
+    const PORTFOLIO_BATCH_MAX_TICKER = 20;
+    const PORTFOLIO_BATCH_MAX_FALLBACK = 10;
     let personalizedStories: any[];
+    let portfolioNewsBatch: any[];
 
     if (tickerCacheStories.length >= 3) {
-      // USE TICKER-SPECIFIC STORIES (best path)
-      console.log(`🎯 [Tier 2] Using ${tickerCacheStories.length} ticker-specific stories`);
+      // USE TICKER-SPECIFIC STORIES (best path): no relevance scoring, keep time order
+      console.log(`🎯 [Tier 2] Using ${tickerCacheStories.length} ticker-specific stories (LLM will synthesize)`);
 
-      // Deduplicate against rapid fire stories by title similarity
       const dedupedTickerStories = tickerCacheStories.filter((ts: any) => {
         return !rapidFireStories.some((rf: any) => {
           const tsTitle = (ts.title || "").toLowerCase();
@@ -730,44 +741,25 @@ Deno.serve(async (req) => {
         });
       });
 
-      // Score and rank even the ticker-specific stories
-      const tickerScored = dedupedTickerStories.map((story: any) => ({
+      // Add ageHours for prompt; no scoring or re-sort (Finlight order = newest first)
+      portfolioNewsBatch = dedupedTickerStories.slice(0, PORTFOLIO_BATCH_MAX_TICKER).map((story: any) => ({
         ...story,
-        breakingScore: getBreakingScore(story, nowTimestamp).score,
         ageHours: getBreakingScore(story, nowTimestamp).ageHours,
-        relevanceScore: getPersonalizationScore(story, userCategories, userKeywords, userHoldings),
       }));
-
-      tickerScored.sort((a: any, b: any) => {
-        if (b.relevanceScore !== a.relevanceScore) return b.relevanceScore - a.relevanceScore;
-        return b.breakingScore - a.breakingScore;
-      });
-
-      personalizedStories = tickerScored.slice(0, 3);
+      // First 3 for UI cards (same order as batch)
+      personalizedStories = portfolioNewsBatch.slice(0, 3);
     } else {
-      // FALLBACK: Use shared NewsCache pool (existing behavior)
+      // FALLBACK: shared NewsCache — no relevance scoring, take by breaking order only
       console.log(`📂 [Tier 2] Falling back to shared NewsCache (${tickerCacheStories.length} ticker stories < 3 minimum)`);
 
       const rapidFireIds = new Set(rapidFireStories.map((s: any) => s.id));
       const personalizedCandidates = scoredStories.filter((story: any) => !rapidFireIds.has(story.id));
 
-      const personalizedScored = personalizedCandidates.map((story: any) => ({
-        ...story,
-        relevanceScore: getPersonalizationScore(story, userCategories, userKeywords, userHoldings),
-      }));
-
-      personalizedScored.sort((a: any, b: any) => {
-        if (b.relevanceScore !== a.relevanceScore) return b.relevanceScore - a.relevanceScore;
-        return b.breakingScore - a.breakingScore;
-      });
-
-      personalizedStories = personalizedScored.slice(0, 3);
+      portfolioNewsBatch = personalizedCandidates.slice(0, PORTFOLIO_BATCH_MAX_FALLBACK);
+      personalizedStories = portfolioNewsBatch.slice(0, 3);
     }
 
-    console.log("\n📊 [generateBriefing] TIER 2 - PERSONALIZED (Deep Dives):");
-    personalizedStories.forEach((s: any, i: number) => {
-      console.log(`   ${i + 1}. [relevance:${s.relevanceScore || 0}] [breaking:${s.breakingScore || 0}] [${s.category}] ${(s.title || "").slice(0, 45)}...`);
-    });
+    console.log(`\n📊 [generateBriefing] TIER 2 - Portfolio batch: ${portfolioNewsBatch.length} stories for LLM to synthesize (UI cards: first 3)`);
 
     // =========================================================
     // STEP 1E: Combine into final 6 stories for briefing
@@ -918,9 +910,8 @@ CRITICAL RULES FOR AUDIO:
 2. **DATE FORMAT**: NEVER say "2026-02-08". Say "${naturalDate}" or use relative terms.
 
 3. **PERSONALIZATION**: 
-   - Stories 4-6 MUST relate to ${userHoldingsStr}
-   - If no direct news, discuss sector/competitor impact on their holdings
-   - Say "For your Apple shares" or "Since you own Microsoft"
+   - The portfolio section MUST be based on the cached news below for ${userHoldingsStr}. Synthesize it in one go; judge what's relevant.
+   - Say "For your Apple shares" or "Since you own Microsoft" where natural.
    
 4. **ACCURACY**: 
    - NEVER recommend watching for events that already happened
@@ -944,15 +935,15 @@ SCRIPT STRUCTURE:
 3. PORTFOLIO TRANSITION (10-15 words):
    "Now, let's talk about your holdings, ${name}."
 
-4. PERSONALIZED DEEP DIVES (Stories 4-6) - ~400 words:
-   **CRITICAL**: These MUST be about ${userHoldingsStr} or directly impact them.
-   
-   For EACH story (~130 words):
-   - Use TEMPORAL CONTEXT for when it happened
-   - Start with news hook (what happened)
-   - Context (why it happened)
-   - Portfolio implications: "For your Apple/Google/Microsoft/Shopify position, this means..."
-   - Forward-looking: "What matters going forward is..." (but NO predictions about already-passed events)
+4. PORTFOLIO / YOUR HOLDINGS - ~400 words (ONE cohesive segment):
+   Below we provide CACHED NEWS for the user's holdings (${userHoldingsStr}). Your job:
+   - SUMMARIZE and SYNTHESIZE the most important and relevant developments into ONE narrative segment.
+   - JUDGE RELEVANCE YOURSELF: pick what matters most; skip or briefly mention the rest.
+   - Cover MULTIPLE items where relevant—weave them into one flowing narrative, not a story-by-story list.
+   - Use temporal context where appropriate ("On Friday...", "Yesterday...").
+   - Connect to the listener: "For your Apple position...", "Since you hold..."
+   - Do NOT recommend watching for events that already happened; discuss implications, not "watch for it."
+   - NO made-up numbers or dates.
 
 5. MARKET SNAPSHOT (30-40 words):
    "Today's markets: S&P ${marketSnapshot.sp500_pct}, Nasdaq ${marketSnapshot.nasdaq_pct}, Dow ${marketSnapshot.dow_pct}"
@@ -984,22 +975,19 @@ ${s.relevantToUserHoldings !== "none" ? `→ MUST add specific takeaway for: ${s
   )
   .join("\n")}
 
-DATA FOR PERSONALIZED DEEP DIVES (Stories 4-6):
-**CRITICAL**: User holds ${userHoldingsStr}. Stories 4-6 MUST relate to these tickers or their sectors.
-${personalizedForPrompt
+CACHED NEWS FOR PORTFOLIO SECTION (synthesize into ONE segment — judge relevance yourself):
+User holds ${userHoldingsStr}. Use the articles below to write ONE cohesive narrative (~400 words). Pick what's important; cover multiple items where relevant; do not list story-by-story.
+${portfolioNewsBatch
   .map(
-    (s, i) => {
+    (s: any, i: number) => {
       const whenPhrase = getStoryWhenPhrase(s.datetime, timeZone, s.ageHours);
       return `
-Story ${i + 4}:
-Title: ${s.title}
-What Happened: ${s.what_happened}
-Why It Matters: ${s.why_it_matters || "Connect to investor implications"}
-Source: ${s.outlet}
-Category: ${s.category}
-Age: ${(s.ageHours || 0).toFixed(1)} hours ago
-When it happened (USE THIS EXACT PHRASE in the script): "${whenPhrase}"
-Relevant to User's Holdings (${userHoldingsStr}): ${detectRelevantHoldings(s, userHoldings)}
+Article ${i + 1}:
+Title: ${s.title || ""}
+What Happened: ${s.what_happened || s.summary || ""}
+Why It Matters: ${s.why_it_matters || "—"}
+Source: ${s.outlet || s.source || "—"}
+When: ${whenPhrase}
 `;
     }
   )

@@ -2,8 +2,17 @@
 // fetchNewsCards.ts - Base44 Function (v5 - Ticker-Personalized)
 // STRATEGY: Ticker-specific news via Finlight → UserNewsCache (3h TTL)
 //           Falls back to category-based NewsCardCache if ticker fetch fails
-// Uses 0 LLM credits. 1 Finlight API request when UserNewsCache is stale.
-// Returns: { market_news: [5], portfolio_news: [5] }
+// Uses 0 LLM credits. Per-ticker Finlight calls when UserNewsCache is stale.
+// Returns: { market_news, portfolio_news }
+//
+// PORTFOLIO vs MARKET/BREAKING NEWS (different sources):
+// - market_news: from NewsCardCache (MARKET_*) / NewsCache — general market/breaking.
+// - portfolio_news: from UserNewsCache (Finlight ticker:AAPL|GOOGL|...) — holdings-specific.
+//
+// SHARED TICKER CACHE: TickerNewsCache (per-ticker, shared across users). Create in Base44:
+//   - ticker: string (e.g. "AAPL")
+//   - stories: string (JSON array of raw Finlight articles)
+//   - fetched_at: string (ISO date). TTL 3h; Finlight only called when stale or force_refresh.
 // ============================================================
 
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
@@ -234,12 +243,27 @@ function isSimilarTitle(a: string, b: string): boolean {
   return overlap / Math.min(aWords.size, bWords.size) > 0.5;
 }
 
-async function fetchFinlightTickerNews(apiKey: string, tickers: string[]): Promise<any[]> {
-  const tickerQuery = tickers.map(t => `ticker:${t}`).join(" OR ");
-  const fromDate = getDateFromHoursAgo(48); // 48h window for broader coverage
+/** 24h on weekdays, 48h on weekends (more coverage when markets are closed). */
+function getTickerNewsWindowHours(): number {
+  const day = new Date().getUTCDay(); // 0 = Sun, 6 = Sat
+  return day === 0 || day === 6 ? 48 : 24;
+}
+
+/**
+ * Fetch ticker news from Finlight for one or more tickers.
+ * @param hoursAgo - 24 weekdays, 48 weekends (call getTickerNewsWindowHours()).
+ */
+async function fetchFinlightTickerNews(
+  apiKey: string,
+  tickers: string[],
+  options: { hoursAgo: number; pageSize?: number } = { hoursAgo: 24, pageSize: 25 }
+): Promise<any[]> {
+  const { hoursAgo, pageSize = 25 } = options;
+  const tickerQuery = tickers.map((t) => `ticker:${t}`).join(" OR ");
+  const fromDate = getDateFromHoursAgo(hoursAgo);
   const toDate = new Date().toISOString().slice(0, 10);
 
-  console.log(`🔍 Finlight ticker query: ${tickerQuery}`);
+  console.log(`🔍 Finlight ticker query: ${tickerQuery} (${hoursAgo}h window, pageSize ${pageSize})`);
 
   const response = await fetch(`${FINLIGHT_API_BASE}/v2/articles`, {
     method: "POST",
@@ -255,7 +279,7 @@ async function fetchFinlightTickerNews(apiKey: string, tickers: string[]): Promi
       language: "en",
       orderBy: "publishDate",
       order: "DESC",
-      pageSize: 25,
+      pageSize,
     }),
   });
 
@@ -268,6 +292,141 @@ async function fetchFinlightTickerNews(apiKey: string, tickers: string[]): Promi
   const articles = data.articles || [];
   console.log(`✅ Finlight returned ${articles.length} ticker-specific articles`);
   return articles;
+}
+
+/** Max tickers to query (5 articles each) per user — limits Finlight API calls. */
+const MAX_TICKERS_FOR_FETCH = 5;
+const ARTICLES_PER_TICKER = 5;
+
+/**
+ * Fetch 5 articles per ticker, combine, dedupe by link, sort by publishDate DESC.
+ * Gives a mix of different ticker news ranked by recency (importance).
+ */
+async function fetchFinlightTickerNewsPerTicker(
+  apiKey: string,
+  userTickers: string[],
+  hoursAgo: number
+): Promise<any[]> {
+  const tickersToFetch = userTickers.slice(0, MAX_TICKERS_FOR_FETCH);
+  const allArticles: any[] = [];
+
+  for (const ticker of tickersToFetch) {
+    try {
+      const articles = await fetchFinlightTickerNews(apiKey, [ticker], {
+        hoursAgo,
+        pageSize: ARTICLES_PER_TICKER,
+      });
+      for (const a of articles) allArticles.push({ ...a, _fetchedForTicker: ticker });
+    } catch (e: any) {
+      console.warn(`⚠️ Finlight fetch for ${ticker} failed: ${e.message}`);
+    }
+  }
+
+  const seen = new Set<string>();
+  const deduped = allArticles.filter((a) => {
+    const key = (a.link || a.title || "").trim();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  deduped.sort((a, b) => {
+    const tA = new Date(a.publishDate || 0).getTime();
+    const tB = new Date(b.publishDate || 0).getTime();
+    return tB - tA;
+  });
+
+  console.log(`✅ Combined ${deduped.length} articles (5 per ticker, deduped, sorted by date)`);
+  return deduped;
+}
+
+/** TTL for shared TickerNewsCache (per-ticker). Same as user cache. */
+const TICKER_CACHE_TTL_HOURS = 3;
+
+/**
+ * Get portfolio articles using SHARED ticker-level cache so users with the same
+ * tickers (e.g. 4 users with AAPL) share cached Apple news. Finlight is only
+ * called when a ticker has no fresh cache or when user force_refresh.
+ * Returns raw Finlight-style articles (merge + dedupe + sort by caller).
+ */
+async function getTickerNewsWithSharedCache(
+  base44: any,
+  apiKey: string,
+  userTickers: string[],
+  forceRefresh: boolean
+): Promise<any[]> {
+  const hoursAgo = getTickerNewsWindowHours();
+  const tickersToUse = userTickers.slice(0, MAX_TICKERS_FOR_FETCH);
+  const allArticles: any[] = [];
+
+  for (const ticker of tickersToUse) {
+    let articles: any[] = [];
+    let fromCache = false;
+
+    if (!forceRefresh) {
+      try {
+        const entries = await base44.asServiceRole.entities.TickerNewsCache.filter({ ticker });
+        if (entries && entries.length > 0) {
+          const latest = entries.sort(
+            (a: any, b: any) => new Date(b.fetched_at).getTime() - new Date(a.fetched_at).getTime()
+          )[0];
+          const ageHours = (Date.now() - new Date(latest.fetched_at).getTime()) / (1000 * 60 * 60);
+          if (ageHours < TICKER_CACHE_TTL_HOURS) {
+            articles = typeof latest.stories === "string" ? JSON.parse(latest.stories) : (latest.stories || []);
+            fromCache = true;
+          }
+        }
+      } catch (e: any) {
+        // TickerNewsCache may not exist yet
+      }
+    }
+
+    if (!fromCache && articles.length === 0) {
+      try {
+        articles = await fetchFinlightTickerNews(apiKey, [ticker], {
+          hoursAgo,
+          pageSize: ARTICLES_PER_TICKER,
+        });
+        if (articles.length > 0 && !forceRefresh) {
+          // Only write to shared cache when filling a miss or TTL expiry — NOT on force_refresh.
+          // Otherwise one user constantly refreshing would overwrite cache; others might not have seen older news yet.
+          try {
+            const old = await base44.asServiceRole.entities.TickerNewsCache.filter({ ticker });
+            for (const o of old) await base44.asServiceRole.entities.TickerNewsCache.delete(o.id);
+            await base44.asServiceRole.entities.TickerNewsCache.create({
+              ticker,
+              stories: JSON.stringify(articles),
+              fetched_at: new Date().toISOString(),
+            });
+            console.log(`💾 Cached ${articles.length} articles for ticker ${ticker} (shared)`);
+          } catch (e: any) {
+            console.warn(`⚠️ TickerNewsCache write failed for ${ticker}: ${e.message}`);
+          }
+        } else if (articles.length > 0 && forceRefresh) {
+          console.log(`🔄 Fresh fetch for ${ticker} (force_refresh); not updating shared cache`);
+        }
+      } catch (e: any) {
+        console.warn(`⚠️ Finlight fetch for ${ticker} failed: ${e.message}`);
+      }
+    }
+
+    for (const a of articles) allArticles.push({ ...a, _fetchedForTicker: ticker });
+  }
+
+  const seen = new Set<string>();
+  const deduped = allArticles.filter((a: any) => {
+    const key = (a.link || a.title || "").trim();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  deduped.sort((a: any, b: any) => {
+    const tA = new Date(a.publishDate || 0).getTime();
+    const tB = new Date(b.publishDate || 0).getTime();
+    return tB - tA;
+  });
+
+  return deduped;
 }
 
 // ============================================================
@@ -377,41 +536,46 @@ Deno.serve(async (req) => {
         }
       }
 
-      // 1b. No cache hit (or force refresh) → fetch live from Finlight
+      // 1b. No UserNewsCache hit (or force refresh) → use shared TickerNewsCache + Finlight
+      //     Per-ticker cache is shared: e.g. 4 users with AAPL share one cached AAPL feed until refresh.
       if (!portfolioNews) {
         const finlightKey = Deno.env.get("FINLIGHT_API_KEY");
 
         if (finlightKey) {
           try {
-            const rawArticles = await fetchFinlightTickerNews(finlightKey, userTickers);
+            const rawArticles = await getTickerNewsWithSharedCache(
+              base44,
+              finlightKey,
+              userTickers,
+              forceRefresh
+            );
 
             if (rawArticles.length > 0) {
-              // Transform to standard story format
               const transformed = rawArticles
                 .map((a: any) => transformFinlightArticle(a, userTickers))
                 .filter((s: any) => !isJunkStory(s));
 
-              // Deduplicate by title similarity
               const deduped: any[] = [];
               for (const story of transformed) {
-                if (!deduped.some(existing => isSimilarTitle(existing.title, story.title))) {
+                if (!deduped.some((existing: any) => isSimilarTitle(existing.title, story.title))) {
                   deduped.push(story);
                 }
               }
 
-              const topStories = deduped.slice(0, 5);
+              // Full list for cache and briefing; cap display for response (mix of ticker news)
+              const allStories = deduped;
+              const displayCap = 20;
+              const storiesForResponse = allStories.slice(0, displayCap);
 
-              if (topStories.length >= 2) {
+              if (allStories.length >= 2) {
                 portfolioNews = {
                   summary: `Latest on ${userTickers.slice(0, 5).join(", ")}${userTickers.length > 5 ? ` +${userTickers.length - 5} more` : ""}`,
-                  stories: topStories,
+                  stories: storiesForResponse,
                   updated_at: new Date().toISOString(),
                   source: "ticker_live",
                 };
 
-                // Cache for next time (non-blocking, non-fatal)
                 try {
-                  // Clean up old entries for this user
                   const oldEntries = await base44.asServiceRole.entities.UserNewsCache.filter({
                     user_email: user.email,
                   });
@@ -423,18 +587,17 @@ Deno.serve(async (req) => {
                     user_email: user.email,
                     tickers_hash: tickersHash,
                     tickers_list: userTickers.join(","),
-                    stories: JSON.stringify(topStories),
+                    stories: JSON.stringify(allStories),
                     fetched_at: new Date().toISOString(),
                   });
-                  console.log(`💾 Cached ${topStories.length} ticker-specific stories for ${user.email}`);
+                  console.log(`💾 Cached ${allStories.length} ticker stories (5 per ticker, mix) for ${user.email}`);
                 } catch (cacheWriteError: any) {
-                  // Non-fatal: we still have stories to return, caching just failed
                   console.warn(`⚠️ UserNewsCache write failed: ${cacheWriteError.message}`);
                 }
 
-                console.log(`✅ Portfolio news: ${topStories.length} ticker-specific stories (live Finlight)`);
+                console.log(`✅ Portfolio news: ${storiesForResponse.length} stories (live Finlight, ${hoursAgo}h window)`);
               } else {
-                console.log(`⚠️ Only ${topStories.length} usable ticker stories, falling back to category`);
+                console.log(`⚠️ Only ${allStories.length} usable ticker stories, falling back to category`);
               }
             } else {
               console.log(`⚠️ Finlight returned 0 articles for tickers, falling back to category`);

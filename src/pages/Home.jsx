@@ -281,6 +281,11 @@ export default function Home() {
 
   const [lastRefreshTime, setLastRefreshTime] = useState(null);
 
+  // Refresh button: max 1 per hour, only during work hours (6am–6pm user TZ)
+  const REFRESH_COOLDOWN_MS = 60 * 60 * 1000;
+  const REFRESH_COOLDOWN_KEY = (email) => `newsRefreshCooldownUntil:${email}`;
+  const [refreshCheckTick, setRefreshCheckTick] = useState(0); // re-check every 60s so cooldown/work-hours UI updates
+
   // Countdown timer state for briefing limits (3 per day, 3-hour cooldown) - FREE USERS ONLY
   const [timeUntilNextBriefing, setTimeUntilNextBriefing] = useState(null);
   const [canGenerateNew, setCanGenerateNew] = useState(true);
@@ -307,6 +312,21 @@ export default function Home() {
   // ============================
   const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const today = new Date().toLocaleDateString("en-CA", { timeZone: userTimeZone }); // YYYY-MM-DD
+
+  // Refresh button: work hours 6am–6pm (user TZ), 1 refresh per hour cooldown
+  const currentHourInTz = (() => {
+    const s = new Intl.DateTimeFormat("en", { hour: "numeric", hour12: false, timeZone: userTimeZone }).format(new Date());
+    return parseInt(s, 10);
+  })();
+  const withinRefreshWorkHours = currentHourInTz >= 6 && currentHourInTz < 18;
+  const cooldownEndFromStorage =
+    typeof window !== "undefined" && user?.email
+      ? parseInt(localStorage.getItem(REFRESH_COOLDOWN_KEY(user.email)), 10)
+      : NaN;
+  const now = Date.now();
+  const refreshCooldownActive = !Number.isNaN(cooldownEndFromStorage) && cooldownEndFromStorage > now;
+  const canClickRefresh = withinRefreshWorkHours && !refreshCooldownActive;
+  const refreshCooldownRemainingMs = refreshCooldownActive ? Math.max(0, cooldownEndFromStorage - now) : 0;
 
   console.log("📍 [Briefing Query] Date filter:", today);
   console.log("📍 [Briefing Query] User email:", user?.email);
@@ -658,9 +678,15 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
     return () => clearInterval(refreshInterval);
   }, [user, preferences?.onboarding_completed]);
 
-  // Manual refresh for news cards (always available; independent of briefing)
+  // Re-check refresh cooldown and work hours every 60s so button enables/disables at the right time
+  useEffect(() => {
+    const interval = setInterval(() => setRefreshCheckTick((t) => t + 1), 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Manual refresh for news cards: max 1/hour, only 6am–6pm (user TZ)
   const refreshNewsCards = async () => {
-    if (!user || !preferences?.onboarding_completed) return;
+    if (!user || !preferences?.onboarding_completed || !canClickRefresh) return;
 
     const CACHE_KEY = `newsCards:${user.email}`;
     const TIMESTAMP_KEY = `newsCardsTimestamp:${user.email}`;
@@ -684,13 +710,16 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
         if (market || portfolio) {
           setMarketNews(market ?? { summary: "Market News", stories: [], updated_at: null });
           setPortfolioNews(portfolio ?? { summary: "Your Portfolio", stories: [], updated_at: null });
-          // Manual refresh: show when the user clicked Refresh, not API cache time
           setLastRefreshTime(new Date());
           localStorage.setItem(
             CACHE_KEY,
             JSON.stringify({ market_news: market, portfolio_news: portfolio })
           );
           localStorage.setItem(TIMESTAMP_KEY, Date.now().toString());
+          // Start 1-hour cooldown (persist so it survives reload)
+          const cooldownUntil = Date.now() + REFRESH_COOLDOWN_MS;
+          localStorage.setItem(REFRESH_COOLDOWN_KEY(user.email), String(cooldownUntil));
+          setRefreshCheckTick((t) => t + 1);
         } else if (Array.isArray(resp.data.stories) && resp.data.stories.length > 0) {
           const stories = resp.data.stories;
           const half = Math.ceil(stories.length / 2);
@@ -701,6 +730,9 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
           setLastRefreshTime(new Date());
           localStorage.setItem(CACHE_KEY, JSON.stringify({ market_news: mn, portfolio_news: pn }));
           localStorage.setItem(TIMESTAMP_KEY, Date.now().toString());
+          const cooldownUntil = Date.now() + REFRESH_COOLDOWN_MS;
+          localStorage.setItem(REFRESH_COOLDOWN_KEY(user.email), String(cooldownUntil));
+          setRefreshCheckTick((t) => t + 1);
         }
       }
     } catch (error) {
@@ -989,12 +1021,27 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
               <div className="flex items-center gap-2 md:gap-4">
                 <button
                   onClick={refreshNewsCards}
-                  disabled={isLoadingNews}
-                  className="text-xs md:text-sm text-amber-600 hover:text-amber-700 transition-colors disabled:opacity-50 flex items-center gap-1 shrink-0"
+                  disabled={isLoadingNews || !canClickRefresh}
+                  title={
+                    !withinRefreshWorkHours
+                      ? "Refresh available 6am–6pm (your time)"
+                      : refreshCooldownActive
+                        ? `Refresh again in ${Math.ceil(refreshCooldownRemainingMs / 60000)} min`
+                        : "Fetch latest news"
+                  }
+                  className="text-xs md:text-sm text-amber-600 hover:text-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 shrink-0"
                 >
                   {isLoadingNews ? <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 md:w-4 md:h-4" />}
                   Refresh
                 </button>
+                {!withinRefreshWorkHours && (
+                  <span className="text-[10px] md:text-xs text-slate-400">6am–6pm only</span>
+                )}
+                {withinRefreshWorkHours && refreshCooldownActive && (
+                  <span className="text-[10px] md:text-xs text-slate-400">
+                    Again in {Math.ceil(refreshCooldownRemainingMs / 60000)}m
+                  </span>
+                )}
                 <span className="text-[10px] md:text-sm text-slate-400 shrink-0">
                   {marketStories.length + portfolioStories.length} stories
                 </span>
