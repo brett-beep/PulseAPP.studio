@@ -357,6 +357,81 @@ function generateFallbackWhyItMatters(category) {
   return statements[category] || statements.markets;
 }
 
+// =========================================================
+// FINANCIAL-RELEVANCE GATE (for Tier 1 rapid fire)
+// Stories must contain at least one financial keyword to qualify.
+// Kills: immigration rulings, election cases, protests, etc.
+// =========================================================
+const FINANCIAL_KEYWORDS = [
+  "market", "stock", "index", "nasdaq", "dow", "s&p", "treasury", "bond",
+  "rate", "inflation", "gdp", "earnings", "revenue", "trade", "tariff",
+  "fed", "fomc", "dollar", "yield", "deficit", "debt", "fiscal",
+  "oil", "gold", "bitcoin", "crypto", "commodity", "futures", "etf",
+  "ipo", "merger", "acquisition", "layoffs", "recession", "growth",
+  "jobs", "unemployment", "cpi", "payroll", "housing", "retail sales",
+  "semiconductor", "chip", "ai spending", "data center", "capex",
+  "investor", "hedge fund", "wall street", "sec", "regulation",
+  "bank", "lending", "credit", "mortgage", "rally", "selloff", "correction",
+];
+function hasFinancialRelevance(story: any): boolean {
+  const text = `${story.title || ""} ${story.what_happened || ""}`.toLowerCase();
+  return FINANCIAL_KEYWORDS.some((kw) => text.includes(kw));
+}
+
+// =========================================================
+// PORTFOLIO STORY SCORING (for Tier 2 — briefing read-time filter)
+// Picks the best 7 from UserNewsCache before sending to LLM.
+// =========================================================
+const ROUNDUP_TITLE_PATTERNS_BRIEFING = [
+  "the week in", "week in review", "breakingviews", "weekend round-up",
+  "weekend roundup", "round-up:", "roundup:", "morning roundup",
+  "and more:", "what you missed", "here's what",
+];
+const PREMIUM_SOURCES_BRIEFING = [
+  "bloomberg", "reuters", "financial times", "ft.com", "wsj",
+  "wall street journal", "cnbc", "ap news", "associated press", "barrons",
+];
+
+function portfolioStoryScore(story: any, userHoldings: string[]): number {
+  const title = (story.title || "").toLowerCase();
+  const summary = (story.what_happened || story.summary || "").toLowerCase();
+  const text = `${title} ${summary}`;
+  const outlet = (story.outlet || story.source || "").toLowerCase();
+
+  // Kill: roundup articles
+  if (ROUNDUP_TITLE_PATTERNS_BRIEFING.some((p) => title.includes(p))) return -999;
+
+  // Kill: no real summary (headline-only fluff)
+  if (summary.length < 40) return -500;
+
+  let score = 0;
+
+  // 1. TICKER/COMPANY RELEVANCE (0-100)
+  // If Finlight tagged the article with matched_tickers, highest score
+  if (story.matched_tickers && story.matched_tickers.length > 0) score += 100;
+  for (const h of userHoldings) {
+    const ticker = (typeof h === "string" ? h : h?.symbol || "").toLowerCase();
+    if (ticker && text.includes(ticker)) score += 60;
+  }
+
+  // 2. SOURCE QUALITY (0-20)
+  if (PREMIUM_SOURCES_BRIEFING.some((p) => outlet.includes(p))) score += 20;
+
+  // 3. RECENCY (0-30)
+  const ageHours = story.ageHours ?? 24;
+  if (ageHours <= 4) score += 30;
+  else if (ageHours <= 8) score += 25;
+  else if (ageHours <= 12) score += 20;
+  else if (ageHours <= 24) score += 10;
+
+  // 4. SUMMARY SUBSTANCE (0-15)
+  if (summary.length > 200) score += 15;
+  else if (summary.length > 100) score += 10;
+  else if (summary.length > 60) score += 5;
+
+  return score;
+}
+
 async function invokeLLM(base44, prompt, addInternet, schema) {
   return await base44.integrations.Core.InvokeLLM({
     prompt,
@@ -491,12 +566,31 @@ async function fetchMarketSnapshot() {
       sp500_pct: results[0].change_pct,
       nasdaq_pct: results[1].change_pct,
       dow_pct: results[2].change_pct,
+      sector_hint: "", // filled below
     };
+
+    // Derive sector-leader hint from relative index moves (zero extra API calls)
+    const parsePct = (s: string) => parseFloat(s.replace(/[^-0-9.]/g, "")) || 0;
+    const sp = parsePct(snapshot.sp500_pct);
+    const nq = parsePct(snapshot.nasdaq_pct);
+    const dw = parsePct(snapshot.dow_pct);
+    if (Math.abs(nq) > Math.abs(sp) + 0.3 && Math.abs(nq) > Math.abs(dw) + 0.3) {
+      snapshot.sector_hint = nq > 0 ? "Tech and growth names led the move." : "Tech and growth names led the decline.";
+    } else if (Math.abs(dw) > Math.abs(nq) + 0.3 && Math.abs(dw) > Math.abs(sp) + 0.3) {
+      snapshot.sector_hint = dw > 0 ? "Industrials and blue-chips led the rally." : "Industrials and blue-chips led the selling.";
+    } else if (sp > 0 && nq > 0 && dw > 0) {
+      snapshot.sector_hint = "Broad-based rally across sectors.";
+    } else if (sp < 0 && nq < 0 && dw < 0) {
+      snapshot.sector_hint = "Selling was broad-based across sectors.";
+    } else {
+      snapshot.sector_hint = "Mixed signals across sectors.";
+    }
+
     console.log("📈 [fetchMarketSnapshot] Result:", snapshot);
     return snapshot;
   } catch (error) {
     console.error("⚠️ Market snapshot failed:", error?.message);
-    return { sp500_pct: "0.0%", nasdaq_pct: "0.0%", dow_pct: "0.0%" };
+    return { sp500_pct: "0.0%", nasdaq_pct: "0.0%", dow_pct: "0.0%", sector_hint: "" };
   }
 }
 
@@ -657,11 +751,14 @@ Deno.serve(async (req) => {
 
     // =========================================================
     // STEP 1C: TIER 1 - Select RAPID FIRE stories (top 3 by breaking score)
+    // Financial-relevance gate: skip non-financial stories (immigration, protests, etc.)
     // =========================================================
-    const rapidFireCandidates = [...scoredStories].sort((a, b) => b.breakingScore - a.breakingScore);
+    const rapidFireCandidates = [...scoredStories]
+      .sort((a, b) => b.breakingScore - a.breakingScore)
+      .filter((s) => hasFinancialRelevance(s));
     const rapidFireStories = rapidFireCandidates.slice(0, 3);
 
-    console.log("\n⚡ [generateBriefing] TIER 1 - RAPID FIRE (Breaking News):");
+    console.log("\n⚡ [generateBriefing] TIER 1 - RAPID FIRE (Breaking News — financial-relevance gated):");
     rapidFireStories.forEach((s, i) => {
       console.log(`   ${i + 1}. [score:${s.breakingScore}] [age:${s.ageHours.toFixed(1)}h] [${s.category}] ${(s.title || "").slice(0, 50)}...`);
     });
@@ -718,16 +815,18 @@ Deno.serve(async (req) => {
       }
     }
 
-    // --- Select personalized stories: NO scoring. Pass a BATCH for LLM to synthesize. ---
-    const PORTFOLIO_BATCH_MAX_TICKER = 20;
-    const PORTFOLIO_BATCH_MAX_FALLBACK = 10;
+    // --- Select personalized stories: Score and pick TOP 7 for LLM. ---
+    const PORTFOLIO_BATCH_MAX = 7;
+    const PORTFOLIO_BATCH_MAX_FALLBACK = 5;
     let personalizedStories: any[];
     let portfolioNewsBatch: any[];
 
-    if (tickerCacheStories.length >= 3) {
-      // USE TICKER-SPECIFIC STORIES (best path): no relevance scoring, keep time order
-      console.log(`🎯 [Tier 2] Using ${tickerCacheStories.length} ticker-specific stories (LLM will synthesize)`);
+    const briefingHoldings = briefingTickers; // string[] of ticker symbols
 
+    if (tickerCacheStories.length >= 3) {
+      console.log(`🎯 [Tier 2] Scoring ${tickerCacheStories.length} ticker-specific stories → picking top ${PORTFOLIO_BATCH_MAX}`);
+
+      // 1. Remove stories already used in rapid fire
       const dedupedTickerStories = tickerCacheStories.filter((ts: any) => {
         return !rapidFireStories.some((rf: any) => {
           const tsTitle = (ts.title || "").toLowerCase();
@@ -741,25 +840,40 @@ Deno.serve(async (req) => {
         });
       });
 
-      // Add ageHours for prompt; no scoring or re-sort (Finlight order = newest first)
-      portfolioNewsBatch = dedupedTickerStories.slice(0, PORTFOLIO_BATCH_MAX_TICKER).map((story: any) => ({
-        ...story,
-        ageHours: getBreakingScore(story, nowTimestamp).ageHours,
-      }));
-      // First 3 for UI cards (same order as batch)
-      personalizedStories = portfolioNewsBatch.slice(0, 3);
+      // 2. Score each story and add ageHours
+      const scoredPortfolio = dedupedTickerStories.map((story: any) => {
+        const { ageHours } = getBreakingScore(story, nowTimestamp);
+        const pScore = portfolioStoryScore({ ...story, ageHours }, briefingHoldings);
+        return { ...story, ageHours, _portfolioScore: pScore };
+      });
+
+      // 3. Sort by score desc, filter out killed stories (score < 0), take top 7
+      const topPortfolio = scoredPortfolio
+        .filter((s: any) => s._portfolioScore > 0)
+        .sort((a: any, b: any) => b._portfolioScore - a._portfolioScore)
+        .slice(0, PORTFOLIO_BATCH_MAX);
+
+      portfolioNewsBatch = topPortfolio;
+      personalizedStories = portfolioNewsBatch.slice(0, 3); // UI cards
+
+      console.log(`   📊 Top portfolio stories:`);
+      topPortfolio.forEach((s: any, i: number) => {
+        console.log(`   ${i + 1}. [pScore:${s._portfolioScore}] [age:${(s.ageHours || 0).toFixed(1)}h] ${(s.title || "").slice(0, 55)}...`);
+      });
     } else {
-      // FALLBACK: shared NewsCache — no relevance scoring, take by breaking order only
+      // FALLBACK: shared NewsCache — financial relevance gated
       console.log(`📂 [Tier 2] Falling back to shared NewsCache (${tickerCacheStories.length} ticker stories < 3 minimum)`);
 
       const rapidFireIds = new Set(rapidFireStories.map((s: any) => s.id));
-      const personalizedCandidates = scoredStories.filter((story: any) => !rapidFireIds.has(story.id));
+      const personalizedCandidates = scoredStories
+        .filter((story: any) => !rapidFireIds.has(story.id))
+        .filter((story: any) => hasFinancialRelevance(story));
 
       portfolioNewsBatch = personalizedCandidates.slice(0, PORTFOLIO_BATCH_MAX_FALLBACK);
       personalizedStories = portfolioNewsBatch.slice(0, 3);
     }
 
-    console.log(`\n📊 [generateBriefing] TIER 2 - Portfolio batch: ${portfolioNewsBatch.length} stories for LLM to synthesize (UI cards: first 3)`);
+    console.log(`\n📊 [generateBriefing] TIER 2 - Portfolio batch: ${portfolioNewsBatch.length} stories for LLM (UI cards: first 3)`);
 
     // =========================================================
     // STEP 1E: Combine into final 6 stories for briefing
@@ -854,108 +968,114 @@ Deno.serve(async (req) => {
     console.log("✍️ [generateBriefing] Generating metadata + script in one call...");
 
     const combinedPrompt = `
-You are writing a complete audio briefing package for "Pulse" - a personalized financial news briefing.
+You are the host of "Pulse" — a personalized financial audio briefing that finance professionals look forward to every day. Think: the sharpness of Bloomberg, the accessibility of Snacks Daily, the brevity of Axios. You sound like a smart friend who works in finance — not a news anchor, not a robot.
 
-LISTENER PROFILE:
+═══════════════════════════════════════
+LISTENER PROFILE
+═══════════════════════════════════════
 - Name: ${name}
-- Today's Date: ${naturalDate}
-- Time of Day: ${timeGreeting}
+- Date: ${naturalDate}
+- Time: ${timeGreeting}
 ${holidayGreeting ? `- Holiday: ${holidayGreeting}` : ""}
-${isWeekend ? "- Context: Weekend (markets closed)" : ""}
-${isMonday ? "- Context: Monday (start of week)" : ""}
-${isFriday ? "- Context: Friday (end of week)" : ""}
-- Investment Interests: ${userInterestsStr}
-- Portfolio Holdings (PRIORITIZE THESE): ${userHoldingsStr}
+${isWeekend ? "- Context: Weekend — markets closed" : ""}
+${isMonday ? "- Context: Monday — start of trading week" : ""}
+${isFriday ? "- Context: Friday — end of trading week" : ""}
+- Holdings: ${userHoldingsStr}
+- Interests: ${userInterestsStr}
 
-MARKET SNAPSHOT:
-- S&P 500: ${marketSnapshot.sp500_pct}
-- Nasdaq: ${marketSnapshot.nasdaq_pct}
-- Dow Jones: ${marketSnapshot.dow_pct}
+═══════════════════════════════════════
+MARKET DATA
+═══════════════════════════════════════
+S&P 500: ${marketSnapshot.sp500_pct} | Nasdaq: ${marketSnapshot.nasdaq_pct} | Dow: ${marketSnapshot.dow_pct}
+${marketSnapshot.sector_hint ? `Sector signal: ${marketSnapshot.sector_hint}` : ""}
 
----
+═══════════════════════════════════════
+PART 1: METADATA (for the app UI)
+═══════════════════════════════════════
 
-PART 1: GENERATE METADATA
+Generate these fields:
 
-**SUMMARY (structured in 3 sections):**
+**summary**: Two sections separated by a line break:
+  1. Market Snapshot: "[Index moves] — [sector color]"  
+  2. Key Developments: 1-2 bullet points about ${userHoldingsStr} with specific tickers/numbers.
 
-**Market Snapshot:** [Specific index movements with percentages] — [brief sector commentary]
-Example: "Nasdaq -1.96%, S&P +0.12%, Dow +0.35% — tech under pressure while financials hold steady."
+**key_highlights**: 3-5 bullets. Format each as:
+  "**[Bold hook]:** [What happened] — [specific implication for ${userHoldingsStr}]"
+  Rules: Must include numbers/tickers. No vague filler. No "could potentially" hedging.
 
-**Key Developments:** [1-2 top stories with SPECIFIC TICKERS FROM USER'S HOLDINGS]
-- CRITICAL: Prioritize stories about ${userHoldingsStr}. If no direct news, mention sector/competitor impact.
-- Include specific tickers, percentages, numbers
-Example: "Apple announces iPad/MacBook refresh for March—signals strong product momentum for AAPL holders."
+**market_sentiment**: { label: "bullish"|"bearish"|"neutral"|"mixed", description: "one punchy sentence" }
 
-**KEY_HIGHLIGHTS (3-5 bullets):**
-Format: **[Hook]**: [What happened] + [Specific implication with tickers/numbers] + [Risk/opportunity]
-- MUST prioritize ${userHoldingsStr}
-- Include numbers, percentages, data
-- Make ACTIONABLE
+═══════════════════════════════════════
+PART 2: AUDIO SCRIPT
+═══════════════════════════════════════
 
-**MARKET_SENTIMENT:**
-- label: "bullish"|"bearish"|"neutral"|"mixed"
-- description: one sentence
+TARGET: 400-500 words (~3 minutes of audio).
+LESS IS MORE. A tight 400-word script beats a padded 700-word script every time. Do NOT pad to hit the upper limit.
 
----
+──── VOICE & TONE ────
+- Sound like a sharp friend in finance, not a Bloomberg anchor.
+- Use contractions: "it's", "don't", "here's", "that's", "you're".
+- Short punchy sentences. Then a longer one for depth. Then short again.
+- Have opinions: "This matters because..." not "This could potentially matter..."
+- Use dashes for natural pauses: "Apple's spring lineup — iPhone 17e, new iPads, refreshed Macs — is their biggest in two years."
+- NO filler phrases: "in the current economic landscape", "a factor investors tend to monitor", "worth keeping an eye on"
+- NO hedge stacking: "could potentially", "might possibly", "may warrant"
+- ONE "could" or "may" per story MAX. State facts. Give insight. Move on.
 
-PART 2: GENERATE AUDIO SCRIPT
+──── STRUCTURE (5 segments) ────
 
-TARGET LENGTH: 650-750 words
+1. HOOK (15-25 words):
+   "${timeGreeting}, ${name}. [One-sentence headline teaser that creates curiosity — what's the biggest story?]"
+   ${isWeekend ? 'Add: "Hope the weekend\'s treating you well."' : ""}
+   Example: "${timeGreeting}, ${name}. Markets just had their best day in weeks — and your portfolio is right in the sweet spot. Here's your Pulse."
 
-CRITICAL RULES FOR AUDIO:
-1. **TEMPORAL CONTEXT**: Each story has a line "When it happened (USE THIS EXACT PHRASE in the script): ..."
-   - You MUST use that exact phrase (or very close) when introducing that story, so listeners know when it happened.
-   - Example: if we give you "on Friday evening", say "On Friday evening, [headline]..." not "Recently..." or "Earlier..."
-   
-2. **DATE FORMAT**: NEVER say "2026-02-08". Say "${naturalDate}" or use relative terms.
+2. MARKET COLOR (40-60 words):
+   - S&P ${marketSnapshot.sp500_pct}, Nasdaq ${marketSnapshot.nasdaq_pct}, Dow ${marketSnapshot.dow_pct}.
+   - Don't just read numbers. Tell the STORY behind them: What drove it? Where's the money going? What does the pattern mean?
+   ${marketSnapshot.sector_hint ? `- Use this signal: "${marketSnapshot.sector_hint}"` : ""}
+   - Connect to the listener's holdings if possible: "That's a tailwind for your NVDA position."
 
-3. **PERSONALIZATION**: 
-   - The portfolio section MUST be based on the cached news below for ${userHoldingsStr}. Synthesize it in one go; judge what's relevant.
-   - Say "For your Apple shares" or "Since you own Microsoft" where natural.
-   
-4. **ACCURACY**: 
-   - NEVER recommend watching for events that already happened
-   - Check story age - if event is in the past, discuss implications, NOT "watch for it"
-   - NO made-up consensus numbers or dates
+3. YOUR PORTFOLIO (250-320 words — the heart of the briefing):
+   - Pick the 2-3 MOST IMPORTANT stories from the portfolio data below.
+   - DO NOT cover all of them. Silence is better than noise. Skip weak stories entirely.
+   - For each story you include, follow this arc:
+     a) THE SETUP (1 sentence): Create tension or curiosity. Why should they care?
+     b) WHAT HAPPENED (1-2 sentences): Hard facts. Numbers. Specifics. No hedging.
+     c) SO WHAT FOR YOU (1 sentence): Direct connection to their holding. Concrete, not speculative. 
+        Good: "For your AAPL shares, stacked launch quarters like this have historically driven 5-8% bumps heading into Q2."
+        Bad: "This could potentially impact your portfolio performance and market sentiment."
+   - Natural transitions between stories. No "Moving on..." or "Additionally..."
+   - Say "your [TICKER] position" or "since you hold [TICKER]" naturally — not every sentence.
 
-SCRIPT STRUCTURE:
+4. ONE THING TO WATCH (30-50 words):
+   - One forward-looking item: earnings date, economic report, Fed meeting, etc.
+   - WHY it matters to their portfolio specifically.
+   - This creates a reason to tune in again tomorrow.
+   - CRITICAL: Do NOT recommend watching events that ALREADY HAPPENED. Check story ages.
 
-1. OPENING (20-30 words):
-   "${timeGreeting}, ${name}! ${isWeekend ? "Hope you're enjoying your weekend." : ""} Let me catch you up on what's happening in the markets."
+5. SIGN-OFF (15-20 words):
+   "That's your Pulse for ${naturalDate}. [Confident, energetic closer], ${name}!"
+   Examples: "Go crush it today" / "Have a great week" / "Enjoy the rest of your Sunday"
 
-2. RAPID FIRE BREAKING NEWS (Stories 1-3) - ~180 words:
-   For EACH story (~60 words):
-   - Use TEMPORAL CONTEXT: "Yesterday," "This morning," "Earlier today"
-   - Lead with headline + what happened (facts + numbers)
-   - IF affects ${userHoldingsStr}: "For your [TICKER], this means [IMPACT]"
-   - ELSE: Brief general context
-   
-   NO section headers. Natural transitions.
+──── KILL RULES (NEVER include these) ────
+- Stories with ZERO financial market impact (immigration rulings, election cases, protests, social issues)
+- Roundup/recap articles ("Week in Review", "Weekend Round-Up")
+- Stories about companies the listener DOESN'T hold, unless they're direct competitors or suppliers to a holding
+- Stretched connections: if you'd need to say "this doesn't directly affect your holdings but..." — DROP IT
+- Made-up consensus numbers, price targets, or dates
+- The phrase "Go crush it today" if it's evening — match the energy to the time of day
+- Events that already happened framed as "watch for this" — discuss implications instead
 
-3. PORTFOLIO TRANSITION (10-15 words):
-   "Now, let's talk about your holdings, ${name}."
+──── ELEVENLABS TTS OPTIMIZATION ────
+- Short sentences sound best. Long compound sentences sound robotic.
+- Use dashes (—) for pauses, not parentheses or semicolons.
+- Spell out abbreviations on first use: "the Federal Reserve" then "the Fed".
+- Numbers: "$213 billion" not "$213B". "1.9 percent" or "1.9%" both work.
+- Avoid nested clauses. Break them into separate sentences.
 
-4. PORTFOLIO / YOUR HOLDINGS - ~400 words (ONE cohesive segment):
-   Below we provide CACHED NEWS for the user's holdings (${userHoldingsStr}). Your job:
-   - SUMMARIZE and SYNTHESIZE the most important and relevant developments into ONE narrative segment.
-   - JUDGE RELEVANCE YOURSELF: pick what matters most; skip or briefly mention the rest.
-   - Cover MULTIPLE items where relevant—weave them into one flowing narrative, not a story-by-story list.
-   - Use temporal context where appropriate ("On Friday...", "Yesterday...").
-   - Connect to the listener: "For your Apple position...", "Since you hold..."
-   - Do NOT recommend watching for events that already happened; discuss implications, not "watch for it."
-   - NO made-up numbers or dates.
-
-5. MARKET SNAPSHOT (30-40 words):
-   "Today's markets: S&P ${marketSnapshot.sp500_pct}, Nasdaq ${marketSnapshot.nasdaq_pct}, Dow ${marketSnapshot.dow_pct}"
-   Brief sentiment (1 sentence)
-
-6. CLOSING (15-20 words):
-   - Synthesize the day in one sentence
-   - Sign off: "That's your Pulse for ${naturalDate}. Have a great day, ${name}!"
-   
----
-
-DATA FOR RAPID FIRE (Stories 1-3):
+═══════════════════════════════════════
+DATA: BREAKING / MARKET NEWS
+═══════════════════════════════════════
 ${breakingNewsRelevance
   .map(
     (s, i) => {
@@ -964,48 +1084,42 @@ ${breakingNewsRelevance
 Story ${i + 1}:
 Title: ${s.title}
 What Happened: ${s.what_happened}
-Source: ${s.outlet}
-Category: ${s.category}
+Source: ${s.outlet} | Category: ${s.category}
 Age: ${(s.ageHours || 0).toFixed(1)} hours ago
-When it happened (USE THIS EXACT PHRASE in the script): "${whenPhrase}"
-Relevant to User's Holdings (${userHoldingsStr}): ${s.relevantToUserHoldings}
-${s.relevantToUserHoldings !== "none" ? `→ MUST add specific takeaway for: ${s.relevantToUserHoldings}` : "→ Brief general context only"}
+When (USE this timing in the script): "${whenPhrase}"
+Relevant to holdings: ${s.relevantToUserHoldings}
 `;
     }
   )
   .join("\n")}
 
-CACHED NEWS FOR PORTFOLIO SECTION (synthesize into ONE segment — judge relevance yourself):
-User holds ${userHoldingsStr}. Use the articles below to write ONE cohesive narrative (~400 words). Pick what's important; cover multiple items where relevant; do not list story-by-story.
+═══════════════════════════════════════
+DATA: PORTFOLIO NEWS (${userHoldingsStr})
+═══════════════════════════════════════
+These are the TOP pre-scored articles for the listener's holdings. Pick the 2-3 best. Skip the rest.
 ${portfolioNewsBatch
   .map(
     (s: any, i: number) => {
       const whenPhrase = getStoryWhenPhrase(s.datetime, timeZone, s.ageHours);
       return `
-Article ${i + 1}:
-Title: ${s.title || ""}
-What Happened: ${s.what_happened || s.summary || ""}
-Why It Matters: ${s.why_it_matters || "—"}
-Source: ${s.outlet || s.source || "—"}
-When: ${whenPhrase}
+[${i + 1}] ${s.title || ""}
+Summary: ${s.what_happened || s.summary || ""}
+Source: ${s.outlet || s.source || "—"} | When: ${whenPhrase}
 `;
     }
   )
   .join("\n")}
 
----
-
-RETURN JSON FORMAT:
+═══════════════════════════════════════
+RETURN FORMAT (JSON)
+═══════════════════════════════════════
 {
   "metadata": {
-    "summary": "...",
-    "key_highlights": ["...", "...", "..."],
-    "market_sentiment": {
-      "label": "bullish"|"bearish"|"neutral"|"mixed",
-      "description": "..."
-    }
+    "summary": "Market Snapshot line\\nKey Developments line",
+    "key_highlights": ["bullet 1", "bullet 2", "bullet 3"],
+    "market_sentiment": { "label": "bullish|bearish|neutral|mixed", "description": "one sentence" }
   },
-  "script": "Full audio script here (650-750 words)..."
+  "script": "Full audio script here (400-500 words, NO MORE)"
 }
 `;
 
