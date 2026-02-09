@@ -1,10 +1,10 @@
 // ============================================================
-// fetchNewsCards.ts - Base44 Function (v5.1 - Ticker-Personalized)
+// fetchNewsCards.ts - Base44 Function (v5 - Ticker-Personalized)
 // STRATEGY: Ticker-specific news via Finlight → UserNewsCache (3h TTL)
 //           Falls back to category-based NewsCardCache if ticker fetch fails
 // Uses 0 LLM credits. Per-ticker Finlight calls when UserNewsCache is stale.
 // Returns: { market_news, portfolio_news }
-//
+// MANUALLY REDEPLOY V1 TO INJECT API!! 
 // PORTFOLIO vs MARKET/BREAKING NEWS (different sources):
 // - market_news: from NewsCardCache (MARKET_*) / NewsCache — general market/breaking.
 // - portfolio_news: from UserNewsCache (Finlight ticker:AAPL|GOOGL|...) — holdings-specific.
