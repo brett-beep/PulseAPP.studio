@@ -193,6 +193,39 @@ function getCategoryMessage(category: string): string {
   return messages[category] || "Worth monitoring for portfolio implications.";
 }
 
+/** Company names for text matching (title/summary) so we surface obviously relevant stories first. */
+const TICKER_TO_NAMES: Record<string, string[]> = {
+  AAPL: ["apple"],
+  GOOGL: ["google", "alphabet", "youtube", "waymo"],
+  GOOG: ["google", "alphabet", "youtube", "waymo"],
+  META: ["meta", "facebook", "zuckerberg"],
+  SHOP: ["shopify"],
+  AMZN: ["amazon"],
+  MSFT: ["microsoft"],
+  NVDA: ["nvidia"],
+  TSLA: ["tesla", "musk"],
+  TSM: ["tsmc", "taiwan semiconductor"],
+};
+
+function storyRelevanceToTickers(story: any, userTickers: string[]): number {
+  const text = `${story.title || ""} ${story.what_happened || ""}`.toLowerCase();
+  if (story.matched_tickers && story.matched_tickers.length > 0) return 100;
+  let score = 0;
+  for (const ticker of userTickers) {
+    if (text.includes(ticker.toLowerCase())) score += 50;
+    const names = TICKER_TO_NAMES[ticker] || [ticker.toLowerCase()];
+    if (names.some((n) => text.includes(n))) score += 40;
+  }
+  return score;
+}
+
+/** Prefer tier-1 outlets when relevance is tied (no LLM, just sort). */
+const PREMIUM_OUTLETS = ["bloomberg", "reuters", "financial times", "ft.com", "wsj", "wall street journal", "cnbc", "ap news", "associated press"];
+function sourceQualityScore(outlet: string): number {
+  const o = (outlet || "").toLowerCase();
+  return PREMIUM_OUTLETS.some((p) => o.includes(p)) ? 10 : 0;
+}
+
 function transformFinlightArticle(article: any, userTickers: string[]): any {
   const title = (article.title || "Breaking News").trim();
   const summary = (article.summary || "").trim();
@@ -296,7 +329,7 @@ async function fetchFinlightTickerNews(
 
 /** Max tickers to query (5 articles each) per user — limits Finlight API calls. */
 const MAX_TICKERS_FOR_FETCH = 5;
-const ARTICLES_PER_TICKER = 5;
+const ARTICLES_PER_TICKER = 20;
 
 /**
  * Fetch 5 articles per ticker, combine, dedupe by link, sort by publishDate DESC.
@@ -336,7 +369,7 @@ async function fetchFinlightTickerNewsPerTicker(
     return tB - tA;
   });
 
-  console.log(`✅ Combined ${deduped.length} articles (5 per ticker, deduped, sorted by date)`);
+  console.log(`✅ Combined ${deduped.length} articles (${ARTICLES_PER_TICKER} per ticker, deduped, sorted by date)`);
   return deduped;
 }
 
@@ -562,9 +595,21 @@ Deno.serve(async (req) => {
                 }
               }
 
-              // Full list for cache and briefing; cap display for response (mix of ticker news)
+              // Sort: relevance first, then premium outlets, then newest
+              deduped.sort((a: any, b: any) => {
+                const relA = storyRelevanceToTickers(a, userTickers);
+                const relB = storyRelevanceToTickers(b, userTickers);
+                if (relB !== relA) return relB - relA;
+                const srcA = sourceQualityScore(a.outlet);
+                const srcB = sourceQualityScore(b.outlet);
+                if (srcB !== srcA) return srcB - srcA;
+                const tA = new Date(a.datetime || 0).getTime();
+                const tB = new Date(b.datetime || 0).getTime();
+                return tB - tA;
+              });
+
               const allStories = deduped;
-              const displayCap = 20;
+              const displayCap = 5;
               const storiesForResponse = allStories.slice(0, displayCap);
 
               if (allStories.length >= 2) {
