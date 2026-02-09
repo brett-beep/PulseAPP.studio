@@ -196,8 +196,8 @@ function getCategoryMessage(category: string): string {
 /** Company names for text matching (title/summary) so we surface obviously relevant stories first. */
 const TICKER_TO_NAMES: Record<string, string[]> = {
   AAPL: ["apple"],
-  GOOGL: ["google", "alphabet", "youtube", "waymo"],
-  GOOG: ["google", "alphabet", "youtube", "waymo"],
+  GOOGL: ["google", "alphabet", "youtube"],
+  GOOG: ["google", "alphabet", "youtube"],
   META: ["meta", "facebook", "zuckerberg"],
   SHOP: ["shopify"],
   AMZN: ["amazon"],
@@ -224,6 +224,26 @@ const PREMIUM_OUTLETS = ["bloomberg", "reuters", "financial times", "ft.com", "w
 function sourceQualityScore(outlet: string): number {
   const o = (outlet || "").toLowerCase();
   return PREMIUM_OUTLETS.some((p) => o.includes(p)) ? 10 : 0;
+}
+
+/** Down-rank generic roundups / vague headlines so specific stories surface first. */
+const ROUNDUP_PENALTY = 35;
+const ROUNDUP_TITLE_PATTERNS = [
+  "the week in",
+  "week in review",
+  "breakingviews",
+  "weekend round-up",
+  "weekend roundup",
+  "round-up:",
+  "roundup:",
+  "morning roundup",
+  "week in",
+  "and more:",
+  "shooting for the moon", // vague editorial headline
+];
+function roundupPenalty(story: any): number {
+  const title = (story.title || "").toLowerCase();
+  return ROUNDUP_TITLE_PATTERNS.some((p) => title.includes(p)) ? ROUNDUP_PENALTY : 0;
 }
 
 function transformFinlightArticle(article: any, userTickers: string[]): any {
@@ -595,10 +615,10 @@ Deno.serve(async (req) => {
                 }
               }
 
-              // Sort: relevance first, then premium outlets, then newest
+              // Sort: relevance first (minus roundup penalty), then premium outlets, then newest
               deduped.sort((a: any, b: any) => {
-                const relA = storyRelevanceToTickers(a, userTickers);
-                const relB = storyRelevanceToTickers(b, userTickers);
+                const relA = storyRelevanceToTickers(a, userTickers) - roundupPenalty(a);
+                const relB = storyRelevanceToTickers(b, userTickers) - roundupPenalty(b);
                 if (relB !== relA) return relB - relA;
                 const srcA = sourceQualityScore(a.outlet);
                 const srcB = sourceQualityScore(b.outlet);
