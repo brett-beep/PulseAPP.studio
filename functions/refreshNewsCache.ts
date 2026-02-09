@@ -1,5 +1,5 @@
 // ============================================================
-// refreshNewsCache.ts - Base44 Function (v13 - Entity-Based Clustering)
+// refreshNewsCache.ts - Base44 Function (v13.1 - Entity-Based Clustering)
 // Uses secret: FINLIGHT_API_KEY. If missing after GitHub deploy → Base44: edit this file (e.g. add newline), Save & Deploy (see DEPLOY.md).
 // Runs every 5 minutes (0 LLM credits)
 // Fetches from Finlight (broad financial news). Scores by:

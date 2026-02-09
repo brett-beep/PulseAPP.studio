@@ -1,5 +1,5 @@
 // ============================================================
-// fetchNewsCards.ts - Base44 Function (v5 - Ticker-Personalized)
+// fetchNewsCards.ts - Base44 Function (v5.1 - Ticker-Personalized)
 // STRATEGY: Ticker-specific news via Finlight → UserNewsCache (3h TTL)
 //           Falls back to category-based NewsCardCache if ticker fetch fails
 // Uses 0 LLM credits. Per-ticker Finlight calls when UserNewsCache is stale.
