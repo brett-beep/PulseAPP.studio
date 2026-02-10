@@ -858,12 +858,11 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
   const briefingStories = parseJsonArray(todayBriefing?.news_stories);
   const briefingMarketStories = briefingStories.filter((s) => s?.isRapidFire);
   const briefingPortfolioStories = briefingStories.filter((s) => !s?.isRapidFire);
-  const useBriefingStoryCards = briefingStories.length > 0;
 
-  // Keep cards aligned with the generated briefing when available; otherwise fall back to live card feed.
-  const marketStories = useBriefingStoryCards ? briefingMarketStories : (marketNews?.stories ?? []);
+  // Use briefing stories when available, but never hide a section if briefing data is sparse.
+  const marketStories = briefingMarketStories.length > 0 ? briefingMarketStories : (marketNews?.stories ?? []);
   // Always show top 5 only for Your Portfolio.
-  const portfolioStories = (useBriefingStoryCards ? briefingPortfolioStories : (portfolioNews?.stories ?? [])).slice(0, 5);
+  const portfolioStories = (briefingPortfolioStories.length > 0 ? briefingPortfolioStories : (portfolioNews?.stories ?? [])).slice(0, 5);
   const hasAnyNews = marketStories.length > 0 || portfolioStories.length > 0;
 
   const briefingUpdatedAt =
@@ -873,7 +872,8 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
     todayBriefing?.updated_at ||
     todayBriefing?.created_at ||
     null;
-  const cardsUpdatedAt = useBriefingStoryCards && briefingUpdatedAt ? new Date(briefingUpdatedAt) : lastRefreshTime;
+  const usingBriefingCards = briefingMarketStories.length > 0 || briefingPortfolioStories.length > 0;
+  const cardsUpdatedAt = usingBriefingCards && briefingUpdatedAt ? new Date(briefingUpdatedAt) : lastRefreshTime;
 
   // Show proper status based on briefing state
   const getStatusLabel = () => {
@@ -998,14 +998,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
           className="space-y-6"
         >
           <div className="flex items-center justify-between flex-wrap gap-y-1">
-            <div className="flex items-center gap-2 shrink-0">
-              <h2 className="text-lg md:text-xl font-semibold text-slate-900">News for You</h2>
-              {useBriefingStoryCards && (
-                <span className="text-[10px] md:text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                  From today's briefing
-                </span>
-              )}
-            </div>
+            <h2 className="text-lg md:text-xl font-semibold text-slate-900 shrink-0">News for You</h2>
             <div className="flex flex-col items-end gap-0.5">
               <div className="flex items-center gap-2 md:gap-4">
                 <button
