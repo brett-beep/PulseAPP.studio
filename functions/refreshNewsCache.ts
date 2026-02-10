@@ -8,7 +8,7 @@
 // Never caches "Details emerging...". Summary length loosened (min 12 chars, then headline-only) so more news surfaces; card uses title as fallback when summary empty. Caches top 20 RAW articles (design choice: small high-signal shared pool for breaking/macro; 0 LLM credits — not for saving credits).
 // v13: General-purpose entity extraction (people/companies/topics) → clusters ANY person+topic or company+topic combo
 // Example: "Cook + inflation", "Musk + Tesla", "nvidia + earnings" all auto-cluster without hardcoded rules
-// MANUAL REDEPLOY V1.1
+// MANUAL REDEPLOY V2
 // ============================================================
 
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
