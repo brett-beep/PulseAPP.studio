@@ -23,6 +23,16 @@ const SMOOTH_DURATION = 0.4;
 
 const LAYOUT_TRANSITION = { layout: { duration: 0.32, ease: [0.25, 0.46, 0.45, 0.94] } };
 
+// Base44 timestamps can come without timezone suffix; treat them as UTC to avoid
+// mis-ordering records and false "generation complete" transitions.
+function parseBase44Timestamp(value) {
+  const s = typeof value === "string" ? value.trim() : "";
+  if (!s) return null;
+  const hasTZ = s.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(s) || /[+-]\d{4}$/.test(s);
+  const d = new Date(hasTZ ? s : `${s}Z`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 // Format summary text with section headers
 // Handles BOTH formats: "**Market Snapshot:** text" AND "Market Snapshot: text"
 function FormattedSummary({ text }) {
@@ -335,7 +345,9 @@ export default function Home() {
           // Prefer delivered_at if present; else fall back
           const dateA = a.delivered_at || a.updated_date || a.created_date || a.updated_at || a.created_at || 0;
           const dateB = b.delivered_at || b.updated_date || b.created_date || b.updated_at || b.created_at || 0;
-          return new Date(dateB) - new Date(dateA);
+          const timeA = parseBase44Timestamp(dateA)?.getTime() || 0;
+          const timeB = parseBase44Timestamp(dateB)?.getTime() || 0;
+          return timeB - timeA;
         })[0];
         console.log("📍 [Briefing Query] Most recent status:", mostRecent.status);
         console.log("📍 [Briefing Query] Has audio_url:", !!mostRecent.audio_url);
@@ -360,7 +372,9 @@ export default function Home() {
       ? [...briefings].sort((a, b) => {
           const dateA = a.delivered_at || a.updated_date || a.created_date || a.updated_at || a.created_at || 0;
           const dateB = b.delivered_at || b.updated_date || b.created_date || b.updated_at || b.created_at || 0;
-          return new Date(dateB) - new Date(dateA);
+          const timeA = parseBase44Timestamp(dateA)?.getTime() || 0;
+          const timeB = parseBase44Timestamp(dateB)?.getTime() || 0;
+          return timeB - timeA;
         })[0]
       : null;
 
@@ -384,7 +398,7 @@ export default function Home() {
     const deliveredAt = todayBriefing?.delivered_at || todayBriefing?.updated_date || todayBriefing?.created_date || todayBriefing?.updated_at || todayBriefing?.created_at;
     if (!deliveredAt) return;
     
-    const deliveredTime = new Date(deliveredAt).getTime();
+    const deliveredTime = parseBase44Timestamp(deliveredAt)?.getTime() || 0;
     const startedTime = generationStartedAt.getTime();
     
     // Only stop if this briefing was delivered AFTER we clicked generate (with 5s buffer for clock skew)
@@ -461,30 +475,17 @@ export default function Home() {
 
       // Cooldown from LAST DELIVERED briefing (prefer delivered_at)
       // FIX: Base44 timestamps may come back without timezone ("Z").
-// If no timezone suffix is present, treat it as UTC by appending "Z".
-const parseBase44Time = (value) => {
-  const s = typeof value === "string" ? value.trim() : "";
-  if (!s) return null;
-
-  const hasTZ =
-    s.endsWith("Z") ||
-    /[+-]\d{2}:\d{2}$/.test(s) ||
-    /[+-]\d{4}$/.test(s);
-
-  return new Date(hasTZ ? s : `${s}Z`);
-};
-
 const pickDeliveredTime = (b) =>
   b?.delivered_at || b?.updated_date || b?.created_date || b?.updated_at || b?.created_at || null;
 
 // Cooldown from LAST DELIVERED briefing (prefer delivered_at)
 const lastDelivered = [...delivered].sort((a, b) => {
-  const ta = parseBase44Time(pickDeliveredTime(a))?.getTime() || 0;
-  const tb = parseBase44Time(pickDeliveredTime(b))?.getTime() || 0;
+  const ta = parseBase44Timestamp(pickDeliveredTime(a))?.getTime() || 0;
+  const tb = parseBase44Timestamp(pickDeliveredTime(b))?.getTime() || 0;
   return tb - ta;
 })[0];
 
-const lastDeliveredAt = parseBase44Time(pickDeliveredTime(lastDelivered));
+const lastDeliveredAt = parseBase44Timestamp(pickDeliveredTime(lastDelivered));
 const now = new Date();
 
 if (!lastDeliveredAt || isNaN(lastDeliveredAt.getTime())) {
@@ -870,7 +871,22 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
 
   // Show proper status based on briefing state
   const getStatusLabel = () => {
-    if (briefingLoading) return "Loading briefing...";
+    if (briefingLoading && !isGenerating) return "Loading briefing...";
+
+    // During generation, keep progress messaging active even before the new
+    // DailyBriefing row becomes the "most recent" record in query results.
+    if (isGenerating) {
+      switch (status) {
+        case "writing_script":
+          return "✍️ Writing your briefing script...";
+        case "generating_audio":
+          return "🎵 Generating audio...";
+        case "uploading":
+          return "📤 Almost ready...";
+        default:
+          return "✍️ Writing your briefing script...";
+      }
+    }
 
     switch (status) {
       case "writing_script":
