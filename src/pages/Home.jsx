@@ -538,7 +538,15 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
 
     const CACHE_KEY = `newsCards:${user.email}`;
     const TIMESTAMP_KEY = `newsCardsTimestamp:${user.email}`;
+    const MANUAL_REFRESH_KEY = `newsCardsManualRefreshTimestamp:${user.email}`;
     const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes
+
+    // UI timer should reflect the last time the user manually clicked Refresh.
+    const manualRefreshTs = localStorage.getItem(MANUAL_REFRESH_KEY);
+    if (manualRefreshTs) {
+      const parsed = new Date(parseInt(manualRefreshTs));
+      if (!isNaN(parsed.getTime())) setLastRefreshTime(parsed);
+    }
 
     async function loadNewsCards() {
       const now = Date.now();
@@ -558,7 +566,6 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
             setMarketNews({ summary: "Market News", stories: parsed.slice(0, half), updated_at: null });
             setPortfolioNews({ summary: "Your Portfolio", stories: parsed.slice(half), updated_at: null });
           }
-          setLastRefreshTime(new Date(parseInt(cacheTimestamp)));
           console.log("✅ Using cached news cards (age:", Math.round(cacheAge / 60000), "min)");
         } catch (_) {
           localStorage.removeItem(CACHE_KEY);
@@ -584,8 +591,6 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
           if (market || portfolio) {
             setMarketNews(market ?? { summary: "Market News", stories: [], updated_at: null });
             setPortfolioNews(portfolio ?? { summary: "Your Portfolio", stories: [], updated_at: null });
-            const updatedAt = market?.updated_at || portfolio?.updated_at;
-            setLastRefreshTime(updatedAt ? new Date(updatedAt) : new Date());
             localStorage.setItem(
               CACHE_KEY,
               JSON.stringify({ market_news: market, portfolio_news: portfolio })
@@ -612,7 +617,6 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
                 stories: stories.slice(half),
                 updated_at: resp.data.cache_age || null,
               });
-              setLastRefreshTime(resp.data.cache_age ? new Date(resp.data.cache_age) : new Date());
               localStorage.setItem(
                 CACHE_KEY,
                 JSON.stringify({
@@ -664,10 +668,15 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
 
     const CACHE_KEY = `newsCards:${user.email}`;
     const TIMESTAMP_KEY = `newsCardsTimestamp:${user.email}`;
+    const MANUAL_REFRESH_KEY = `newsCardsManualRefreshTimestamp:${user.email}`;
 
     // Clear ALL local caches to force fresh data
     localStorage.removeItem(CACHE_KEY);
     localStorage.removeItem(TIMESTAMP_KEY);
+    // Timer always reflects the last manual click, even if network request fails.
+    const manualClickTime = new Date();
+    setLastRefreshTime(manualClickTime);
+    localStorage.setItem(MANUAL_REFRESH_KEY, manualClickTime.getTime().toString());
 
     setIsLoadingNews(true);
     try {
@@ -684,7 +693,6 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
         if (market || portfolio) {
           setMarketNews(market ?? { summary: "Market News", stories: [], updated_at: null });
           setPortfolioNews(portfolio ?? { summary: "Your Portfolio", stories: [], updated_at: null });
-          setLastRefreshTime(new Date());
           localStorage.setItem(
             CACHE_KEY,
             JSON.stringify({ market_news: market, portfolio_news: portfolio })
@@ -697,7 +705,6 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
           const pn = { summary: "Your Portfolio", stories: stories.slice(half), updated_at: resp.data.cache_age };
           setMarketNews(mn);
           setPortfolioNews(pn);
-          setLastRefreshTime(new Date());
           localStorage.setItem(CACHE_KEY, JSON.stringify({ market_news: mn, portfolio_news: pn }));
           localStorage.setItem(TIMESTAMP_KEY, Date.now().toString());
         }
@@ -856,24 +863,10 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
   const status = todayBriefing?.status || null;
 
   const briefingStories = parseJsonArray(todayBriefing?.news_stories);
-  const briefingMarketStories = briefingStories.filter((s) => s?.isRapidFire);
-  const briefingPortfolioStories = briefingStories.filter((s) => !s?.isRapidFire);
-
-  // Use briefing stories when available, but never hide a section if briefing data is sparse.
-  const marketStories = briefingMarketStories.length > 0 ? briefingMarketStories : (marketNews?.stories ?? []);
+  const marketStories = marketNews?.stories ?? [];
   // Always show top 5 only for Your Portfolio.
-  const portfolioStories = (briefingPortfolioStories.length > 0 ? briefingPortfolioStories : (portfolioNews?.stories ?? [])).slice(0, 5);
+  const portfolioStories = (portfolioNews?.stories ?? []).slice(0, 5);
   const hasAnyNews = marketStories.length > 0 || portfolioStories.length > 0;
-
-  const briefingUpdatedAt =
-    todayBriefing?.delivered_at ||
-    todayBriefing?.updated_date ||
-    todayBriefing?.created_date ||
-    todayBriefing?.updated_at ||
-    todayBriefing?.created_at ||
-    null;
-  const usingBriefingCards = briefingMarketStories.length > 0 || briefingPortfolioStories.length > 0;
-  const cardsUpdatedAt = usingBriefingCards && briefingUpdatedAt ? new Date(briefingUpdatedAt) : lastRefreshTime;
 
   // Show proper status based on briefing state
   const getStatusLabel = () => {
@@ -990,7 +983,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
         {/* UPGRADE MODAL */}
         <UpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
 
-        {/* NEWS CARDS – prefer briefing-aligned stories; fallback to live news feed */}
+        {/* NEWS CARDS – Market News + Your Portfolio */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -1014,9 +1007,9 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
                   {marketStories.length + portfolioStories.length} stories
                 </span>
               </div>
-              {cardsUpdatedAt && !isNaN(new Date(cardsUpdatedAt).getTime()) && (
+              {lastRefreshTime && !isNaN(new Date(lastRefreshTime).getTime()) && (
                 <span className="text-xs text-slate-400">
-                  Updated {formatDistanceToNow(cardsUpdatedAt, { addSuffix: true })}
+                  Updated {formatDistanceToNow(lastRefreshTime, { addSuffix: true })}
                 </span>
               )}
             </div>
