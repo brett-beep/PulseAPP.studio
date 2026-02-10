@@ -91,6 +91,53 @@ function sanitizeForAudio(s) {
   return t.trim();
 }
 
+const TICKER_TO_COMPANY: Record<string, string> = {
+  AAPL: "Apple",
+  MSFT: "Microsoft",
+  GOOGL: "Alphabet",
+  GOOG: "Alphabet",
+  AMZN: "Amazon",
+  META: "Meta",
+  NVDA: "Nvidia",
+  TSLA: "Tesla",
+  SHOP: "Shopify",
+  NFLX: "Netflix",
+  WBD: "Warner Bros. Discovery",
+  COIN: "Coinbase",
+  CRM: "Salesforce",
+  ADBE: "Adobe",
+  UBER: "Uber",
+  ABNB: "Airbnb",
+  JPM: "JPMorgan",
+  V: "Visa",
+  MA: "Mastercard",
+  DIS: "Disney",
+};
+
+function replaceTickersWithCompanyNames(text: string, userHoldings: any[] = []): string {
+  if (!text) return "";
+  let out = text;
+
+  const dynamicMap: Record<string, string> = {};
+  for (const h of userHoldings || []) {
+    if (typeof h === "object" && h) {
+      const symbol = safeText(h.symbol || h.ticker, "").toUpperCase();
+      const name = safeText(h.name, "");
+      if (symbol && name) dynamicMap[symbol] = name;
+    }
+  }
+  const merged = { ...TICKER_TO_COMPANY, ...dynamicMap };
+
+  for (const [ticker, company] of Object.entries(merged)) {
+    const re = new RegExp(`\\b${ticker}\\b`, "g");
+    out = out.replace(re, company);
+  }
+
+  // Cleanup any accidental double spaces after replacements
+  out = out.replace(/[ \t]{2,}/g, " ");
+  return out.trim();
+}
+
 function safeText(input, fallback) {
   const s = typeof input === "string" ? input.trim() : "";
   return s || (fallback || "");
@@ -760,7 +807,18 @@ Deno.serve(async (req) => {
     const rapidFireCandidates = [...scoredStories]
       .sort((a, b) => b.breakingScore - a.breakingScore)
       .filter((s) => hasFinancialRelevance(s));
-    const rapidFireStories = rapidFireCandidates.slice(0, 3);
+    let rapidFireStories = rapidFireCandidates.slice(0, 3);
+
+    // Hard fallback: if financial gate is too strict, backfill from top scored stories
+    // so the prompt always has macro context to speak about.
+    if (rapidFireStories.length < 3) {
+      const existingIds = new Set(rapidFireStories.map((s: any) => s.id));
+      const backfill = [...scoredStories]
+        .sort((a, b) => b.breakingScore - a.breakingScore)
+        .filter((s: any) => !existingIds.has(s.id))
+        .slice(0, 3 - rapidFireStories.length);
+      rapidFireStories = [...rapidFireStories, ...backfill];
+    }
 
     console.log("\n⚡ [generateBriefing] TIER 1 - RAPID FIRE (Breaking News — financial-relevance gated):");
     rapidFireStories.forEach((s, i) => {
@@ -882,7 +940,18 @@ Deno.serve(async (req) => {
     // =========================================================
     // STEP 1E: Combine into final 6 stories for briefing
     // =========================================================
-    const allBriefingStories = [...rapidFireStories, ...personalizedStories];
+    let allBriefingStories = [...rapidFireStories, ...personalizedStories];
+
+    // Guarantee enough section cards/context (up to 6) for player/story flow.
+    if (allBriefingStories.length < 6) {
+      const existingIds = new Set(allBriefingStories.map((s: any) => s.id));
+      const fill = [...scoredStories]
+        .sort((a, b) => b.breakingScore - a.breakingScore)
+        .filter((s: any) => hasFinancialRelevance(s))
+        .filter((s: any) => !existingIds.has(s.id))
+        .slice(0, 6 - allBriefingStories.length);
+      allBriefingStories = [...allBriefingStories, ...fill];
+    }
     
     console.log(`\n✅ [generateBriefing] Selected ${allBriefingStories.length} total stories (3 rapid-fire + 3 personalized)`);
 
@@ -1008,7 +1077,7 @@ Generate these fields:
 
 **key_highlights**: 3-5 bullets. Format each as:
   "**[Bold hook]:** [What happened] — [specific implication for ${userHoldingsStr}]"
-  Rules: Must include numbers/tickers. No vague filler. No "could potentially" hedging.
+  Rules: Must include numbers and specific company names. Avoid raw ticker symbols when possible. No vague filler. No "could potentially" hedging.
 
 **market_sentiment**: { label: "bullish"|"bearish"|"neutral"|"mixed", description: "one punchy sentence" }
 
@@ -1048,6 +1117,7 @@ Keep it tight and energetic. Do NOT ramble. Hit every section with purpose.
    - Keep this punchy and high-signal. No deep dives here.
    - Use natural transitions, not robotic numbering.
    - IMPORTANT: This section is required. Do not skip it.
+   - Mention all three rapid-fire stories provided in DATA: BREAKING / MARKET NEWS.
 
 4. YOUR PORTFOLIO (200-260 words — the heart of the briefing):
    - Pick the 2-3 MOST IMPORTANT stories from the portfolio data below.
@@ -1059,7 +1129,7 @@ Keep it tight and energetic. Do NOT ramble. Hit every section with purpose.
         Good: "For your AAPL shares, stacked launch quarters like this have historically driven 5-8% bumps heading into Q2."
         Bad: "This could potentially impact your portfolio performance and market sentiment."
    - Natural transitions between stories. No "Moving on..." or "Additionally..."
-   - Say "your [TICKER] position" or "since you hold [TICKER]" naturally — not every sentence.
+   - Say "your [COMPANY] position" naturally (e.g., "your Shopify position"), not raw ticker symbols.
 
 5. ONE THING TO WATCH (30-50 words):
    - One forward-looking item: earnings date, economic report, Fed meeting, etc.
@@ -1086,7 +1156,8 @@ Keep it tight and energetic. Do NOT ramble. Hit every section with purpose.
 - Spell out abbreviations on first use: "the Federal Reserve" then "the Fed".
 - Numbers: "$213 billion" not "$213B". "1.9 percent" or "1.9%" both work.
 - Avoid nested clauses. Break them into separate sentences.
-- NEVER say "(NASDAQ:GOOGL)" or "(NYSE:AAPL)" or any exchange-prefixed ticker. Use company names or ticker alone: "Meta", "your GOOGL position".
+- NEVER say "(NASDAQ:GOOGL)" or "(NYSE:AAPL)" or any exchange-prefixed ticker. Prefer company names in spoken output: "Meta", "your Shopify position".
+- Prefer company names over ticker symbols in spoken script (say "Shopify", not "SHOP").
 
 ═══════════════════════════════════════
 DATA: BREAKING / MARKET NEWS
@@ -1178,7 +1249,8 @@ RETURN FORMAT (JSON)
       : [];
     const uiSentiment = combined?.metadata?.market_sentiment || { label: "neutral", description: "" };
 
-    const script = sanitizeForAudio(combined?.script || "");
+    let script = sanitizeForAudio(combined?.script || "");
+    script = replaceTickersWithCompanyNames(script, userHoldings);
     const wc = wordCount(script);
     const estimatedMinutes = Math.max(1, Math.round(wc / 150));
 
