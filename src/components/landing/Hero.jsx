@@ -63,7 +63,7 @@ export function Hero({ onSignIn, onJoinWaitlist }) {
               transition={{ duration: 0.6, delay: 0.1 }}
               className="font-serif text-5xl sm:text-5xl font-medium leading-[1.1] tracking-tight text-foreground md:text-6xl lg:text-7xl"
             >
-              Your Personalized
+              Your Personal
               <br />
               <span className="text-gradient">AI-Financial</span>
               <br />
