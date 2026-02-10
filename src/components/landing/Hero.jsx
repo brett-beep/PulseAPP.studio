@@ -61,11 +61,11 @@ export function Hero({ onSignIn, onJoinWaitlist }) {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.1 }}
-              className="font-serif text-4xl sm:text-5xl font-medium leading-[1.1] tracking-tight text-foreground md:text-6xl lg:text-7xl"
+              className="font-serif text-5xl sm:text-5xl font-medium leading-[1.1] tracking-tight text-foreground md:text-6xl lg:text-7xl"
             >
-              Your Personal
+              Your Personalized
               <br />
-              <span className="text-gradient">Financial</span>
+              <span className="text-gradient">AI-Financial</span>
               <br />
               News Anchor
             </motion.h1>
@@ -74,7 +74,7 @@ export function Hero({ onSignIn, onJoinWaitlist }) {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.3 }}
-              className="mt-6 text-lg leading-relaxed text-muted-foreground md:text-xl lg:text-xl max-w-xl mx-auto lg:mx-0"
+              className="mt-6 text-base leading-relaxed text-muted-foreground sm:text-lg md:text-xl lg:text-xl max-w-xl mx-auto lg:mx-0"
             >
               <strong className="font-semibold">PulseApp</strong> turns financial news into personalized audio briefings you can listen to every morning.
               <br className="hidden sm:block" />
