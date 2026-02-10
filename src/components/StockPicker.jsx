@@ -32,6 +32,74 @@ const POPULAR_STOCKS = [
   { symbol: 'UBER', name: 'Uber Technologies' },
 ];
 
+// Keep consistent with existing frontend Finnhub usage in this project.
+const FINNHUB_API_KEY = 'd5n7s19r01qh5ppc5ln0d5n7s19r01qh5ppc5lng';
+const FINNHUB_SEARCH_LIMIT = 20;
+
+function normalizeText(value = '') {
+  return String(value).toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+function levenshtein(a = '', b = '') {
+  const m = a.length;
+  const n = b.length;
+  if (!m) return n;
+  if (!n) return m;
+
+  const dp = Array.from({ length: m + 1 }, (_, i) =>
+    Array.from({ length: n + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0))
+  );
+
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + cost
+      );
+    }
+  }
+  return dp[m][n];
+}
+
+function getMatchScore(stock, rawQuery) {
+  const query = normalizeText(rawQuery);
+  if (!query) return -Infinity;
+
+  const symbol = normalizeText(stock?.symbol || '');
+  const name = normalizeText(stock?.name || '');
+
+  if (symbol === query) return 1000;
+  if (name === query) return 980;
+  if (symbol.startsWith(query)) return 900 - (symbol.length - query.length);
+  if (name.startsWith(query)) return 850 - (name.length - query.length) * 0.5;
+  if (symbol.includes(query)) return 760 - (symbol.length - query.length) * 0.5;
+  if (name.includes(query)) return 720 - (name.length - query.length) * 0.2;
+
+  const symbolDist = symbol ? levenshtein(query, symbol) : 99;
+  const nameDist = name ? levenshtein(query, name) : 99;
+  const bestDist = Math.min(symbolDist, nameDist);
+
+  // Typo-tolerance for near matches like "NVDIA" -> NVDA.
+  if (bestDist <= 2) return 650 - bestDist * 40;
+  if (bestDist <= 3 && query.length >= 5) return 520 - bestDist * 30;
+
+  return -Infinity;
+}
+
+function dedupeBySymbol(list = []) {
+  const seen = new Set();
+  const out = [];
+  for (const item of list) {
+    const symbol = normalizeText(item?.symbol || '');
+    if (!symbol || seen.has(symbol)) continue;
+    seen.add(symbol);
+    out.push({ ...item, symbol: item.symbol.toUpperCase() });
+  }
+  return out;
+}
+
 export default function StockPicker({ selectedStocks = [], onAdd, onRemove, maxStocks = 10 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -50,32 +118,74 @@ export default function StockPicker({ selectedStocks = [], onAdd, onRemove, maxS
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Search stocks (local filtering for now, can add API later)
+  // Search stocks with API-backed results + typo-tolerant fallback.
   useEffect(() => {
-    if (searchTerm.trim().length < 1) {
+    const term = searchTerm.trim();
+    if (term.length < 1) {
       setSearchResults([]);
       setShowDropdown(false);
       return;
     }
 
-    setIsSearching(true);
-    const term = searchTerm.toUpperCase();
-    
-    // Filter popular stocks
-    const filtered = POPULAR_STOCKS.filter(stock => 
-      stock.symbol.includes(term) || 
-      stock.name.toUpperCase().includes(term)
-    );
+    const timeoutId = setTimeout(async () => {
+      setIsSearching(true);
 
-    // If exact match not found, add manual entry option
-    const exactMatch = filtered.find(s => s.symbol === term);
-    if (!exactMatch && term.length > 0) {
-      filtered.unshift({ symbol: term, name: 'Add custom ticker', isCustom: true });
-    }
+      try {
+        const localRanked = POPULAR_STOCKS
+          .map((stock) => ({ stock, score: getMatchScore(stock, term) }))
+          .filter((x) => x.score > -Infinity)
+          .sort((a, b) => b.score - a.score)
+          .map((x) => x.stock);
 
-    setSearchResults(filtered);
-    setShowDropdown(true);
-    setIsSearching(false);
+        let apiResults = [];
+        try {
+          const resp = await fetch(
+            `https://finnhub.io/api/v1/search?q=${encodeURIComponent(term)}&token=${FINNHUB_API_KEY}`
+          );
+          if (resp.ok) {
+            const data = await resp.json();
+            const raw = Array.isArray(data?.result) ? data.result : [];
+
+            apiResults = raw
+              .filter((item) => item?.symbol && item?.description)
+              .map((item) => ({
+                symbol: String(item.symbol || '').toUpperCase(),
+                name: String(item.description || '').trim(),
+                type: item.type || '',
+              }))
+              .filter((item) => item.symbol.length > 0)
+              .filter((item) => item.type !== 'ETP') // avoid ETF spam in type-ahead
+              .slice(0, FINNHUB_SEARCH_LIMIT);
+          }
+        } catch (_) {
+          // Network/API issues should not block local fallback.
+        }
+
+        const merged = dedupeBySymbol([...localRanked, ...apiResults]);
+        const ranked = merged
+          .map((stock) => ({ stock, score: getMatchScore(stock, term) }))
+          .filter((x) => x.score > -Infinity)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, FINNHUB_SEARCH_LIMIT)
+          .map((x) => x.stock);
+
+        const normalizedTerm = normalizeText(term);
+        const hasExactSymbol = ranked.some((s) => normalizeText(s.symbol) === normalizedTerm);
+        const results = [...ranked];
+
+        // Keep custom ticker option only when there's no exact symbol match.
+        if (!hasExactSymbol && normalizedTerm.length > 0) {
+          results.unshift({ symbol: normalizedTerm, name: 'Add custom ticker', isCustom: true });
+        }
+
+        setSearchResults(results);
+        setShowDropdown(true);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 220);
+
+    return () => clearTimeout(timeoutId);
   }, [searchTerm]);
 
   const handleSelectStock = (stock) => {

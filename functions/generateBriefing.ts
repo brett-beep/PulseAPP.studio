@@ -1016,8 +1016,8 @@ Generate these fields:
 PART 2: AUDIO SCRIPT
 ═══════════════════════════════════════
 
-TARGET: 400-500 words (~3 minutes of audio).
-LESS IS MORE. A tight 400-word script beats a padded 700-word script every time. Do NOT pad to hit the upper limit.
+TARGET: 430-560 words (~3-4 minutes of audio).
+Keep it tight and energetic. Do NOT ramble. Hit every section with purpose.
 
 ──── VOICE & TONE ────
 - Sound like a sharp friend in finance, not a Bloomberg anchor.
@@ -1029,7 +1029,7 @@ LESS IS MORE. A tight 400-word script beats a padded 700-word script every time.
 - NO hedge stacking: "could potentially", "might possibly", "may warrant"
 - ONE "could" or "may" per story MAX. State facts. Give insight. Move on.
 
-──── STRUCTURE (5 segments) ────
+──── STRUCTURE (6 segments) ────
 
 1. HOOK (15-25 words):
    "${timeGreeting}, ${name}. [One-sentence headline teaser that creates curiosity — what's the biggest story?]"
@@ -1042,7 +1042,14 @@ LESS IS MORE. A tight 400-word script beats a padded 700-word script every time.
    ${marketSnapshot.sector_hint ? `- Use this signal: "${marketSnapshot.sector_hint}"` : ""}
    - Connect to the listener's holdings if possible: "That's a tailwind for your NVDA position."
 
-3. YOUR PORTFOLIO (250-320 words — the heart of the briefing):
+3. RAPID FIRE MARKET/MACRO (80-120 words):
+   - Bring back this section explicitly: cover the TOP 3 breaking/market stories from the data below.
+   - One compact beat per story: what happened + why it matters for risk sentiment or sector flows.
+   - Keep this punchy and high-signal. No deep dives here.
+   - Use natural transitions, not robotic numbering.
+   - IMPORTANT: This section is required. Do not skip it.
+
+4. YOUR PORTFOLIO (200-260 words — the heart of the briefing):
    - Pick the 2-3 MOST IMPORTANT stories from the portfolio data below.
    - DO NOT cover all of them. Silence is better than noise. Skip weak stories entirely.
    - For each story you include, follow this arc:
@@ -1054,13 +1061,13 @@ LESS IS MORE. A tight 400-word script beats a padded 700-word script every time.
    - Natural transitions between stories. No "Moving on..." or "Additionally..."
    - Say "your [TICKER] position" or "since you hold [TICKER]" naturally — not every sentence.
 
-4. ONE THING TO WATCH (30-50 words):
+5. ONE THING TO WATCH (30-50 words):
    - One forward-looking item: earnings date, economic report, Fed meeting, etc.
    - WHY it matters to their portfolio specifically.
    - This creates a reason to tune in again tomorrow.
    - CRITICAL: Do NOT recommend watching events that ALREADY HAPPENED. Check story ages.
 
-5. SIGN-OFF (15-20 words):
+6. SIGN-OFF (15-20 words):
    "That's your Pulse for ${naturalDate}. [Confident, energetic closer], ${name}!"
    Examples: "Go crush it today" / "Have a great week" / "Enjoy the rest of your Sunday"
 
@@ -1127,7 +1134,7 @@ RETURN FORMAT (JSON)
     "key_highlights": ["bullet 1", "bullet 2", "bullet 3"],
     "market_sentiment": { "label": "bullish|bearish|neutral|mixed", "description": "one sentence" }
   },
-  "script": "Full audio script here (400-500 words, NO MORE)"
+  "script": "Full audio script here (430-560 words, concise and high-signal)"
 }
 `;
 

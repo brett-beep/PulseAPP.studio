@@ -856,10 +856,24 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
   const status = todayBriefing?.status || null;
 
   const briefingStories = parseJsonArray(todayBriefing?.news_stories);
-  const marketStories = marketNews?.stories ?? [];
-  // Always show top 5 only for Your Portfolio (backend returns 5; slice for legacy cached data)
-  const portfolioStories = (portfolioNews?.stories ?? []).slice(0, 5);
+  const briefingMarketStories = briefingStories.filter((s) => s?.isRapidFire);
+  const briefingPortfolioStories = briefingStories.filter((s) => !s?.isRapidFire);
+  const useBriefingStoryCards = briefingStories.length > 0;
+
+  // Keep cards aligned with the generated briefing when available; otherwise fall back to live card feed.
+  const marketStories = useBriefingStoryCards ? briefingMarketStories : (marketNews?.stories ?? []);
+  // Always show top 5 only for Your Portfolio.
+  const portfolioStories = (useBriefingStoryCards ? briefingPortfolioStories : (portfolioNews?.stories ?? [])).slice(0, 5);
   const hasAnyNews = marketStories.length > 0 || portfolioStories.length > 0;
+
+  const briefingUpdatedAt =
+    todayBriefing?.delivered_at ||
+    todayBriefing?.updated_date ||
+    todayBriefing?.created_date ||
+    todayBriefing?.updated_at ||
+    todayBriefing?.created_at ||
+    null;
+  const cardsUpdatedAt = useBriefingStoryCards && briefingUpdatedAt ? new Date(briefingUpdatedAt) : lastRefreshTime;
 
   // Show proper status based on briefing state
   const getStatusLabel = () => {
@@ -976,7 +990,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
         {/* UPGRADE MODAL */}
         <UpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
 
-        {/* NEWS CARDS – Market News + Your Portfolio (always available; independent of briefing) */}
+        {/* NEWS CARDS – prefer briefing-aligned stories; fallback to live news feed */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -1000,9 +1014,9 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
                   {marketStories.length + portfolioStories.length} stories
                 </span>
               </div>
-              {lastRefreshTime && (
+              {cardsUpdatedAt && !isNaN(new Date(cardsUpdatedAt).getTime()) && (
                 <span className="text-xs text-slate-400">
-                  Updated {formatDistanceToNow(lastRefreshTime, { addSuffix: true })}
+                  Updated {formatDistanceToNow(cardsUpdatedAt, { addSuffix: true })}
                 </span>
               )}
             </div>
