@@ -159,10 +159,17 @@ export default function AudioPlayer({
     if (totalWords === 0) return [];
 
     const transitionPhrases = [
+      "let’s dive into some rapid-fire market news",
+      "let's dive into some rapid-fire market news",
+      "rapid-fire market news",
       "next up",
       "up next",
       "another headline",
       "moving on",
+      "in other news",
+      "lastly",
+      "on the flip side",
+      "looking ahead",
       "and another",
       "next,",
       "one more",
@@ -220,7 +227,9 @@ export default function AudioPlayer({
     if (sectionBoundariesSeconds.length === 0) {
       return totalDuration > 0 ? Math.min(sectionCount - 1, Math.floor((currentTime / totalDuration) * sectionCount)) : -1;
     }
-    if (currentTime < sectionBoundariesSeconds[0]) return 0;
+    // Before the first transition boundary, keep info card hidden so
+    // market-open narration doesn't show story card too early.
+    if (currentTime < sectionBoundariesSeconds[0]) return -1;
     for (let i = 1; i < sectionBoundariesSeconds.length; i++) {
       if (currentTime < sectionBoundariesSeconds[i]) return Math.min(i, sectionCount - 1);
     }

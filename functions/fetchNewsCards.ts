@@ -113,6 +113,8 @@ function determineUserPortfolioCategory(holdings: any[]): string {
 
 const FINLIGHT_API_BASE = "https://api.finlight.me";
 const USER_CACHE_TTL_HOURS = 3;
+const MARKETAUX_API_BASE = "https://api.marketaux.com/v1/news/all";
+const NEWSAPI_API_BASE = "https://newsapi.org/v2/everything";
 
 function randomId(): string {
   try { return crypto.randomUUID(); }
@@ -347,6 +349,161 @@ async function fetchFinlightTickerNews(
   return articles;
 }
 
+function fallbackImportanceScore(article: any, ticker: string): number {
+  const title = (article?.title || "").toLowerCase();
+  const summary = (article?.summary || "").toLowerCase();
+  const text = `${title} ${summary}`;
+  const outlet = (article?.source || article?.outlet || "").toLowerCase();
+  const ts = new Date(article?.publishDate || article?.published_at || 0).getTime();
+  const ageHours = ts > 0 ? (Date.now() - ts) / (1000 * 60 * 60) : 72;
+
+  let score = 0;
+  if (text.includes(ticker.toLowerCase())) score += 60;
+  const names = TICKER_TO_NAMES[ticker] || [];
+  if (names.some((n) => text.includes(n))) score += 45;
+
+  const highSignal = [
+    "earnings", "revenue", "guidance", "profit", "forecast",
+    "merger", "acquisition", "deal", "takeover",
+    "downgrade", "upgrade", "rating", "target",
+    "sec", "regulator", "lawsuit", "antitrust", "investigation",
+    "ceo", "cfo", "buyback", "dividend",
+  ];
+  if (highSignal.some((k) => text.includes(k))) score += 25;
+
+  score += sourceQualityScore(outlet) * 2;
+
+  if (ageHours <= 6) score += 25;
+  else if (ageHours <= 24) score += 15;
+  else if (ageHours <= 48) score += 8;
+
+  return score;
+}
+
+async function fetchMarketauxTickerNews(
+  apiKey: string,
+  ticker: string,
+  hoursAgo: number
+): Promise<any[]> {
+  const publishedAfter = new Date(Date.now() - hoursAgo * 60 * 60 * 1000).toISOString();
+  const url = new URL(MARKETAUX_API_BASE);
+  url.searchParams.set("symbols", ticker);
+  url.searchParams.set("language", "en");
+  url.searchParams.set("filter_entities", "true");
+  url.searchParams.set("limit", "8");
+  url.searchParams.set("published_after", publishedAfter);
+  url.searchParams.set("api_token", apiKey);
+
+  const response = await fetch(url.toString(), { method: "GET" });
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Marketaux failed: ${response.status} - ${errText}`);
+  }
+
+  const data = await response.json();
+  const rows = Array.isArray(data?.data) ? data.data : [];
+  return rows.map((row: any) => {
+    const entities = Array.isArray(row?.entities) ? row.entities : [];
+    const companies = entities
+      .map((e: any) => ({ ticker: safeText(e?.symbol || e?.ticker, "").toUpperCase() }))
+      .filter((e: any) => e.ticker);
+    if (!companies.some((c: any) => c.ticker === ticker)) companies.push({ ticker });
+
+    return {
+      title: safeText(row?.title, "Breaking News"),
+      summary: safeText(row?.description || row?.snippet, ""),
+      link: safeText(row?.url, "#"),
+      images: row?.image_url ? [row.image_url] : [],
+      source: safeText(row?.source || row?.source_name || row?.domain, "Marketaux"),
+      publishDate: safeText(row?.published_at || row?.publishedAt, new Date().toISOString()),
+      sentiment: safeText(row?.sentiment, ""),
+      confidence: 0.6,
+      companies,
+      _provider: "marketaux",
+    };
+  });
+}
+
+async function fetchNewsApiTickerNews(
+  apiKey: string,
+  ticker: string,
+  hoursAgo: number
+): Promise<any[]> {
+  const from = new Date(Date.now() - hoursAgo * 60 * 60 * 1000).toISOString();
+  const names = TICKER_TO_NAMES[ticker] || [];
+  const nameClause = names.length > 0 ? names.map((n) => `"${n}"`).join(" OR ") : "";
+  const query = nameClause ? `("${ticker}" OR ${nameClause})` : `"${ticker}"`;
+
+  const url = new URL(NEWSAPI_API_BASE);
+  url.searchParams.set("q", query);
+  url.searchParams.set("language", "en");
+  url.searchParams.set("sortBy", "publishedAt");
+  url.searchParams.set("pageSize", "10");
+  url.searchParams.set("from", from);
+  url.searchParams.set("apiKey", apiKey);
+
+  const response = await fetch(url.toString(), { method: "GET" });
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`NewsAPI failed: ${response.status} - ${errText}`);
+  }
+
+  const data = await response.json();
+  const rows = Array.isArray(data?.articles) ? data.articles : [];
+  return rows.map((row: any) => ({
+    title: safeText(row?.title, "Breaking News"),
+    summary: safeText(row?.description || row?.content, ""),
+    link: safeText(row?.url, "#"),
+    images: row?.urlToImage ? [row.urlToImage] : [],
+    source: safeText(row?.source?.name, "NewsAPI"),
+    publishDate: safeText(row?.publishedAt, new Date().toISOString()),
+    sentiment: "",
+    confidence: 0.5,
+    companies: [{ ticker }],
+    _provider: "newsapi",
+  }));
+}
+
+async function fetchFallbackTickerNews(
+  ticker: string,
+  hoursAgo: number,
+  marketauxKey: string,
+  newsApiKey: string
+): Promise<any[]> {
+  let candidates: any[] = [];
+
+  if (marketauxKey) {
+    try {
+      const marketaux = await fetchMarketauxTickerNews(marketauxKey, ticker, hoursAgo);
+      if (marketaux.length > 0) {
+        candidates = marketaux;
+        console.log(`🟡 Fallback Marketaux returned ${marketaux.length} for ${ticker}`);
+      }
+    } catch (e: any) {
+      console.warn(`⚠️ Marketaux fallback failed for ${ticker}: ${e.message}`);
+    }
+  }
+
+  if (candidates.length === 0 && newsApiKey) {
+    try {
+      const newsapi = await fetchNewsApiTickerNews(newsApiKey, ticker, hoursAgo);
+      if (newsapi.length > 0) {
+        candidates = newsapi;
+        console.log(`🟠 Fallback NewsAPI returned ${newsapi.length} for ${ticker}`);
+      }
+    } catch (e: any) {
+      console.warn(`⚠️ NewsAPI fallback failed for ${ticker}: ${e.message}`);
+    }
+  }
+
+  // Requirement: for fallback providers, keep only 1-2 most important stories per ticker.
+  const top = candidates
+    .sort((a, b) => fallbackImportanceScore(b, ticker) - fallbackImportanceScore(a, ticker))
+    .slice(0, 2);
+
+  return top;
+}
+
 /** Max tickers to query (5 articles each) per user — limits Finlight API calls. */
 const MAX_TICKERS_FOR_FETCH = 5;
 const ARTICLES_PER_TICKER = 20;
@@ -404,7 +561,9 @@ const TICKER_CACHE_TTL_HOURS = 3;
  */
 async function getTickerNewsWithSharedCache(
   base44: any,
-  apiKey: string,
+  finlightApiKey: string,
+  marketauxApiKey: string,
+  newsApiKey: string,
   userTickers: string[],
   forceRefresh: boolean
 ): Promise<any[]> {
@@ -435,31 +594,43 @@ async function getTickerNewsWithSharedCache(
     }
 
     if (!fromCache && articles.length === 0) {
-      try {
-        articles = await fetchFinlightTickerNews(apiKey, [ticker], {
-          hoursAgo,
-          pageSize: ARTICLES_PER_TICKER,
-        });
-        if (articles.length > 0 && !forceRefresh) {
-          // Only write to shared cache when filling a miss or TTL expiry — NOT on force_refresh.
-          // Otherwise one user constantly refreshing would overwrite cache; others might not have seen older news yet.
-          try {
-            const old = await base44.asServiceRole.entities.TickerNewsCache.filter({ ticker });
-            for (const o of old) await base44.asServiceRole.entities.TickerNewsCache.delete(o.id);
-            await base44.asServiceRole.entities.TickerNewsCache.create({
-              ticker,
-              stories: JSON.stringify(articles),
-              fetched_at: new Date().toISOString(),
-            });
-            console.log(`💾 Cached ${articles.length} articles for ticker ${ticker} (shared)`);
-          } catch (e: any) {
-            console.warn(`⚠️ TickerNewsCache write failed for ${ticker}: ${e.message}`);
-          }
-        } else if (articles.length > 0 && forceRefresh) {
-          console.log(`🔄 Fresh fetch for ${ticker} (force_refresh); not updating shared cache`);
+      if (finlightApiKey) {
+        try {
+          articles = await fetchFinlightTickerNews(finlightApiKey, [ticker], {
+            hoursAgo,
+            pageSize: ARTICLES_PER_TICKER,
+          });
+        } catch (e: any) {
+          console.warn(`⚠️ Finlight fetch for ${ticker} failed: ${e.message}`);
         }
-      } catch (e: any) {
-        console.warn(`⚠️ Finlight fetch for ${ticker} failed: ${e.message}`);
+      }
+
+      // Finlight returned no ticker coverage -> fallback to broader providers.
+      if (articles.length === 0) {
+        const fallback = await fetchFallbackTickerNews(ticker, hoursAgo, marketauxApiKey, newsApiKey);
+        if (fallback.length > 0) {
+          articles = fallback;
+          console.log(`✅ Using fallback coverage for ${ticker}: ${fallback.length} top stories`);
+        }
+      }
+
+      if (articles.length > 0 && !forceRefresh) {
+        // Only write to shared cache when filling a miss or TTL expiry — NOT on force_refresh.
+        // Otherwise one user constantly refreshing would overwrite cache; others might not have seen older news yet.
+        try {
+          const old = await base44.asServiceRole.entities.TickerNewsCache.filter({ ticker });
+          for (const o of old) await base44.asServiceRole.entities.TickerNewsCache.delete(o.id);
+          await base44.asServiceRole.entities.TickerNewsCache.create({
+            ticker,
+            stories: JSON.stringify(articles),
+            fetched_at: new Date().toISOString(),
+          });
+          console.log(`💾 Cached ${articles.length} articles for ticker ${ticker} (shared)`);
+        } catch (e: any) {
+          console.warn(`⚠️ TickerNewsCache write failed for ${ticker}: ${e.message}`);
+        }
+      } else if (articles.length > 0 && forceRefresh) {
+        console.log(`🔄 Fresh fetch for ${ticker} (force_refresh); not updating shared cache`);
       }
     }
 
@@ -594,12 +765,16 @@ Deno.serve(async (req) => {
       //     Per-ticker cache is shared: e.g. 4 users with AAPL share one cached AAPL feed until refresh.
       if (!portfolioNews) {
         const finlightKey = Deno.env.get("FINLIGHT_API_KEY");
+        const marketauxKey = Deno.env.get("MARKETAUX_API_KEY") || Deno.env.get("MARKETAUX_KEY") || "";
+        const newsApiKey = Deno.env.get("NEWSAPI_API_KEY") || Deno.env.get("NEWS_API_KEY") || "";
 
-        if (finlightKey) {
+        if (finlightKey || marketauxKey || newsApiKey) {
           try {
             const rawArticles = await getTickerNewsWithSharedCache(
               base44,
               finlightKey,
+              marketauxKey,
+              newsApiKey,
               userTickers,
               forceRefresh
             );
@@ -672,7 +847,7 @@ Deno.serve(async (req) => {
             console.error(`❌ Finlight ticker fetch failed: ${fetchError.message}`);
           }
         } else {
-          console.log(`⚠️ No FINLIGHT_API_KEY, skipping ticker-specific fetch`);
+          console.log(`⚠️ No FINLIGHT_API_KEY / MARKETAUX_API_KEY / NEWSAPI_API_KEY, skipping ticker-specific fetch`);
         }
       }
     }

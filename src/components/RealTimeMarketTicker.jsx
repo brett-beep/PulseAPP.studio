@@ -204,7 +204,7 @@ export default function RealTimeMarketTicker({ watchlist = [] }) {
     return { 
       label: 'Neutral', 
       description: 'Nasdaq trading sideways',
-      color: 'text-slate-600'
+      color: 'text-amber-600'
     };
   };
 
@@ -223,9 +223,9 @@ export default function RealTimeMarketTicker({ watchlist = [] }) {
   if (!marketData.sp500 && marketData.userStocks.length === 0) {
     return (
       <div className="flex items-center gap-2 flex-wrap">
-        <div className="h-2 w-2 bg-slate-400 rounded-full" />
-        <span className="text-xs md:text-sm text-slate-600">Neutral</span>
-        <span className="text-xs md:text-sm text-slate-500">Markets trading sideways</span>
+        <div className="h-2 w-2 bg-amber-500 rounded-full" />
+        <span className="text-xs md:text-sm text-amber-600">Neutral</span>
+        <span className="text-xs md:text-sm text-amber-600/90">Markets trading sideways</span>
         {topStocks.length > 0 && (
           <span className="text-[10px] md:text-sm text-slate-400 ml-2 md:ml-4">
             (API key required for live prices)
@@ -244,7 +244,7 @@ export default function RealTimeMarketTicker({ watchlist = [] }) {
         <div className={`h-2 w-2 rounded-full ${
           sentiment.label === 'Bullish' || sentiment.label === 'Positive' ? 'bg-green-500' :
           sentiment.label === 'Bearish' || sentiment.label === 'Negative' ? 'bg-red-500' :
-          'bg-slate-400'
+          'bg-amber-500'
         }`} />
         <span className={`font-medium text-xs md:text-base ${sentiment.color}`}>
           {sentiment.label}
