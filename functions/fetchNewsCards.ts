@@ -569,15 +569,16 @@ Deno.serve(async (req) => {
             const tickersMatch = latest.tickers_hash === tickersHash;
 
             if (cacheAgeHours < USER_CACHE_TTL_HOURS && tickersMatch) {
-              const stories = typeof latest.stories === "string" ? JSON.parse(latest.stories) : latest.stories;
-              if (stories && stories.length >= 2) {
+              const allStories = typeof latest.stories === "string" ? JSON.parse(latest.stories) : latest.stories;
+              if (allStories && allStories.length >= 2) {
+                const storiesForResponse = allStories.slice(0, 5);
                 portfolioNews = {
                   summary: `News for ${userTickers.slice(0, 5).join(", ")}${userTickers.length > 5 ? ` +${userTickers.length - 5} more` : ""}`,
-                  stories,
+                  stories: storiesForResponse,
                   updated_at: latest.fetched_at,
                   source: "ticker_cache",
                 };
-                console.log(`✅ Portfolio news from UserNewsCache (${cacheAgeHours.toFixed(1)}h old, ${stories.length} stories)`);
+                console.log(`✅ Portfolio news from UserNewsCache (${cacheAgeHours.toFixed(1)}h old, ${storiesForResponse.length} of ${allStories.length} stories)`);
               }
             } else {
               console.log(`⏰ UserNewsCache stale (${cacheAgeHours.toFixed(1)}h) or tickers changed`);
@@ -692,10 +693,11 @@ Deno.serve(async (req) => {
           const latest = portfolioCache.sort(
             (a: any, b: any) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
           )[0];
-
+          const rawStories = typeof latest.stories === "string" ? JSON.parse(latest.stories) : latest.stories;
+          const storiesTop5 = (rawStories || []).slice(0, 5);
           portfolioNews = {
             summary: latest.summary,
-            stories: typeof latest.stories === "string" ? JSON.parse(latest.stories) : latest.stories,
+            stories: storiesTop5,
             updated_at: latest.updated_at,
             source: "category",
           };

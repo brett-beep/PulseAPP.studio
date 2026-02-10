@@ -857,7 +857,8 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
 
   const briefingStories = parseJsonArray(todayBriefing?.news_stories);
   const marketStories = marketNews?.stories ?? [];
-  const portfolioStories = portfolioNews?.stories ?? [];
+  // Always show top 5 only for Your Portfolio (backend returns 5; slice for legacy cached data)
+  const portfolioStories = (portfolioNews?.stories ?? []).slice(0, 5);
   const hasAnyNews = marketStories.length > 0 || portfolioStories.length > 0;
 
   // Show proper status based on briefing state

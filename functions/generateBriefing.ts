@@ -75,6 +75,10 @@ function wordCount(text) {
 function sanitizeForAudio(s) {
   if (!s) return "";
   let t = String(s);
+  // Remove (NASDAQ:XXX) and (NYSE:XXX) — never read exchange ticker prefixes aloud
+  t = t.replace(/\(NASDAQ:\s*\w+\)/gi, "");
+  t = t.replace(/\(NYSE:\s*\w+\)/gi, "");
+  t = t.replace(/\(AMEX:\s*\w+\)/gi, "");
   t = t.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, "$1");
   t = t.replace(/https?:\/\/\S+/gi, "");
   t = t.replace(/\b[a-z0-9-]+\.(com|net|org|io|co|ca|ai|app)\b/gi, "");
@@ -457,7 +461,7 @@ async function generateAudioFile(script, date, elevenLabsApiKey) {
         voice_settings: {
           stability: 0.38,
           similarity_boost: 0.6,
-          style: 0,
+          style: 0.1,
           use_speaker_boost: true,
         },
         speed: 1.1,
@@ -995,9 +999,12 @@ PART 1: METADATA (for the app UI)
 
 Generate these fields:
 
-**summary**: Two sections separated by a line break:
-  1. Market Snapshot: "[Index moves] — [sector color]"  
-  2. Key Developments: 1-2 bullet points about ${userHoldingsStr} with specific tickers/numbers.
+**summary**: A holistic 4-6 sentence executive summary of the ENTIRE briefing. Cover:
+  1. Market moves (indices, sector color).
+  2. What happened across breaking/market news.
+  3. Key portfolio developments for ${userHoldingsStr} with specific tickers/numbers.
+  4. What to watch and why it matters.
+  Think: if someone read only this summary, they'd get the full story. No vague filler.
 
 **key_highlights**: 3-5 bullets. Format each as:
   "**[Bold hook]:** [What happened] — [specific implication for ${userHoldingsStr}]"
@@ -1072,6 +1079,7 @@ LESS IS MORE. A tight 400-word script beats a padded 700-word script every time.
 - Spell out abbreviations on first use: "the Federal Reserve" then "the Fed".
 - Numbers: "$213 billion" not "$213B". "1.9 percent" or "1.9%" both work.
 - Avoid nested clauses. Break them into separate sentences.
+- NEVER say "(NASDAQ:GOOGL)" or "(NYSE:AAPL)" or any exchange-prefixed ticker. Use company names or ticker alone: "Meta", "your GOOGL position".
 
 ═══════════════════════════════════════
 DATA: BREAKING / MARKET NEWS
@@ -1115,7 +1123,7 @@ RETURN FORMAT (JSON)
 ═══════════════════════════════════════
 {
   "metadata": {
-    "summary": "Market Snapshot line\\nKey Developments line",
+    "summary": "4-6 sentence holistic executive summary of the full briefing (market + portfolio + watch)",
     "key_highlights": ["bullet 1", "bullet 2", "bullet 3"],
     "market_sentiment": { "label": "bullish|bearish|neutral|mixed", "description": "one sentence" }
   },
