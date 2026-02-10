@@ -457,7 +457,7 @@ async function generateAudioFile(script, date, elevenLabsApiKey) {
         voice_settings: {
           stability: 0.38,
           similarity_boost: 0.6,
-          style: 0,
+          style: 0.1,
           use_speaker_boost: true,
         },
         speed: 1.1,
