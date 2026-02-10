@@ -998,7 +998,14 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
           className="space-y-6"
         >
           <div className="flex items-center justify-between flex-wrap gap-y-1">
-            <h2 className="text-lg md:text-xl font-semibold text-slate-900 shrink-0">News for You</h2>
+            <div className="flex items-center gap-2 shrink-0">
+              <h2 className="text-lg md:text-xl font-semibold text-slate-900">News for You</h2>
+              {useBriefingStoryCards && (
+                <span className="text-[10px] md:text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                  From today's briefing
+                </span>
+              )}
+            </div>
             <div className="flex flex-col items-end gap-0.5">
               <div className="flex items-center gap-2 md:gap-4">
                 <button
