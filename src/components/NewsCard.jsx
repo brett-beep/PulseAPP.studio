@@ -27,6 +27,13 @@ function stripLinksAndUrls(s) {
     ""
   );
 
+  // Remove exchange-prefixed ticker tags in parentheses: (NASDAQ:GOOGL), (NYSE:AAPL), etc.
+  t = t.replace(/\(\s*(NASDAQ|NYSE|AMEX)\s*:\s*[A-Z.\-]+\s*\)/gi, "");
+
+  // Remove source tagging inside summaries: "(Source: Bloomberg)" / "Source: Bloomberg"
+  t = t.replace(/\(\s*source\s*:\s*[^)]+\)/gi, "");
+  t = t.replace(/\bsource\s*:\s*[^.;,\n]+/gi, "");
+
   return t.trim();
 }
 
@@ -41,10 +48,7 @@ export default function NewsCard({ story, index }) {
     const descriptionText = stripLinksAndUrls(story.what_happened || story.summary || '');
     const whyItMattersText = stripLinksAndUrls(story.why_it_matters || '');
 
-    const EXPANDED_MAX_CHARS = 450;
-    const expandedText = descriptionText.length > EXPANDED_MAX_CHARS
-      ? descriptionText.slice(0, EXPANDED_MAX_CHARS).trim() + '…'
-      : descriptionText;
+    const expandedText = descriptionText;
     const needsExpansion = descriptionText.length > 100;
 
     return (
@@ -66,9 +70,6 @@ export default function NewsCard({ story, index }) {
                 >
                     {story.category || 'News'}
                 </Badge>
-                <span className="text-[10px] md:text-[11px] text-slate-400 font-medium truncate max-w-[100px] md:max-w-[120px]" title={story.outlet || story.source}>
-                    {story.outlet || story.source}
-                </span>
             </div>
 
             {/* Title */}
