@@ -147,12 +147,12 @@ export default function AudioPlayer({
   }, [audioUrl, isPlaying]);
 
   const progress = totalDuration > 0 ? currentTime / totalDuration : 0;
-  const sectionCount = Math.min(6, sectionStories?.length || 0);
+  const rawSectionCount = Math.min(6, sectionStories?.length || 0);
 
   // Section boundaries: derived from transcript and scaled to actual audio duration (real-time)
   const sectionBoundariesSeconds = useMemo(() => {
     const raw = (transcript || "").trim();
-    if (!raw || sectionCount === 0 || !totalDuration || totalDuration <= 0) return [];
+    if (!raw || rawSectionCount === 0 || !totalDuration || totalDuration <= 0) return [];
     const text = raw.toLowerCase();
     const words = raw.split(/\s+/).filter(Boolean);
     const totalWords = words.length;
@@ -162,6 +162,14 @@ export default function AudioPlayer({
       "let’s dive into some rapid-fire market news",
       "let's dive into some rapid-fire market news",
       "rapid-fire market news",
+      "here is the first headline",
+      "another market mover",
+      "next headline",
+      "now shifting to your portfolio",
+      "another portfolio update",
+      "turning to your next holding",
+      "one more development to watch",
+      "before we wrap, one final update",
       "next up",
       "up next",
       "another headline",
@@ -192,7 +200,8 @@ export default function AudioPlayer({
       }
     }
     const sorted = [...new Set(positions)].sort((a, b) => a - b);
-    const needBoundaries = 5;
+    const needBoundaries = Math.max(0, rawSectionCount - 1);
+    if (needBoundaries === 0) return [];
     const earlySec = 0;
 
     const charToWordIndex = (charPos) => {
@@ -207,20 +216,27 @@ export default function AudioPlayer({
     };
 
     if (sorted.length === 0) {
-      return Array.from({ length: needBoundaries }, (_, i) => Math.max(0, ((i + 1) / 6) * totalDuration - earlySec));
+      return Array.from(
+        { length: needBoundaries },
+        (_, i) => Math.max(0, ((i + 1) / (needBoundaries + 1)) * totalDuration - earlySec)
+      );
     }
     const take = Math.min(needBoundaries, sorted.length);
     const selected = sorted
       .slice(0, take)
       .map((p) => Math.max(0, (charToWordIndex(p) / totalWords) * totalDuration - earlySec));
-    if (selected.length < needBoundaries) {
-      const last = selected[selected.length - 1] ?? totalDuration * 0.5;
-      for (let i = selected.length; i < needBoundaries; i++) {
-        selected.push(last + ((i - selected.length + 1) / (needBoundaries - selected.length + 1)) * (totalDuration - last));
-      }
-    }
     return selected.sort((a, b) => a - b);
-  }, [transcript, sectionCount, totalDuration]);
+  }, [transcript, rawSectionCount, totalDuration]);
+
+  // If transcript only has cues for fewer story transitions, cap cards to what is
+  // actually spoken so visual cards don't drift ahead of narration.
+  const sectionCount = useMemo(() => {
+    if (rawSectionCount === 0) return 0;
+    if (sectionBoundariesSeconds.length > 0) {
+      return Math.min(rawSectionCount, sectionBoundariesSeconds.length + 1);
+    }
+    return rawSectionCount;
+  }, [rawSectionCount, sectionBoundariesSeconds.length]);
 
   const currentSectionIndex = useMemo(() => {
     if (sectionCount === 0) return -1;
@@ -244,7 +260,7 @@ export default function AudioPlayer({
   // Intro: short waveform, then all 6 section cards. When generating a new briefing, always show waveform (same loading look as first time).
   const INTRO_SECONDS = 4;
   const introEndSeconds = INTRO_SECONDS;
-  const showWaveform = isGenerating || sectionCount === 0 || currentTime < introEndSeconds;
+  const showWaveform = isGenerating || sectionCount === 0 || currentTime < introEndSeconds || currentSectionIndex < 0;
   const showInfoCard = !isGenerating && sectionCount > 0 && currentSectionStory && currentTime >= introEndSeconds;
 
   const sectionSummary = useMemo(() => {

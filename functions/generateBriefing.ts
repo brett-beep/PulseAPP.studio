@@ -138,6 +138,35 @@ function replaceTickersWithCompanyNames(text: string, userHoldings: any[] = []):
   return out.trim();
 }
 
+const STORY_CUE_ANCHORS = [
+  "Here is the first headline",
+  "Another market mover",
+  "Next headline",
+  "Now shifting to your portfolio",
+  "Another portfolio update",
+  "Turning to your next holding",
+  "One more development to watch",
+  "Before we wrap, one final update",
+];
+
+function shuffleCopy(arr: string[]): string[] {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
+function normalizeStoryKey(story: any): string {
+  const href = String(story?.href || story?.url || story?.link || "").trim().toLowerCase();
+  if (href) return `u:${href}`;
+  const title = String(story?.title || "").trim().toLowerCase().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ");
+  if (title) return `t:${title}`;
+  const body = String(story?.what_happened || story?.summary || "").trim().toLowerCase().slice(0, 140);
+  return body ? `b:${body}` : "";
+}
+
 function safeText(input, fallback) {
   const s = typeof input === "string" ? input.trim() : "";
   return s || (fallback || "");
@@ -776,6 +805,31 @@ Deno.serve(async (req) => {
     }
 
     // =========================================================
+    // STEP 1A.5: Build "already covered today" set for freshness
+    // =========================================================
+    const seenStoryKeys = new Set<string>();
+    try {
+      const todaysBriefings = await base44.asServiceRole.entities.DailyBriefing.filter({
+        date,
+        created_by: userEmail,
+      });
+      for (const briefing of todaysBriefings || []) {
+        const stories = Array.isArray(briefing?.news_stories)
+          ? briefing.news_stories
+          : (typeof briefing?.news_stories === "string"
+              ? JSON.parse(briefing.news_stories || "[]")
+              : []);
+        for (const s of stories || []) {
+          const key = normalizeStoryKey(s);
+          if (key) seenStoryKeys.add(key);
+        }
+      }
+      console.log(`🧠 [Freshness] Found ${seenStoryKeys.size} story keys already covered today`);
+    } catch (e: any) {
+      console.warn(`⚠️ [Freshness] Could not read prior briefings: ${e.message}`);
+    }
+
+    // =========================================================
     // STEP 1B: Score stories for "breaking-ness"
     // =========================================================
     const nowTimestamp = Date.now();
@@ -787,7 +841,9 @@ Deno.serve(async (req) => {
     const scoredStories = cachedStories
       .map(story => {
         const { score, ageHours } = getBreakingScore(story, nowTimestamp);
-        return { ...story, breakingScore: score, ageHours };
+        const storyKey = normalizeStoryKey(story);
+        const seenToday = storyKey ? seenStoryKeys.has(storyKey) : false;
+        return { ...story, breakingScore: score, ageHours, _storyKey: storyKey, _seenToday: seenToday };
       })
       .filter(s => s.ageHours <= maxAgeHours);
 
@@ -805,7 +861,10 @@ Deno.serve(async (req) => {
     // Financial-relevance gate: skip non-financial stories (immigration, protests, etc.)
     // =========================================================
     const rapidFireCandidates = [...scoredStories]
-      .sort((a, b) => b.breakingScore - a.breakingScore)
+      .sort((a, b) => {
+        if (a._seenToday !== b._seenToday) return a._seenToday ? 1 : -1; // prioritize unseen
+        return b.breakingScore - a.breakingScore;
+      })
       .filter((s) => hasFinancialRelevance(s));
     let rapidFireStories = rapidFireCandidates.slice(0, 3);
 
@@ -814,7 +873,10 @@ Deno.serve(async (req) => {
     if (rapidFireStories.length < 3) {
       const existingIds = new Set(rapidFireStories.map((s: any) => s.id));
       const backfill = [...scoredStories]
-        .sort((a, b) => b.breakingScore - a.breakingScore)
+        .sort((a, b) => {
+          if (a._seenToday !== b._seenToday) return a._seenToday ? 1 : -1;
+          return b.breakingScore - a.breakingScore;
+        })
         .filter((s: any) => !existingIds.has(s.id))
         .slice(0, 3 - rapidFireStories.length);
       rapidFireStories = [...rapidFireStories, ...backfill];
@@ -906,13 +968,18 @@ Deno.serve(async (req) => {
       const scoredPortfolio = dedupedTickerStories.map((story: any) => {
         const { ageHours } = getBreakingScore(story, nowTimestamp);
         const pScore = portfolioStoryScore({ ...story, ageHours }, briefingHoldings);
-        return { ...story, ageHours, _portfolioScore: pScore };
+        const storyKey = normalizeStoryKey(story);
+        const seenToday = storyKey ? seenStoryKeys.has(storyKey) : false;
+        return { ...story, ageHours, _portfolioScore: pScore, _storyKey: storyKey, _seenToday: seenToday };
       });
 
       // 3. Sort by score desc, filter out killed stories (score < 0), take top 7
       const topPortfolio = scoredPortfolio
         .filter((s: any) => s._portfolioScore > 0)
-        .sort((a: any, b: any) => b._portfolioScore - a._portfolioScore)
+        .sort((a: any, b: any) => {
+          if (a._seenToday !== b._seenToday) return a._seenToday ? 1 : -1; // prioritize unseen
+          return b._portfolioScore - a._portfolioScore;
+        })
         .slice(0, PORTFOLIO_BATCH_MAX);
 
       portfolioNewsBatch = topPortfolio;
@@ -929,7 +996,11 @@ Deno.serve(async (req) => {
       const rapidFireIds = new Set(rapidFireStories.map((s: any) => s.id));
       const personalizedCandidates = scoredStories
         .filter((story: any) => !rapidFireIds.has(story.id))
-        .filter((story: any) => hasFinancialRelevance(story));
+        .filter((story: any) => hasFinancialRelevance(story))
+        .sort((a: any, b: any) => {
+          if (a._seenToday !== b._seenToday) return a._seenToday ? 1 : -1;
+          return b.breakingScore - a.breakingScore;
+        });
 
       portfolioNewsBatch = personalizedCandidates.slice(0, PORTFOLIO_BATCH_MAX_FALLBACK);
       personalizedStories = portfolioNewsBatch.slice(0, 3);
@@ -946,7 +1017,10 @@ Deno.serve(async (req) => {
     if (allBriefingStories.length < 6) {
       const existingIds = new Set(allBriefingStories.map((s: any) => s.id));
       const fill = [...scoredStories]
-        .sort((a, b) => b.breakingScore - a.breakingScore)
+        .sort((a, b) => {
+          if (a._seenToday !== b._seenToday) return a._seenToday ? 1 : -1;
+          return b.breakingScore - a.breakingScore;
+        })
         .filter((s: any) => hasFinancialRelevance(s))
         .filter((s: any) => !existingIds.has(s.id))
         .slice(0, 6 - allBriefingStories.length);
@@ -1038,6 +1112,10 @@ Deno.serve(async (req) => {
       relevantToUserHoldings: detectRelevantHoldings(story, userHoldings),
     }));
 
+    const shuffledCueAnchors = shuffleCopy(STORY_CUE_ANCHORS);
+    const rapidCueAnchors = shuffledCueAnchors.slice(0, 3);
+    const portfolioCueAnchors = shuffledCueAnchors.slice(3, 6);
+
     console.log("✍️ [generateBriefing] Generating metadata + script in one call...");
 
     const combinedPrompt = `
@@ -1087,6 +1165,7 @@ PART 2: AUDIO SCRIPT
 
 TARGET: 430-560 words (~3-4 minutes of audio).
 Keep it tight and energetic. Do NOT ramble. Hit every section with purpose.
+Prioritize fresh intra-day developments. Avoid repeating details already covered earlier today unless there is a materially new update.
 
 ──── VOICE & TONE ────
 - Sound like a sharp friend in finance, not a Bloomberg anchor.
@@ -1118,9 +1197,12 @@ Keep it tight and energetic. Do NOT ramble. Hit every section with purpose.
    - Use natural transitions, not robotic numbering.
    - IMPORTANT: This section is required. Do not skip it.
    - Mention all three rapid-fire stories provided in DATA: BREAKING / MARKET NEWS.
+   - For each rapid-fire story, start with its cue anchor verbatim (exact text).
+   - Use EACH of these exact cue anchors once before each rapid-fire story:
+${rapidCueAnchors.map((c, i) => `     ${i + 1}) "${c}"`).join("\n")}
 
 4. YOUR PORTFOLIO (200-260 words — the heart of the briefing):
-   - Pick the 2-3 MOST IMPORTANT stories from the portfolio data below.
+   - Cover EXACTLY 3 portfolio stories from the portfolio data below.
    - DO NOT cover all of them. Silence is better than noise. Skip weak stories entirely.
    - For each story you include, follow this arc:
      a) THE SETUP (1 sentence): Create tension or curiosity. Why should they care?
@@ -1130,6 +1212,9 @@ Keep it tight and energetic. Do NOT ramble. Hit every section with purpose.
         Bad: "This could potentially impact your portfolio performance and market sentiment."
    - Natural transitions between stories. No "Moving on..." or "Additionally..."
    - Say "your [COMPANY] position" naturally (e.g., "your Shopify position"), not raw ticker symbols.
+   - For each portfolio story, start with its cue anchor verbatim (exact text).
+   - Use EACH of these exact cue anchors once before each portfolio story:
+${portfolioCueAnchors.map((c, i) => `     ${i + 1}) "${c}"`).join("\n")}
 
 5. ONE THING TO WATCH (30-50 words):
    - One forward-looking item: earnings date, economic report, Fed meeting, etc.
