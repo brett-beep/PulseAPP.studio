@@ -441,7 +441,7 @@ async function invokeLLM(base44, prompt, addInternet, schema) {
 }
 
 async function generateAudioFile(script, date, elevenLabsApiKey) {
-  const voiceId = "Qggl4b0xRMiqOwhPtVWT";
+  const voiceId = "WZlYpi1yf6zJhNWXih74";
 
   const ttsResponse = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
     method: "POST",
@@ -455,12 +455,12 @@ async function generateAudioFile(script, date, elevenLabsApiKey) {
         model_id: "eleven_turbo_v2_5",
         output_format: "mp3_44100_128",
         voice_settings: {
-          stability: 0.3,
-          similarity_boost: 0.75,
-          style: 0.3,
+          stability: 0.38,
+          similarity_boost: 0.6,
+          style: 0,
           use_speaker_boost: true,
         },
-        speed: 1.2,
+        speed: 1.1,
       }),
   });
 
