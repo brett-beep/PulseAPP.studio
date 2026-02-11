@@ -138,31 +138,10 @@ function replaceTickersWithCompanyNames(text: string, userHoldings: any[] = []):
   return out.trim();
 }
 
-const STORY_CUE_ANCHORS = [
-  // Rapid fire anchors (work in any position)
-  "First up —",
-  "Big story today —",
-  "Market mover —",
-  "On the macro front —",
-  "Breaking overnight —",
-  "Worth noting —",
-  // Portfolio anchors (work in any position)
-  "For your portfolio —",
-  "On the [TICKER] front —",
-  "Looking at your holdings —",
-  "Portfolio update —",
-  "Quick hit on [TICKER] —",
-  "One more for your watchlist —",
-];
-
-function shuffleCopy(arr: string[]): string[] {
-  const copy = [...arr];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
+// Transition phrases used by the LLM to signal story boundaries.
+// These MUST stay in sync with transitionPhrases in AudioPlayer.jsx
+// so that info cards can detect when each story starts during playback.
+// The LLM is instructed to weave these naturally into sentences (not as rigid prefixes).
 
 function normalizeStoryKey(story: any): string {
   const href = String(story?.href || story?.url || story?.link || "").trim().toLowerCase();
@@ -1140,10 +1119,6 @@ Deno.serve(async (req) => {
       };
     });
 
-    const shuffledCueAnchors = shuffleCopy(STORY_CUE_ANCHORS);
-    const rapidCueAnchors = shuffledCueAnchors.slice(0, 3);
-    const portfolioCueAnchors = shuffledCueAnchors.slice(3, 6);
-
     console.log("✍️ [generateBriefing] Generating metadata + script in one call...");
 
     const combinedPrompt = `
@@ -1205,7 +1180,9 @@ Prioritize fresh intra-day developments. Avoid repeating details already covered
 - NO hedge stacking: "could potentially", "might possibly", "may warrant"
 - ONE "could" or "may" per story MAX. State facts. Give insight. Move on.
 
-──── STRUCTURE (6 segments) ────
+──── STRUCTURE (6 segments — STRICT ORDER) ────
+
+**CRITICAL: Follow sections 1→2→3→4→5→6 in EXACT order. ALL rapid fire stories come BEFORE any portfolio stories. NEVER interleave them.**
 
 1. HOOK (15-25 words):
    "${timeGreeting}, ${name}. [One-sentence headline teaser that creates curiosity — what's the biggest story?]"
@@ -1213,27 +1190,32 @@ Prioritize fresh intra-day developments. Avoid repeating details already covered
    Example: "${timeGreeting}, ${name}. Markets just had their best day in weeks — and your portfolio is right in the sweet spot. Here's your Pulse."
 
 2. MARKET COLOR (40-60 words):
-   - S&P ${marketSnapshot.sp500_pct}, Nasdaq ${marketSnapshot.nasdaq_pct}, Dow ${marketSnapshot.dow_pct}.
-   - Don't just read numbers. Tell the STORY behind them: What drove it? Where's the money going? What does the pattern mean?
+   - Market data: S&P ${marketSnapshot.sp500_pct}, Nasdaq ${marketSnapshot.nasdaq_pct}, Dow ${marketSnapshot.dow_pct}.
+   - **State the numbers ONCE, woven naturally into a single sentence. Do NOT repeat them a second time.**
+   - After the numbers, immediately tell the STORY: What drove it? Where's the money flowing? What does the pattern mean?
    ${marketSnapshot.sector_hint ? `- Use this signal: "${marketSnapshot.sector_hint}"` : ""}
-   - Connect to the listener's holdings if possible: "That's a tailwind for your NVDA position."
+   - Connect to the listener's holdings if possible.
+   
+   **GOOD example:** "The S&P slipped two-tenths of a percent while the Nasdaq squeezed out a small gain — the divergence tells you tech is still leading while cyclicals take a breather."
+   **BAD example:** "The S&P is down while the Nasdaq ekes out a gain. The S&P is sitting at -0.2%, Nasdaq up 0.2%, Dow down 0.1%." ← Numbers repeated twice. NEVER do this.
 
 3. RAPID FIRE MARKET/MACRO (80-120 words):
    - **MANDATORY SECTION. You MUST cover exactly 3 stories from the candidates below.**
-   - You're the editor. Below we provide ${rapidFireCandidatesForPrompt.length} breaking/macro story candidates.
-   - Pick the 3 MOST IMPORTANT for a professional investor using these criteria:
-     • Market-moving impact > political noise (prioritize Fed/inflation/jobs over immigration/judges)
-     • Macro themes > single-stock news (prioritize sector rotation over one company's earnings)
-     - Actionable intelligence > general interest (prioritize what helps trading decisions)
+   - Pick the 3 MOST IMPORTANT for a professional investor:
+     • Market-moving impact > political noise
+     • Macro themes > single-stock news
+     • Actionable intelligence > general interest
    - **Even if all candidates are weak, you MUST still pick the 3 least weak.** NEVER skip this section.
-   - One compact beat per story: what happened + why it matters for risk sentiment or sector flows.
-   - Keep this punchy and high-signal. No deep dives here.
-   - Use natural transitions, not robotic numbering.
-   - For each story you select, start with its cue anchor verbatim (exact text).
-   - Use EACH of these exact cue anchors once before each selected story:
-${rapidCueAnchors.map((c, i) => `     ${i + 1}) "${c}"`).join("\n")}
+   - One compact beat per story: what happened + why it matters.
+   - **TRANSITIONS: Flow naturally between stories. Do NOT use rigid announcements like "Story one:" or "Next headline —".**
+     Each story should start with a SHORT transition phrase woven into the sentence itself:
+     • Story 1: use "first up" (e.g., "First up, Harley-Davidson reported...")
+     • Story 2: use "meanwhile" or "next up" (e.g., "Meanwhile, gold is ticking higher...")
+     • Story 3: use "and finally" or "also today" (e.g., "And finally, the latest tariff headlines...")
+     These phrases are used by our app to sync info cards with the audio — they MUST appear, but they should feel like natural speech, not robotic markers.
 
 4. YOUR PORTFOLIO (200-260 words — the heart of the briefing):
+   - **This section comes AFTER all rapid fire stories. Start it with a clear transition like "Now turning to your portfolio" or "Shifting to your holdings".**
    - Cover EXACTLY 3 portfolio stories from the portfolio data below.
    - Pick the stories that give the listener ACTIONABLE INSIGHT, not filler.
    - For each story you include, follow this arc:
@@ -1242,18 +1224,14 @@ ${rapidCueAnchors.map((c, i) => `     ${i + 1}) "${c}"`).join("\n")}
      c) SO WHAT FOR YOU (1 sentence): Direct connection to their holding. Concrete, not speculative.
    
    **GOOD example:**
-   "Shopify options traders are pricing in a move to $139 after earnings tomorrow — that's an 8% jump from here. The options market tends to be directional before earnings, and with yesterday's 8.7% surge on positive sentiment, your SHOP position is set up for a strong report."
+   "Now turning to your portfolio — Shopify options traders are pricing in a move to $139 after earnings tomorrow. That's an 8% jump from here, and with yesterday's 8.7% surge, your Shopify position is set up nicely heading into the report."
    
    **BAD example (NEVER write like this):**
-   "The narrative across the streaming sector is shifting positively, particularly in the wake of pandemic recovery. Analysts are anticipating revenue growth as renewed interest in original content picks up, which should reflect favorably on your Warner Bros. Discovery holdings."
+   "The narrative across the streaming sector is shifting positively, particularly in the wake of pandemic recovery. Analysts are anticipating revenue growth, which should reflect favorably on your Warner Bros. Discovery holdings."
+   Why bad: Zero specifics, zero numbers, pure speculation ("shifting positively"), no concrete insight.
    
-   Why the bad example is bad: Zero specifics, zero numbers, pure speculation ("shifting positively", "anticipating"), no concrete insight.
-   
-   - Natural transitions between stories. No "Moving on..." or "Additionally..."
+   - Between portfolio stories, transition naturally: "Next up for your holdings," or "Looking at your [company] position," or "Shifting gears to [company],"
    - Say "your [COMPANY] position" naturally (e.g., "your Shopify position"), not raw ticker symbols.
-   - For each portfolio story, start with its cue anchor verbatim (exact text).
-   - Use EACH of these exact cue anchors once before each portfolio story:
-${portfolioCueAnchors.map((c, i) => `     ${i + 1}) "${c}"`).join("\n")}
 
 5. ONE THING TO WATCH (30-50 words):
    - One forward-looking item: earnings date, economic report, Fed meeting, etc.
