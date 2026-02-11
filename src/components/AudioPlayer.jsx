@@ -198,7 +198,8 @@ export default function AudioPlayer({
       }
     }
     const sorted = [...new Set(positions)].sort((a, b) => a - b);
-    const needBoundaries = Math.max(0, rawSectionCount - 1);
+    // 6 cards = 6 boundaries: (Intro) | Card1 | Card2 | Card3 | Card4 | Card5 | Card6
+    const needBoundaries = Math.max(0, rawSectionCount);
     if (needBoundaries === 0) return [];
     const earlySec = 0;
 
@@ -226,12 +227,11 @@ export default function AudioPlayer({
     return selected.sort((a, b) => a - b);
   }, [transcript, rawSectionCount, totalDuration]);
 
-  // If transcript only has cues for fewer story transitions, cap cards to what is
-  // actually spoken so visual cards don't drift ahead of narration.
+  // Number of cards = number of boundaries (each boundary starts one card)
   const sectionCount = useMemo(() => {
     if (rawSectionCount === 0) return 0;
     if (sectionBoundariesSeconds.length > 0) {
-      return Math.min(rawSectionCount, sectionBoundariesSeconds.length + 1);
+      return Math.min(rawSectionCount, sectionBoundariesSeconds.length);
     }
     return rawSectionCount;
   }, [rawSectionCount, sectionBoundariesSeconds.length]);
@@ -241,13 +241,14 @@ export default function AudioPlayer({
     if (sectionBoundariesSeconds.length === 0) {
       return totalDuration > 0 ? Math.min(sectionCount - 1, Math.floor((currentTime / totalDuration) * sectionCount)) : -1;
     }
-    // Before the first transition boundary, keep info card hidden so
-    // market-open narration doesn't show story card too early.
+    // Before the first boundary: intro, no card.
     if (currentTime < sectionBoundariesSeconds[0]) return -1;
+    // Between boundary[i-1] and boundary[i] → show card i (index i).
     for (let i = 1; i < sectionBoundariesSeconds.length; i++) {
-      if (currentTime < sectionBoundariesSeconds[i]) return Math.min(i, sectionCount - 1);
+      if (currentTime < sectionBoundariesSeconds[i]) return Math.min(i - 1, sectionCount - 1);
     }
-    return Math.min(sectionBoundariesSeconds.length, sectionCount - 1);
+    // Past last boundary → last card.
+    return Math.min(sectionBoundariesSeconds.length - 1, sectionCount - 1);
   }, [currentTime, sectionBoundariesSeconds, sectionCount, totalDuration]);
 
   const currentSectionStory =
