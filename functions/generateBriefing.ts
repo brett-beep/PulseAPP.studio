@@ -613,6 +613,294 @@ async function fetchFinlightQuote(symbol: string, apiKey: string) {
   }
 }
 
+// =========================================================
+// PRE-BRIEFING PORTFOLIO REFRESH (Finlight API)
+// Called at briefing time to ensure portfolio news is always fresh.
+// =========================================================
+const FINLIGHT_NEWS_API = "https://api.finlight.me";
+
+const TICKER_TO_NAMES_BRIEFING: Record<string, string[]> = {
+  AAPL: ["apple"],
+  GOOGL: ["google", "alphabet", "youtube"],
+  GOOG: ["google", "alphabet", "youtube"],
+  META: ["meta", "facebook", "zuckerberg"],
+  SHOP: ["shopify"],
+  AMZN: ["amazon"],
+  MSFT: ["microsoft"],
+  NVDA: ["nvidia"],
+  TSLA: ["tesla", "musk"],
+  TSM: ["tsmc", "taiwan semiconductor"],
+  JNJ: ["johnson & johnson", "j&j"],
+  WBD: ["warner bros", "warner brothers", "discovery"],
+  DIS: ["disney"],
+  NFLX: ["netflix"],
+  JPM: ["jpmorgan", "jp morgan"],
+  BAC: ["bank of america"],
+  GS: ["goldman sachs"],
+  V: ["visa"],
+  MA: ["mastercard"],
+};
+
+const TICKER_CATEGORY_KW: Record<string, string[]> = {
+  markets: ["stock", "market", "trading", "wall street", "nasdaq", "dow", "s&p", "equity", "index"],
+  crypto: ["bitcoin", "ethereum", "crypto", "blockchain", "nft", "defi", "web3"],
+  economy: ["fed", "interest rate", "inflation", "gdp", "unemployment", "economy", "recession"],
+  technology: ["tech", "ai", "software", "chip", "semiconductor", "saas", "cloud"],
+  "real estate": ["housing", "real estate", "mortgage", "property", "reits"],
+  commodities: ["oil", "gold", "silver", "commodity", "energy", "natural gas"],
+};
+
+function categorizeByKw(title: string, summary: string): string {
+  const text = `${title} ${summary}`.toLowerCase();
+  for (const [cat, kws] of Object.entries(TICKER_CATEGORY_KW)) {
+    if (kws.some(kw => text.includes(kw))) return cat;
+  }
+  return "markets";
+}
+
+function sentimentToNum(sentiment: string | undefined, confidence: number | undefined): number {
+  const c = Math.max(0, Math.min(1, confidence || 0));
+  if (sentiment === "positive") return c * 0.5;
+  if (sentiment === "negative") return -c * 0.5;
+  return 0;
+}
+
+function getCatMessage(category: string): string {
+  const m: Record<string, string> = {
+    markets: "Could impact portfolio performance and market sentiment.",
+    crypto: "May signal shifts in digital asset valuations.",
+    economy: "Affects broader market conditions and strategies.",
+    technology: "Could influence tech sector valuations.",
+    "real estate": "May impact real estate investments.",
+    commodities: "Could affect commodity prices and hedging.",
+  };
+  return m[category] || "Worth monitoring for portfolio implications.";
+}
+
+function isSimilarTitle(a: string, b: string): boolean {
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+  const aW = new Set(norm(a).split(" ").filter(w => w.length > 3));
+  const bW = new Set(norm(b).split(" ").filter(w => w.length > 3));
+  if (aW.size < 3 || bW.size < 3) return false;
+  let overlap = 0;
+  for (const w of aW) { if (bW.has(w)) overlap++; }
+  return overlap / Math.min(aW.size, bW.size) > 0.5;
+}
+
+function simpleHash(str: string): string {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash).toString(36);
+}
+
+/** Fetch fresh ticker news from Finlight for pre-briefing refresh. */
+async function fetchFreshTickerNews(
+  apiKey: string,
+  tickers: string[],
+  hoursAgo: number = 24,
+  pageSize: number = 20,
+): Promise<any[]> {
+  const tickerQuery = tickers.map(t => `ticker:${t}`).join(" OR ");
+  const fromDate = new Date(Date.now() - hoursAgo * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const toDate = new Date().toISOString().slice(0, 10);
+
+  console.log(`🔍 [Pre-briefing refresh] Finlight query: ${tickerQuery} (${hoursAgo}h, pageSize ${pageSize})`);
+
+  const response = await fetch(`${FINLIGHT_NEWS_API}/v2/articles`, {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      "Content-Type": "application/json",
+      "X-API-KEY": apiKey,
+    },
+    body: JSON.stringify({
+      query: tickerQuery,
+      from: fromDate,
+      to: toDate,
+      language: "en",
+      orderBy: "publishDate",
+      order: "DESC",
+      pageSize,
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Finlight pre-briefing fetch failed: ${response.status} - ${errText}`);
+  }
+
+  const data = await response.json();
+  const articles = data.articles || [];
+  console.log(`✅ [Pre-briefing refresh] Finlight returned ${articles.length} articles`);
+  return articles;
+}
+
+/** Transform raw Finlight article to app story format. */
+function transformArticleForBriefing(article: any, userTickers: string[]): any {
+  const title = (article.title || "Breaking News").trim();
+  const summary = (article.summary || "").trim();
+  const category = categorizeByKw(title, summary);
+
+  const articleTickers: string[] = (article.companies || [])
+    .map((c: any) => (c.ticker || "").toUpperCase())
+    .filter(Boolean);
+  const matchedTickers = articleTickers.filter((t: string) => userTickers.includes(t));
+
+  let whyItMatters = "";
+  if (matchedTickers.length > 0) {
+    whyItMatters = `Directly relevant to your holding${matchedTickers.length > 1 ? "s" : ""}: ${matchedTickers.join(", ")}. `;
+  }
+  whyItMatters += getCatMessage(category);
+
+  return {
+    id: randomId(),
+    title,
+    what_happened: summary || title,
+    why_it_matters: whyItMatters,
+    href: article.link || "#",
+    imageUrl: article.images && article.images.length > 0
+      ? article.images[0]
+      : categoryImageUrl(category),
+    outlet: article.source || "Finlight",
+    category,
+    datetime: article.publishDate
+      ? new Date(article.publishDate).toISOString()
+      : new Date().toISOString(),
+    provider: "finlight",
+    topics: [],
+    sentiment_score: sentimentToNum(article.sentiment, article.confidence),
+    matched_tickers: matchedTickers,
+  };
+}
+
+function storyRelevanceScore(story: any, userTickers: string[]): number {
+  const text = `${story.title || ""} ${story.what_happened || ""}`.toLowerCase();
+  if (story.matched_tickers && story.matched_tickers.length > 0) return 100;
+  let score = 0;
+  for (const ticker of userTickers) {
+    if (text.includes(ticker.toLowerCase())) score += 50;
+    const names = TICKER_TO_NAMES_BRIEFING[ticker] || [ticker.toLowerCase()];
+    if (names.some(n => text.includes(n))) score += 40;
+  }
+  return score;
+}
+
+const ROUNDUP_PATTERNS_REFRESH = [
+  "the week in", "week in review", "breakingviews", "weekend round-up",
+  "weekend roundup", "round-up:", "roundup:", "morning roundup",
+  "and more:", "what you missed", "here's what",
+];
+
+function roundupPenaltyRefresh(story: any): number {
+  const title = (story.title || "").toLowerCase();
+  return ROUNDUP_PATTERNS_REFRESH.some(p => title.includes(p)) ? 35 : 0;
+}
+
+/**
+ * Pre-briefing portfolio refresh: Always fetch fresh ticker news from Finlight
+ * before generating a briefing, so the content is never stale.
+ * Updates UserNewsCache for the app as well.
+ */
+async function refreshPortfolioNewsForBriefing(
+  base44: any,
+  userEmail: string,
+  userHoldings: any[],
+): Promise<any[]> {
+  const tickers = userHoldings
+    .map((h: any) => (typeof h === "string" ? h : h?.symbol || h?.ticker || "").toUpperCase().trim())
+    .filter(Boolean);
+
+  if (tickers.length === 0) {
+    console.log("⚠️ [Pre-briefing refresh] No tickers in holdings, skipping Finlight fetch");
+    return [];
+  }
+
+  const finlightKey = Deno.env.get("FINLIGHT_API_KEY");
+  if (!finlightKey) {
+    console.log("⚠️ [Pre-briefing refresh] No FINLIGHT_API_KEY, falling back to cache");
+    return [];
+  }
+
+  const day = new Date().getUTCDay();
+  const isWeekend = day === 0 || day === 6;
+  const hoursAgo = isWeekend ? 48 : 24;
+
+  try {
+    const rawArticles = await fetchFreshTickerNews(finlightKey, tickers, hoursAgo, 20);
+
+    if (rawArticles.length === 0) {
+      console.log("⚠️ [Pre-briefing refresh] Finlight returned 0 articles, will use cache");
+      return [];
+    }
+
+    // Transform and dedupe
+    const transformed = rawArticles
+      .map((a: any) => transformArticleForBriefing(a, tickers))
+      .filter((s: any) => {
+        const text = `${s.title || ""} ${s.what_happened || ""}`.toLowerCase().slice(0, 600);
+        // Filter obvious junk
+        if (/thank\s+you\s+for\s+(your\s+)?subscription/i.test(text)) return false;
+        if (/blogspot|wordpress\.com|tumblr\.com/i.test(s.href || "")) return false;
+        return true;
+      });
+
+    const deduped: any[] = [];
+    for (const story of transformed) {
+      if (!deduped.some(existing => isSimilarTitle(existing.title, story.title))) {
+        deduped.push(story);
+      }
+    }
+
+    // Sort: relevance first, then source quality, then newest
+    deduped.sort((a: any, b: any) => {
+      const relA = storyRelevanceScore(a, tickers) - roundupPenaltyRefresh(a);
+      const relB = storyRelevanceScore(b, tickers) - roundupPenaltyRefresh(b);
+      if (relB !== relA) return relB - relA;
+      const srcA = PREMIUM_SOURCES_BRIEFING.some(p => (a.outlet || "").toLowerCase().includes(p)) ? 10 : 0;
+      const srcB = PREMIUM_SOURCES_BRIEFING.some(p => (b.outlet || "").toLowerCase().includes(p)) ? 10 : 0;
+      if (srcB !== srcA) return srcB - srcA;
+      return new Date(b.datetime || 0).getTime() - new Date(a.datetime || 0).getTime();
+    });
+
+    console.log(`✅ [Pre-briefing refresh] ${deduped.length} fresh portfolio stories ready`);
+    deduped.slice(0, 5).forEach((s, i) => {
+      const ageH = ((Date.now() - new Date(s.datetime || 0).getTime()) / (1000 * 60 * 60)).toFixed(1);
+      console.log(`   ${i + 1}. [${ageH}h] [${s.outlet}] ${(s.title || "").slice(0, 60)}...`);
+    });
+
+    // Write to UserNewsCache so the app also shows fresh stories
+    try {
+      const tickersKey = tickers.slice().sort().join(",");
+      const tickersHash = simpleHash(tickersKey);
+      const oldEntries = await base44.asServiceRole.entities.UserNewsCache.filter({
+        user_email: userEmail,
+      });
+      for (const entry of oldEntries) {
+        await base44.asServiceRole.entities.UserNewsCache.delete(entry.id);
+      }
+      await base44.asServiceRole.entities.UserNewsCache.create({
+        user_email: userEmail,
+        tickers_hash: tickersHash,
+        tickers_list: tickers.join(","),
+        stories: JSON.stringify(deduped),
+        fetched_at: new Date().toISOString(),
+      });
+      console.log(`💾 [Pre-briefing refresh] Updated UserNewsCache with ${deduped.length} fresh stories`);
+    } catch (cacheErr: any) {
+      console.warn(`⚠️ [Pre-briefing refresh] UserNewsCache write failed: ${cacheErr.message}`);
+    }
+
+    return deduped;
+  } catch (fetchErr: any) {
+    console.error(`❌ [Pre-briefing refresh] Finlight fetch failed: ${fetchErr.message}`);
+    return []; // Caller will fall back to existing cache
+  }
+}
+
 // Fallback Finnhub key (same as frontend ticker) when Base44 env vars are missing
 const FINNHUB_FALLBACK_KEY = "d5n7s19r01qh5ppc5ln0d5n7s19r01qh5ppc5lng";
 
@@ -879,16 +1167,9 @@ Deno.serve(async (req) => {
 
     // =========================================================
     // STEP 1D: TIER 2 - Select PERSONALIZED stories
-    // Strategy: UserNewsCache (ticker-specific) → shared NewsCache fallback
-    //
-    // HOW PORTFOLIO PERSONALIZATION WORKS (end-to-end):
-    // 1. fetchNewsCards (Home load / Refresh) calls Finlight with the user's tickers
-    //    (5 articles per ticker, 24h weekdays / 48h weekends), writes mix to UserNewsCache.
-    // 2. generateBriefing reads UserNewsCache (no Finlight call) and passes that batch
-    //    to the LLM to synthesize into one portfolio segment.
-    //
-    // PORTFOLIO vs MARKET/BREAKING: Different sources. Tier 1 (Stories 1–3) = market/breaking
-    // from shared NewsCache. Tier 2 (portfolio section) = UserNewsCache = ticker-specific only.
+    // ALWAYS fetch fresh ticker news from Finlight before generating.
+    // The briefing is the premium product — it must have the latest data.
+    // Falls back to UserNewsCache only if Finlight fetch fails.
     // =========================================================
     const userInterests = prefProfile?.interests || [];
     const userHoldings = prefProfile?.holdings || [];
@@ -898,13 +1179,21 @@ Deno.serve(async (req) => {
     console.log(`\n📊 [generateBriefing] User interests: ${userInterests.join(", ") || "none"}`);
     console.log(`📊 [generateBriefing] Matching categories: ${userCategories.join(", ") || "all"}`);
 
-    // --- Read ticker-specific stories from UserNewsCache (populated by fetchNewsCards) ---
-    let tickerCacheStories: any[] = [];
     const briefingTickers = userHoldings
       .map((h: any) => (typeof h === "string" ? h : h?.symbol || h?.ticker || "").toUpperCase().trim())
       .filter(Boolean);
 
-    if (briefingTickers.length > 0) {
+    // --- ALWAYS fetch fresh portfolio news from Finlight ---
+    console.log(`\n🔄 [Pre-briefing refresh] Fetching fresh ticker news for: ${briefingTickers.join(", ") || "none"}`);
+    let tickerCacheStories: any[] = await refreshPortfolioNewsForBriefing(
+      base44,
+      userEmail,
+      userHoldings,
+    );
+
+    // --- Fallback to existing UserNewsCache if Finlight returned nothing ---
+    if (tickerCacheStories.length === 0 && briefingTickers.length > 0) {
+      console.log("📂 [Pre-briefing refresh] Finlight returned 0, falling back to UserNewsCache...");
       try {
         const userCacheEntries = await base44.asServiceRole.entities.UserNewsCache.filter({
           user_email: userEmail,
@@ -914,18 +1203,13 @@ Deno.serve(async (req) => {
             new Date(b.fetched_at).getTime() - new Date(a.fetched_at).getTime()
           )[0];
           const cacheAgeHours = (Date.now() - new Date(latest.fetched_at).getTime()) / (1000 * 60 * 60);
-          if (cacheAgeHours < 6) { // 6h TTL for briefing (more lenient — news cards refresh it anyway)
-            tickerCacheStories = typeof latest.stories === "string"
-              ? JSON.parse(latest.stories)
-              : (latest.stories || []);
-            console.log(`✅ [Tier 2] Found ${tickerCacheStories.length} ticker-specific stories from UserNewsCache (${cacheAgeHours.toFixed(1)}h old)`);
-          } else {
-            console.log(`⏰ [Tier 2] UserNewsCache too old (${cacheAgeHours.toFixed(1)}h), using shared pool`);
-          }
+          tickerCacheStories = typeof latest.stories === "string"
+            ? JSON.parse(latest.stories)
+            : (latest.stories || []);
+          console.log(`✅ [Tier 2 fallback] Using cached ${tickerCacheStories.length} stories (${cacheAgeHours.toFixed(1)}h old)`);
         }
       } catch (e: any) {
-        // Expected if UserNewsCache entity doesn't exist yet
-        console.log(`⚠️ [Tier 2] UserNewsCache read skipped: ${e.message}`);
+        console.log(`⚠️ [Tier 2 fallback] UserNewsCache read failed: ${e.message}`);
       }
     }
 
@@ -1180,26 +1464,33 @@ Prioritize fresh intra-day developments. Avoid repeating details already covered
 - NO hedge stacking: "could potentially", "might possibly", "may warrant"
 - ONE "could" or "may" per story MAX. State facts. Give insight. Move on.
 
-──── STRUCTURE (6 segments — STRICT ORDER) ────
+──── STRUCTURE (5 segments — STRICT ORDER) ────
 
-**CRITICAL: Follow sections 1→2→3→4→5→6 in EXACT order. ALL rapid fire stories come BEFORE any portfolio stories. NEVER interleave them.**
+**CRITICAL: Follow sections 1→2→3→4→5 in EXACT order. ALL rapid fire stories come BEFORE any portfolio stories. NEVER interleave them.**
 
-1. HOOK (15-25 words):
-   "${timeGreeting}, ${name}. [One-sentence headline teaser that creates curiosity — what's the biggest story?]"
+1. OPENING — HOOK + MARKET COLOR (50-80 words total, ONE paragraph):
+   Combine the greeting, market numbers, and market context into ONE seamless opening.
+   "${timeGreeting}, ${name}. [Weave market numbers into a natural sentence, then immediately add context.]"
    ${isWeekend ? 'Add: "Hope the weekend\'s treating you well."' : ""}
-   Example: "${timeGreeting}, ${name}. Markets just had their best day in weeks — and your portfolio is right in the sweet spot. Here's your Pulse."
-
-2. MARKET COLOR (40-60 words):
-   - Market data: S&P ${marketSnapshot.sp500_pct}, Nasdaq ${marketSnapshot.nasdaq_pct}, Dow ${marketSnapshot.dow_pct}.
-   - **State the numbers ONCE, woven naturally into a single sentence. Do NOT repeat them a second time.**
-   - After the numbers, immediately tell the STORY: What drove it? Where's the money flowing? What does the pattern mean?
-   ${marketSnapshot.sector_hint ? `- Use this signal: "${marketSnapshot.sector_hint}"` : ""}
-   - Connect to the listener's holdings if possible.
    
-   **GOOD example:** "The S&P slipped two-tenths of a percent while the Nasdaq squeezed out a small gain — the divergence tells you tech is still leading while cyclicals take a breather."
-   **BAD example:** "The S&P is down while the Nasdaq ekes out a gain. The S&P is sitting at -0.2%, Nasdaq up 0.2%, Dow down 0.1%." ← Numbers repeated twice. NEVER do this.
+   Market data: S&P ${marketSnapshot.sp500_pct}, Nasdaq ${marketSnapshot.nasdaq_pct}, Dow ${marketSnapshot.dow_pct}.
+   ${marketSnapshot.sector_hint ? `Sector signal: "${marketSnapshot.sector_hint}"` : ""}
+   
+   RULES:
+   - **Mention each index number EXACTLY ONCE. NEVER repeat them.**
+   - If a number is 0.0% or -0.0%, say "flat" or "unchanged" — do NOT say "zero percent" or "0.0%".
+   - After stating the numbers, immediately tell what's driving it (1-2 sentences of context).
+   - Connect to holdings if natural.
+   
+   **GOOD example:**
+   "${timeGreeting}, ${name}. Markets are holding steady today — the S&P flat, Nasdaq up three-tenths of a percent, and the Dow barely budging. Mixed signals across sectors, but tech is showing resilience — which is good news for your holdings. Here's your Pulse."
+   
+   **BAD example (NEVER do this):**
+   "${timeGreeting}, ${name}. The markets have taken a pause today with the S&P 500 flat.
+   The S&P is at +0.0%, the Nasdaq is up by +0.3%, and the Dow has barely budged at -0.0%."
+   ← Numbers mentioned TWICE. The S&P is described in both paragraphs. "0.0%" sounds robotic. NEVER do this.
 
-3. RAPID FIRE MARKET/MACRO (80-120 words):
+2. RAPID FIRE MARKET/MACRO (80-120 words):
    - **MANDATORY SECTION. You MUST cover exactly 3 stories from the candidates below.**
    - Pick the 3 MOST IMPORTANT for a professional investor:
      • Market-moving impact > political noise
@@ -1214,7 +1505,7 @@ Prioritize fresh intra-day developments. Avoid repeating details already covered
      • Story 3: use "and finally" or "also today" (e.g., "And finally, the latest tariff headlines...")
      These phrases are used by our app to sync info cards with the audio — they MUST appear, but they should feel like natural speech, not robotic markers.
 
-4. YOUR PORTFOLIO (200-260 words — the heart of the briefing):
+3. YOUR PORTFOLIO (200-260 words — the heart of the briefing):
    - **This section comes AFTER all rapid fire stories. Start it with a clear transition like "Now turning to your portfolio" or "Shifting to your holdings".**
    - Cover EXACTLY 3 portfolio stories from the portfolio data below.
    - Pick the stories that give the listener ACTIONABLE INSIGHT, not filler.
@@ -1233,13 +1524,13 @@ Prioritize fresh intra-day developments. Avoid repeating details already covered
    - Between portfolio stories, transition naturally: "Next up for your holdings," or "Looking at your [company] position," or "Shifting gears to [company],"
    - Say "your [COMPANY] position" naturally (e.g., "your Shopify position"), not raw ticker symbols.
 
-5. ONE THING TO WATCH (30-50 words):
+4. ONE THING TO WATCH (30-50 words):
    - One forward-looking item: earnings date, economic report, Fed meeting, etc.
    - WHY it matters to their portfolio specifically.
    - This creates a reason to tune in again tomorrow.
    - CRITICAL: Do NOT recommend watching events that ALREADY HAPPENED. Check story ages.
 
-6. SIGN-OFF (15-20 words):
+5. SIGN-OFF (15-20 words):
    "That's your Pulse for ${naturalDate}. [Confident, energetic closer], ${name}!"
    Examples: "Go crush it today" / "Have a great week" / "Enjoy the rest of your Sunday"
 
