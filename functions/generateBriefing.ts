@@ -139,14 +139,20 @@ function replaceTickersWithCompanyNames(text: string, userHoldings: any[] = []):
 }
 
 const STORY_CUE_ANCHORS = [
-  "Here is the first headline",
-  "Another market mover",
-  "Next headline",
-  "Now shifting to your portfolio",
-  "Another portfolio update",
-  "Turning to your next holding",
-  "One more development to watch",
-  "Before we wrap, one final update",
+  // Rapid fire anchors (work in any position)
+  "First up —",
+  "Big story today —",
+  "Market mover —",
+  "On the macro front —",
+  "Breaking overnight —",
+  "Worth noting —",
+  // Portfolio anchors (work in any position)
+  "For your portfolio —",
+  "On the [TICKER] front —",
+  "Looking at your holdings —",
+  "Portfolio update —",
+  "Quick hit on [TICKER] —",
+  "One more for your watchlist —",
 ];
 
 function shuffleCopy(arr: string[]): string[] {
@@ -857,33 +863,38 @@ Deno.serve(async (req) => {
       });
 
     // =========================================================
-    // STEP 1C: TIER 1 - Select RAPID FIRE stories (top 3 by breaking score)
-    // Financial-relevance gate: skip non-financial stories (immigration, protests, etc.)
+    // STEP 1C: TIER 1 - Select RAPID FIRE candidates (top 6-8)
+    // Financial-relevance gate applied. LLM will pick the best 3.
+    // Mimics Bloomberg: algorithms narrow the pool, editors make the final call.
     // =========================================================
+    const RAPID_FIRE_CANDIDATE_COUNT = 8;
     const rapidFireCandidates = [...scoredStories]
       .sort((a, b) => {
         if (a._seenToday !== b._seenToday) return a._seenToday ? 1 : -1; // prioritize unseen
         return b.breakingScore - a.breakingScore;
       })
-      .filter((s) => hasFinancialRelevance(s));
-    let rapidFireStories = rapidFireCandidates.slice(0, 3);
+      .filter((s) => hasFinancialRelevance(s))
+      .slice(0, RAPID_FIRE_CANDIDATE_COUNT);
 
-    // Hard fallback: if financial gate is too strict, backfill from top scored stories
-    // so the prompt always has macro context to speak about.
-    if (rapidFireStories.length < 3) {
-      const existingIds = new Set(rapidFireStories.map((s: any) => s.id));
+    // If financial gate filtered too aggressively, backfill with top-scored stories
+    let rapidFireCandidatesFinal = [...rapidFireCandidates];
+    if (rapidFireCandidatesFinal.length < 6) {
+      const existingIds = new Set(rapidFireCandidatesFinal.map((s: any) => s.id));
       const backfill = [...scoredStories]
         .sort((a, b) => {
           if (a._seenToday !== b._seenToday) return a._seenToday ? 1 : -1;
           return b.breakingScore - a.breakingScore;
         })
         .filter((s: any) => !existingIds.has(s.id))
-        .slice(0, 3 - rapidFireStories.length);
-      rapidFireStories = [...rapidFireStories, ...backfill];
+        .slice(0, Math.min(6 - rapidFireCandidatesFinal.length, 3));
+      rapidFireCandidatesFinal = [...rapidFireCandidatesFinal, ...backfill];
     }
 
-    console.log("\n⚡ [generateBriefing] TIER 1 - RAPID FIRE (Breaking News — financial-relevance gated):");
-    rapidFireStories.forEach((s, i) => {
+    // For UI cards and dedup logic, use top 3 from candidates
+    let rapidFireStories = rapidFireCandidatesFinal.slice(0, 3);
+
+    console.log(`\n⚡ [generateBriefing] TIER 1 - RAPID FIRE (${rapidFireCandidatesFinal.length} candidates for LLM to editorialize → pick best 3):`);
+    rapidFireCandidatesFinal.forEach((s, i) => {
       console.log(`   ${i + 1}. [score:${s.breakingScore}] [age:${s.ageHours.toFixed(1)}h] [${s.category}] ${(s.title || "").slice(0, 50)}...`);
     });
 
@@ -1112,6 +1123,23 @@ Deno.serve(async (req) => {
       relevantToUserHoldings: detectRelevantHoldings(story, userHoldings),
     }));
 
+    // Pass ALL rapid fire candidates to LLM for editorial selection
+    const rapidFireCandidatesForPrompt = rapidFireCandidatesFinal.map((story: any, index: number) => {
+      const rawCat = safeText(story?.category, "default").toLowerCase();
+      const category = allowedCats.has(rawCat) ? rawCat : "default";
+      return {
+        id: safeText(story?.id, randomId()),
+        title: safeText(story?.title, "Breaking News"),
+        what_happened: safeText(story?.what_happened, ""),
+        outlet: safeText(story?.outlet, "Unknown"),
+        category,
+        datetime: story?.datetime,
+        ageHours: story?.ageHours,
+        breakingScore: story?.breakingScore,
+        relevantToUserHoldings: detectRelevantHoldings(story, userHoldings),
+      };
+    });
+
     const shuffledCueAnchors = shuffleCopy(STORY_CUE_ANCHORS);
     const rapidCueAnchors = shuffledCueAnchors.slice(0, 3);
     const portfolioCueAnchors = shuffledCueAnchors.slice(3, 6);
@@ -1191,14 +1219,14 @@ Prioritize fresh intra-day developments. Avoid repeating details already covered
    - Connect to the listener's holdings if possible: "That's a tailwind for your NVDA position."
 
 3. RAPID FIRE MARKET/MACRO (80-120 words):
-   - Bring back this section explicitly: cover the TOP 3 breaking/market stories from the data below.
+   - You're the editor. Below we provide ${rapidFireCandidatesForPrompt.length} breaking/macro story candidates.
+   - **Your job: Pick the 3 MOST IMPORTANT for a professional investor. Drop weak stories.**
+   - Editorial criteria (like Bloomberg): market-moving impact > political noise, macro themes > single-stock news, actionable intelligence > general interest.
    - One compact beat per story: what happened + why it matters for risk sentiment or sector flows.
    - Keep this punchy and high-signal. No deep dives here.
    - Use natural transitions, not robotic numbering.
-   - IMPORTANT: This section is required. Do not skip it.
-   - Mention all three rapid-fire stories provided in DATA: BREAKING / MARKET NEWS.
-   - For each rapid-fire story, start with its cue anchor verbatim (exact text).
-   - Use EACH of these exact cue anchors once before each rapid-fire story:
+   - For each story you select, start with its cue anchor verbatim (exact text).
+   - Use EACH of these exact cue anchors once before each selected story:
 ${rapidCueAnchors.map((c, i) => `     ${i + 1}) "${c}"`).join("\n")}
 
 4. YOUR PORTFOLIO (200-260 words — the heart of the briefing):
@@ -1245,20 +1273,35 @@ ${portfolioCueAnchors.map((c, i) => `     ${i + 1}) "${c}"`).join("\n")}
 - Prefer company names over ticker symbols in spoken script (say "Shopify", not "SHOP").
 
 ═══════════════════════════════════════
-DATA: BREAKING / MARKET NEWS
+DATA: BREAKING / MARKET NEWS CANDIDATES
 ═══════════════════════════════════════
-${breakingNewsRelevance
+You have ${rapidFireCandidatesForPrompt.length} candidates. **Pick the 3 most important for professional investors.**
+Drop stories that are:
+- Pure politics with no market impact (immigration, protests, elections unless they move markets)
+- Single-stock earnings misses/beats for companies the listener doesn't hold
+- Weak macro stories (e.g., "Gold opened modestly higher")
+- Aviation/logistics minutiae unless it signals broader economic trends
+
+Prioritize stories that are:
+- Fed policy, rate decisions, inflation data
+- Major earnings from market-leading companies
+- Sector rotation signals, broad market moves
+- Trade/tariff developments, geopolitical events that move oil/commodities
+- Major M&A, IPOs, bankruptcies
+
+${rapidFireCandidatesForPrompt
   .map(
     (s, i) => {
       const whenPhrase = getStoryWhenPhrase(s.datetime, timeZone, s.ageHours);
       return `
-Story ${i + 1}:
+Candidate ${i + 1}:
 Title: ${s.title}
 What Happened: ${s.what_happened}
 Source: ${s.outlet} | Category: ${s.category}
 Age: ${(s.ageHours || 0).toFixed(1)} hours ago
 When (USE this timing in the script): "${whenPhrase}"
 Relevant to holdings: ${s.relevantToUserHoldings}
+Breaking Score: ${s.breakingScore} (higher = more urgent/recent/impactful)
 `;
     }
   )
