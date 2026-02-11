@@ -1133,17 +1133,55 @@ Deno.serve(async (req) => {
     // STEP 1C: TIER 1 - Select RAPID FIRE candidates (top 6-8)
     // Financial-relevance gate applied. LLM will pick the best 3.
     // Mimics Bloomberg: algorithms narrow the pool, editors make the final call.
+    //
+    // PORTFOLIO OVERLAP FILTER: Rapid fire = macro/market news.
+    // Stories about the user's portfolio companies are excluded UNLESS
+    // they have a very high breaking score (genuinely headline-level,
+    // e.g. CEO arrested, fraud, massive acquisition — not just earnings/price moves).
     // =========================================================
     const RAPID_FIRE_CANDIDATE_COUNT = 8;
+    const BREAKING_NEWS_OVERRIDE_THRESHOLD = 200; // Only truly exceptional stories override the portfolio filter
+
+    // Extract user tickers early for portfolio overlap filtering
+    const earlyHoldings = prefProfile?.holdings || [];
+    const earlyTickers = earlyHoldings
+      .map((h: any) => (typeof h === "string" ? h : h?.symbol || h?.ticker || "").toUpperCase().trim())
+      .filter(Boolean);
+    const earlyTickerNames: string[] = [];
+    for (const t of earlyTickers) {
+      earlyTickerNames.push(t.toLowerCase());
+      const names = TICKER_TO_NAMES_BRIEFING[t] || [];
+      for (const n of names) earlyTickerNames.push(n);
+    }
+
+    /** Returns true if the story is about one of the user's portfolio companies. */
+    function isAboutPortfolioCompany(story: any): boolean {
+      if (earlyTickers.length === 0) return false;
+      const text = `${story.title || ""} ${story.what_happened || ""}`.toLowerCase();
+      return earlyTickerNames.some(name => text.includes(name));
+    }
+
     const rapidFireCandidates = [...scoredStories]
       .sort((a, b) => {
         if (a._seenToday !== b._seenToday) return a._seenToday ? 1 : -1; // prioritize unseen
         return b.breakingScore - a.breakingScore;
       })
       .filter((s) => hasFinancialRelevance(s))
+      .filter((s) => {
+        // Exclude portfolio company stories UNLESS they're truly headline-breaking
+        if (isAboutPortfolioCompany(s)) {
+          if (s.breakingScore >= BREAKING_NEWS_OVERRIDE_THRESHOLD) {
+            console.log(`   🔥 Portfolio company in rapid fire (override — score ${s.breakingScore}): "${(s.title || "").slice(0, 50)}"`);
+            return true; // Genuinely major breaking news about a holding
+          }
+          console.log(`   ⛔ Filtered from rapid fire (portfolio overlap): "${(s.title || "").slice(0, 50)}"`);
+          return false;
+        }
+        return true;
+      })
       .slice(0, RAPID_FIRE_CANDIDATE_COUNT);
 
-    // If financial gate filtered too aggressively, backfill with top-scored stories
+    // If financial gate + portfolio filter was too aggressive, backfill with top-scored non-portfolio stories
     let rapidFireCandidatesFinal = [...rapidFireCandidates];
     if (rapidFireCandidatesFinal.length < 6) {
       const existingIds = new Set(rapidFireCandidatesFinal.map((s: any) => s.id));
@@ -1153,6 +1191,7 @@ Deno.serve(async (req) => {
           return b.breakingScore - a.breakingScore;
         })
         .filter((s: any) => !existingIds.has(s.id))
+        .filter((s: any) => !isAboutPortfolioCompany(s)) // Don't backfill with portfolio stories either
         .slice(0, Math.min(6 - rapidFireCandidatesFinal.length, 3));
       rapidFireCandidatesFinal = [...rapidFireCandidatesFinal, ...backfill];
     }
@@ -1342,7 +1381,20 @@ Deno.serve(async (req) => {
     // STEP 2: Get Market Snapshot via Finnhub (0 credits)
     // =========================================================
     console.log("📈 [generateBriefing] Fetching market snapshot from Finnhub...");
-    const marketSnapshot = await fetchMarketSnapshot();
+    const rawMarketSnapshot = await fetchMarketSnapshot();
+    
+    // Transform "0.0%" / "-0.0%" → "flat" so the LLM and TTS don't say "zero percent"
+    function humanizePct(pct: string): string {
+      const num = parseFloat(pct.replace(/[^-0-9.]/g, "")) || 0;
+      if (Math.abs(num) < 0.05) return "flat";
+      return pct;
+    }
+    const marketSnapshot = {
+      ...rawMarketSnapshot,
+      sp500_pct: humanizePct(rawMarketSnapshot.sp500_pct),
+      nasdaq_pct: humanizePct(rawMarketSnapshot.nasdaq_pct),
+      dow_pct: humanizePct(rawMarketSnapshot.dow_pct),
+    };
     console.log("✅ [generateBriefing] Market snapshot:", marketSnapshot);
 
     // =========================================================
@@ -1492,6 +1544,8 @@ Prioritize fresh intra-day developments. Avoid repeating details already covered
 
 2. RAPID FIRE MARKET/MACRO (80-120 words):
    - **MANDATORY SECTION. You MUST cover exactly 3 stories from the candidates below.**
+   - **These stories are MACRO/MARKET news — NOT about the listener's specific holdings.**
+   - Do NOT talk about ${earlyTickers.join(", ") || "the listener's portfolio stocks"} in this section. Their holdings are covered in the Portfolio section below.
    - Pick the 3 MOST IMPORTANT for a professional investor:
      • Market-moving impact > political noise
      • Macro themes > single-stock news
