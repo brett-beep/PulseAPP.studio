@@ -405,6 +405,28 @@ function calculateUrgencyScore(article: any, nowTimestamp: number): number {
   else if (category === "technology") score += 8;
   else if (category === "crypto") score += 8;
   
+  // 6. MARKET-MOVING CONTEXT CHECK (Bloomberg/WSJ approach)
+  // Political/social stories get demoted UNLESS they have financial context
+  const POLITICAL_SOCIAL_KEYWORDS = [
+    "trump", "biden", "white house", "president", "immigration", "crackdown",
+    "judge", "court", "ruling", "lawsuit", "protest", "election", "voting",
+    "congress", "senate", "representative", "governor", "police", "arrest",
+  ];
+  const FINANCIAL_CONTEXT_KEYWORDS = [
+    "market", "stock", "trading", "investor", "tariff", "trade", "economy",
+    "fed", "federal reserve", "rate", "inflation", "gdp", "earnings", "revenue",
+    "bond", "treasury", "dollar", "commodit", "oil", "gold", "bitcoin", "sector",
+  ];
+  
+  const hasPoliticalSocial = POLITICAL_SOCIAL_KEYWORDS.some(kw => text.includes(kw));
+  const hasFinancialContext = FINANCIAL_CONTEXT_KEYWORDS.some(kw => text.includes(kw));
+  
+  if (hasPoliticalSocial && !hasFinancialContext) {
+    // Political/social story with NO financial keywords → demote
+    score = Math.round(score * 0.5); // 50% penalty
+    console.log(`   ⬇️ Non-financial political/social story demoted: "${title.slice(0, 60)}..." (score: ${score})`);
+  }
+  
   return score;
 }
 
