@@ -1219,9 +1219,13 @@ Prioritize fresh intra-day developments. Avoid repeating details already covered
    - Connect to the listener's holdings if possible: "That's a tailwind for your NVDA position."
 
 3. RAPID FIRE MARKET/MACRO (80-120 words):
+   - **MANDATORY SECTION. You MUST cover exactly 3 stories from the candidates below.**
    - You're the editor. Below we provide ${rapidFireCandidatesForPrompt.length} breaking/macro story candidates.
-   - **Your job: Pick the 3 MOST IMPORTANT for a professional investor. Drop weak stories.**
-   - Editorial criteria (like Bloomberg): market-moving impact > political noise, macro themes > single-stock news, actionable intelligence > general interest.
+   - Pick the 3 MOST IMPORTANT for a professional investor using these criteria:
+     • Market-moving impact > political noise (prioritize Fed/inflation/jobs over immigration/judges)
+     • Macro themes > single-stock news (prioritize sector rotation over one company's earnings)
+     - Actionable intelligence > general interest (prioritize what helps trading decisions)
+   - **Even if all candidates are weak, you MUST still pick the 3 least weak.** NEVER skip this section.
    - One compact beat per story: what happened + why it matters for risk sentiment or sector flows.
    - Keep this punchy and high-signal. No deep dives here.
    - Use natural transitions, not robotic numbering.
@@ -1231,13 +1235,20 @@ ${rapidCueAnchors.map((c, i) => `     ${i + 1}) "${c}"`).join("\n")}
 
 4. YOUR PORTFOLIO (200-260 words — the heart of the briefing):
    - Cover EXACTLY 3 portfolio stories from the portfolio data below.
-   - DO NOT cover all of them. Silence is better than noise. Skip weak stories entirely.
+   - Pick the stories that give the listener ACTIONABLE INSIGHT, not filler.
    - For each story you include, follow this arc:
      a) THE SETUP (1 sentence): Create tension or curiosity. Why should they care?
      b) WHAT HAPPENED (1-2 sentences): Hard facts. Numbers. Specifics. No hedging.
-     c) SO WHAT FOR YOU (1 sentence): Direct connection to their holding. Concrete, not speculative. 
-        Good: "For your AAPL shares, stacked launch quarters like this have historically driven 5-8% bumps heading into Q2."
-        Bad: "This could potentially impact your portfolio performance and market sentiment."
+     c) SO WHAT FOR YOU (1 sentence): Direct connection to their holding. Concrete, not speculative.
+   
+   **GOOD example:**
+   "Shopify options traders are pricing in a move to $139 after earnings tomorrow — that's an 8% jump from here. The options market tends to be directional before earnings, and with yesterday's 8.7% surge on positive sentiment, your SHOP position is set up for a strong report."
+   
+   **BAD example (NEVER write like this):**
+   "The narrative across the streaming sector is shifting positively, particularly in the wake of pandemic recovery. Analysts are anticipating revenue growth as renewed interest in original content picks up, which should reflect favorably on your Warner Bros. Discovery holdings."
+   
+   Why the bad example is bad: Zero specifics, zero numbers, pure speculation ("shifting positively", "anticipating"), no concrete insight.
+   
    - Natural transitions between stories. No "Moving on..." or "Additionally..."
    - Say "your [COMPANY] position" naturally (e.g., "your Shopify position"), not raw ticker symbols.
    - For each portfolio story, start with its cue anchor verbatim (exact text).
