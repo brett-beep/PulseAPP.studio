@@ -771,9 +771,9 @@ function transformArticleForBriefing(article: any, userTickers: string[]): any {
       ? new Date(article.publishDate).toISOString()
       : new Date().toISOString(),
     provider: "finlight",
+    matched_tickers: matchedTickers,
     topics: [],
     sentiment_score: sentimentToNum(article.sentiment, article.confidence),
-    matched_tickers: matchedTickers,
   };
 }
 
@@ -918,6 +918,13 @@ async function refreshPortfolioNewsForBriefing(
         tickerCoverage.set(mt, current + 1);
       });
     }
+
+    // Log ticker coverage for debugging
+    console.log(`📊 [Ticker Coverage Check] Results:`);
+    tickers.forEach(t => {
+      const count = tickerCoverage.get(t) || 0;
+      console.log(`   ${t}: ${count} article${count !== 1 ? 's' : ''}`);
+    });
 
     // Identify tickers with insufficient coverage (< 2 articles)
     const uncoveredTickers = tickers.filter(t => (tickerCoverage.get(t) || 0) < 2);
@@ -1705,17 +1712,32 @@ Drop:
 STEP 2: NOW WRITE PORTFOLIO SECTION
 ═══════════════════════════════════════
 
-**You may ONLY use stories from the PORTFOLIO candidates below. These are the ONLY stories where you can mention ${earlyTickers.join(", ")}.**
+🚨 **CRITICAL ANTI-HALLUCINATION RULES** 🚨
+1. You may ONLY write about stories from the PORTFOLIO CANDIDATES list below
+2. NEVER make up news, earnings dates, analyst ratings, or price movements
+3. NEVER write generic filler like "remains stable" or "faces market volatility" without a specific news event
+4. If a candidate list is empty or has fewer than 3 stories, you MUST skip those holdings entirely
+5. Every sentence about a company MUST be traceable to a specific candidate story below
+
+**Holdings: ${earlyTickers.join(", ")}**
+**Available stories: ${portfolioNewsBatch.length}**
+
+${portfolioNewsBatch.length < 3 ? `
+⚠️ WARNING: Only ${portfolioNewsBatch.length} portfolio stories available. 
+You MUST write about ${portfolioNewsBatch.length} stories ONLY. 
+Do NOT mention holdings that have no stories below.
+Do NOT create generic market commentary for missing holdings.
+` : ""}
 
 **STYLE: Insightful. Forward-looking. Educational for investors.**
 - This is where you go deeper than rapid fire.
 - Give context, forward-looking analysis, and actionable takeaways.
 - Help the listener understand what this means for their holdings.
-- Target: 200-260 words total for all 3 stories.
+- Target: 200-260 words total for all stories.
 
 **Start this section with a clear transition:** "Now turning to your portfolio" or "Shifting to your holdings"
 
-**MANDATORY: Cover exactly 3 portfolio stories from the candidates below. Pick the stories that give the listener ACTIONABLE INSIGHT.**
+**MANDATORY: Cover ${Math.min(3, portfolioNewsBatch.length)} portfolio stories from the candidates below. Pick the stories that give the listener ACTIONABLE INSIGHT.**
 
 For each story, follow this arc:
 a) THE SETUP (1 sentence): Create tension or curiosity. Why should they care?
@@ -1774,6 +1796,8 @@ Examples: "Go crush it today" / "Have a great week" / "Enjoy the rest of your Su
 - Roundup/recap articles ("Week in Review", "Weekend Round-Up")
 - Stretched connections: if you'd need to say "this doesn't directly affect your holdings but..." — DROP IT
 - Made-up consensus numbers, price targets, or dates
+- **NEVER fabricate news stories or make up events that aren't in the candidate lists**
+- **NEVER write generic filler like "remains stable" or "seeing increased demand" without a specific news source**
 - The phrase "Go crush it today" if it's evening — match the energy to the time of day
 - Events that already happened framed as "watch for this" — discuss implications instead
 
