@@ -801,8 +801,60 @@ function roundupPenaltyRefresh(story: any): number {
 }
 
 /**
+ * Fetch ticker news from Marketaux API (fallback source)
+ */
+async function fetchMarketauxTickerNewsForBriefing(
+  apiKey: string,
+  ticker: string,
+  hoursAgo: number
+): Promise<any[]> {
+  const MARKETAUX_API_BASE = "https://api.marketaux.com/v1/news/all";
+  const publishedAfter = new Date(Date.now() - hoursAgo * 60 * 60 * 1000).toISOString();
+  const url = new URL(MARKETAUX_API_BASE);
+  url.searchParams.set("symbols", ticker);
+  url.searchParams.set("language", "en");
+  url.searchParams.set("filter_entities", "true");
+  url.searchParams.set("limit", "8");
+  url.searchParams.set("published_after", publishedAfter);
+  url.searchParams.set("api_token", apiKey);
+
+  const response = await fetch(url.toString(), { method: "GET" });
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Marketaux failed: ${response.status} - ${errText}`);
+  }
+
+  const data = await response.json();
+  const rows = Array.isArray(data?.data) ? data.data : [];
+  
+  return rows.map((row: any) => {
+    const entities = Array.isArray(row?.entities) ? row.entities : [];
+    const matchedTickers = entities
+      .map((e: any) => (e?.symbol || e?.ticker || "").toUpperCase().trim())
+      .filter(Boolean);
+    if (!matchedTickers.includes(ticker)) matchedTickers.push(ticker);
+
+    return {
+      id: simpleHash(`${row?.url || ""}${row?.title || ""}`),
+      title: row?.title || "Breaking News",
+      what_happened: row?.description || row?.snippet || "",
+      summary: row?.description || row?.snippet || "",
+      href: row?.url || "#",
+      imageUrl: row?.image_url || "",
+      outlet: row?.source || row?.source_name || row?.domain || "Marketaux",
+      datetime: row?.published_at || row?.publishedAt || new Date().toISOString(),
+      category: "markets",
+      sentiment: row?.sentiment || "neutral",
+      matched_tickers: matchedTickers,
+      _provider: "marketaux",
+    };
+  });
+}
+
+/**
  * Pre-briefing portfolio refresh: Always fetch fresh ticker news from Finlight
  * before generating a briefing, so the content is never stale.
+ * If Finlight doesn't have coverage for a ticker, try Marketaux.
  * Updates UserNewsCache for the app as well.
  */
 async function refreshPortfolioNewsForBriefing(
@@ -852,6 +904,54 @@ async function refreshPortfolioNewsForBriefing(
     for (const story of transformed) {
       if (!deduped.some(existing => isSimilarTitle(existing.title, story.title))) {
         deduped.push(story);
+      }
+    }
+
+    // Check which tickers got coverage from Finlight
+    const tickerCoverage = new Map<string, number>();
+    tickers.forEach(t => tickerCoverage.set(t, 0));
+    
+    for (const story of deduped) {
+      const matchedTickers = story?.matched_tickers || [];
+      matchedTickers.forEach((mt: string) => {
+        const current = tickerCoverage.get(mt) || 0;
+        tickerCoverage.set(mt, current + 1);
+      });
+    }
+
+    // Identify tickers with insufficient coverage (< 2 articles)
+    const uncoveredTickers = tickers.filter(t => (tickerCoverage.get(t) || 0) < 2);
+    
+    if (uncoveredTickers.length > 0) {
+      console.log(`📉 [Pre-briefing refresh] ${uncoveredTickers.length} tickers with insufficient Finlight coverage: ${uncoveredTickers.join(", ")}`);
+      
+      const marketauxKey = Deno.env.get("MARKETAUX_API_KEY") || Deno.env.get("MARKETAUX_KEY") || "";
+      if (marketauxKey) {
+        console.log(`🔄 [Marketaux Fallback] Trying Marketaux for: ${uncoveredTickers.join(", ")}`);
+        
+        for (const ticker of uncoveredTickers) {
+          try {
+            const marketauxArticles = await fetchMarketauxTickerNewsForBriefing(marketauxKey, ticker, hoursAgo);
+            
+            if (marketauxArticles.length > 0) {
+              console.log(`✅ [Marketaux Fallback] Found ${marketauxArticles.length} articles for ${ticker}`);
+              
+              // Transform and add to deduped (avoiding duplicates)
+              for (const article of marketauxArticles) {
+                const transformed = transformArticleForBriefing(article, tickers);
+                if (!deduped.some(existing => isSimilarTitle(existing.title, transformed.title))) {
+                  deduped.push(transformed);
+                }
+              }
+            } else {
+              console.log(`⚠️ [Marketaux Fallback] No articles found for ${ticker}`);
+            }
+          } catch (marketauxErr: any) {
+            console.warn(`⚠️ [Marketaux Fallback] Failed for ${ticker}: ${marketauxErr.message}`);
+          }
+        }
+      } else {
+        console.log(`⚠️ [Marketaux Fallback] No MARKETAUX_API_KEY available`);
       }
     }
 
