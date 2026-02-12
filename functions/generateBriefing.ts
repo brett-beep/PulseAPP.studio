@@ -1351,10 +1351,14 @@ Deno.serve(async (req) => {
       return clean.substring(0, maxLen - 3) + "...";
     };
 
+    // Build ID sets for determining story type
+    const rapidFireIds = new Set(rapidFireCandidatesFinal.map((s: any) => s.id));
+    
     const allStories = allBriefingStories.map((story, index) => {
       const rawCat = safeText(story?.category, "default").toLowerCase();
       const category = allowedCats.has(rawCat) ? rawCat : "default";
-      const isRapidFire = index < 3;
+      // Determine if this is a rapid fire story by checking if its ID exists in the rapid fire candidates
+      const isRapidFire = rapidFireIds.has(story?.id);
 
       return {
         id: safeText(story?.id, randomId()),
@@ -1757,6 +1761,126 @@ RETURN FORMAT (JSON)
           scoredStoriesCount: scoredStories.length,
         },
       }, { status: 500 });
+    }
+
+    // =========================================================
+    // STEP 4B: MATCH TRANSCRIPT TO ACTUAL STORIES DISCUSSED
+    // Use LLM to identify which 6 stories were actually mentioned in the transcript.
+    // This ensures info cards always match what the LLM wrote about.
+    // =========================================================
+    console.log(`\n🔍 [Story Matching] Identifying which stories were actually discussed in transcript...`);
+    
+    // Build a candidate pool with all stories the LLM had access to
+    const allCandidatesForMatching = [
+      ...rapidFireCandidatesFinal.map((s: any) => ({
+        id: s.id,
+        title: s.title,
+        what_happened: s.what_happened || s.summary || "",
+        category: s.category,
+        outlet: s.outlet,
+        type: "rapid_fire"
+      })),
+      ...portfolioNewsBatch.map((s: any) => ({
+        id: s.id,
+        title: s.title,
+        what_happened: s.what_happened || s.summary || "",
+        category: s.category,
+        outlet: s.outlet || s.source,
+        type: "portfolio"
+      }))
+    ];
+
+    const matchingPrompt = `You are analyzing an audio briefing transcript to identify which news stories were actually discussed.
+
+TRANSCRIPT:
+${script}
+
+CANDIDATE STORIES (with IDs):
+${allCandidatesForMatching.map((s, i) => `
+[ID: ${s.id}]
+Title: ${s.title}
+Summary: ${s.what_happened}
+Type: ${s.type}
+`).join("\n")}
+
+TASK:
+Read the transcript carefully and identify which 6 stories from the candidates above were actually discussed.
+Return the story IDs in the ORDER they appear in the transcript (first discussed → last discussed).
+
+RULES:
+1. Match stories by MEANING, not exact wording (e.g., "Warner Bros" in transcript matches "WBD" in candidate)
+2. Return EXACTLY 6 story IDs (the briefing always covers 6 stories: 3 rapid fire + 3 portfolio)
+3. If you can only confidently identify 5 stories, include the 5 and pad with the most relevant unused candidate
+4. Order matters — the first ID should be the first story discussed, etc.
+
+Return in this JSON format:
+{
+  "story_ids": ["id1", "id2", "id3", "id4", "id5", "id6"],
+  "confidence": "high|medium|low"
+}`;
+
+    const matchingSchema = {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        story_ids: {
+          type: "array",
+          items: { type: "string" },
+          minItems: 6,
+          maxItems: 6
+        },
+        confidence: {
+          type: "string",
+          enum: ["high", "medium", "low"]
+        }
+      },
+      required: ["story_ids", "confidence"]
+    };
+
+    let matchedStoryIds: string[] = [];
+    try {
+      const matchResult = await invokeLLM(base44, matchingPrompt, false, matchingSchema);
+      matchedStoryIds = matchResult?.story_ids || [];
+      const confidence = matchResult?.confidence || "unknown";
+      
+      console.log(`✅ [Story Matching] LLM identified ${matchedStoryIds.length} stories (confidence: ${confidence})`);
+      matchedStoryIds.forEach((id, i) => {
+        const story = allCandidatesForMatching.find(s => s.id === id);
+        console.log(`   ${i + 1}. ${story ? story.title.slice(0, 60) : `Unknown ID: ${id}`}...`);
+      });
+
+      // Validate: ensure all IDs exist in candidates
+      const validIds = matchedStoryIds.filter(id => 
+        allCandidatesForMatching.some(s => s.id === id)
+      );
+      
+      if (validIds.length < 6) {
+        console.warn(`⚠️ [Story Matching] Only ${validIds.length}/6 IDs were valid. Falling back to pre-selected stories.`);
+        matchedStoryIds = []; // Trigger fallback
+      } else {
+        matchedStoryIds = validIds;
+      }
+    } catch (matchErr: any) {
+      console.error(`❌ [Story Matching] LLM matching failed: ${matchErr.message}`);
+      console.log(`   Falling back to pre-selected stories (rapid fire top 3 + portfolio top 3)`);
+    }
+
+    // Rebuild allBriefingStories using matched IDs (or fall back to original selection)
+    if (matchedStoryIds.length === 6) {
+      // SUCCESS: Use LLM-matched stories
+      const candidateMap = new Map();
+      rapidFireCandidatesFinal.forEach((s: any) => candidateMap.set(s.id, s));
+      portfolioNewsBatch.forEach((s: any) => candidateMap.set(s.id, s));
+      
+      allBriefingStories = matchedStoryIds
+        .map(id => candidateMap.get(id))
+        .filter(Boolean); // Remove any nulls
+      
+      console.log(`✅ [Story Matching] Using LLM-matched stories for info cards`);
+    } else {
+      // FALLBACK: Use original pre-selected stories
+      console.log(`📋 [Story Matching] Using pre-selected stories (original logic)`);
+      // allBriefingStories is already set from line 1327
     }
 
     // =========================================================
