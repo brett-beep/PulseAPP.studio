@@ -1507,91 +1507,167 @@ Keep it tight and energetic. Do NOT ramble. Hit every section with purpose.
 Prioritize fresh intra-day developments. Avoid repeating details already covered earlier today unless there is a materially new update.
 
 ──── VOICE & TONE ────
+- **Write like you're talking to a finance friend at a bar, not presenting at a conference.**
 - Sound like a sharp friend in finance, not a Bloomberg anchor.
-- Use contractions: "it's", "don't", "here's", "that's", "you're".
+- Use contractions: "it's", "don't", "here's", "that's", "you're", "won't".
 - Short punchy sentences. Then a longer one for depth. Then short again.
 - Have opinions: "This matters because..." not "This could potentially matter..."
 - Use dashes for natural pauses: "Apple's spring lineup — iPhone 17e, new iPads, refreshed Macs — is their biggest in two years."
+- **Avoid jargon when plain English is clearer:**
+  - Say "the market's betting" not "traders are pricing out"
+  - Say "won't cut rates anytime soon" not "near-term rate cuts"
+  - Say "makes stocks look more attractive" not "shifts the risk calculus"
+  - Say "took a hit" not "retreating" or "declining"
 - NO filler phrases: "in the current economic landscape", "a factor investors tend to monitor", "worth keeping an eye on"
 - NO hedge stacking: "could potentially", "might possibly", "may warrant"
 - ONE "could" or "may" per story MAX. State facts. Give insight. Move on.
 
-──── STRUCTURE (5 segments — STRICT ORDER) ────
+──── STRUCTURE ────
 
-**CRITICAL: Follow sections 1→2→3→4→5 in EXACT order. ALL rapid fire stories come BEFORE any portfolio stories. NEVER interleave them.**
+Write the script in EXACT order: Opening → Step 1 (Rapid Fire) → Step 2 (Portfolio) → One Thing to Watch → Sign-off.
 
-1. OPENING — HOOK + MARKET COLOR (50-80 words total, ONE paragraph):
-   Combine the greeting, market numbers, and market context into ONE seamless opening.
-   "${timeGreeting}, ${name}. [Weave market numbers into a natural sentence, then immediately add context.]"
-   ${isWeekend ? 'Add: "Hope the weekend\'s treating you well."' : ""}
-   
-   Market data: S&P ${marketSnapshot.sp500_pct}, Nasdaq ${marketSnapshot.nasdaq_pct}, Dow ${marketSnapshot.dow_pct}.
-   ${marketSnapshot.sector_hint ? `Sector signal: "${marketSnapshot.sector_hint}"` : ""}
-   
-   RULES:
-   - **Mention each index number EXACTLY ONCE. NEVER repeat them.**
-   - If a number is 0.0% or -0.0%, say "flat" or "unchanged" — do NOT say "zero percent" or "0.0%".
-   - After stating the numbers, immediately tell what's driving it (1-2 sentences of context).
-   - Connect to holdings if natural.
-   
-   **GOOD example:**
-   "${timeGreeting}, ${name}. Markets are holding steady today — the S&P flat, Nasdaq up three-tenths of a percent, and the Dow barely budging. Mixed signals across sectors, but tech is showing resilience — which is good news for your holdings. Here's your Pulse."
-   
-   **BAD example (NEVER do this):**
-   "${timeGreeting}, ${name}. The markets have taken a pause today with the S&P 500 flat.
-   The S&P is at +0.0%, the Nasdaq is up by +0.3%, and the Dow has barely budged at -0.0%."
-   ← Numbers mentioned TWICE. The S&P is described in both paragraphs. "0.0%" sounds robotic. NEVER do this.
+═══════════════════════════════════════
+SECTION 1: OPENING — HOOK + MARKET COLOR
+═══════════════════════════════════════
+(50-80 words total, ONE paragraph)
 
-2. RAPID FIRE MARKET/MACRO (80-120 words):
-   - **MANDATORY SECTION. You MUST cover exactly 3 stories from the candidates below.**
-   - **These stories are MACRO/MARKET news — NOT about the listener's specific holdings.**
-   - Do NOT talk about ${earlyTickers.join(", ") || "the listener's portfolio stocks"} in this section. Their holdings are covered in the Portfolio section below.
-   - Pick the 3 MOST IMPORTANT for a professional investor:
-     • Market-moving impact > political noise
-     • Macro themes > single-stock news
-     • Actionable intelligence > general interest
-   - **Even if all candidates are weak, you MUST still pick the 3 least weak.** NEVER skip this section.
-   - One compact beat per story: what happened + why it matters.
-   - **TRANSITIONS: Flow naturally between stories. Do NOT use rigid announcements like "Story one:" or "Next headline —".**
-     Each story should start with a SHORT transition phrase woven into the sentence itself:
-     • Story 1: use "first up" (e.g., "First up, Harley-Davidson reported...")
-     • Story 2: use "meanwhile" or "next up" (e.g., "Meanwhile, gold is ticking higher...")
-     • Story 3: use "and finally" or "also today" (e.g., "And finally, the latest tariff headlines...")
-     These phrases are used by our app to sync info cards with the audio — they MUST appear, but they should feel like natural speech, not robotic markers.
+Combine the greeting, market numbers, and market context into ONE seamless opening.
+"${timeGreeting}, ${name}. [Weave market numbers into a natural sentence, then immediately add context.]"
+${isWeekend ? 'Add: "Hope the weekend\'s treating you well."' : ""}
 
-3. YOUR PORTFOLIO (200-260 words — the heart of the briefing):
-   - **This section comes AFTER all rapid fire stories. Start it with a clear transition like "Now turning to your portfolio" or "Shifting to your holdings".**
-   - Cover EXACTLY 3 portfolio stories from the portfolio data below.
-   - Pick the stories that give the listener ACTIONABLE INSIGHT, not filler.
-   - For each story you include, follow this arc:
-     a) THE SETUP (1 sentence): Create tension or curiosity. Why should they care?
-     b) WHAT HAPPENED (1-2 sentences): Hard facts. Numbers. Specifics. No hedging.
-     c) SO WHAT FOR YOU (1 sentence): Direct connection to their holding. Concrete, not speculative.
-   
-   **GOOD example:**
-   "Now turning to your portfolio — Shopify options traders are pricing in a move to $139 after earnings tomorrow. That's an 8% jump from here, and with yesterday's 8.7% surge, your Shopify position is set up nicely heading into the report."
-   
-   **BAD example (NEVER write like this):**
-   "The narrative across the streaming sector is shifting positively, particularly in the wake of pandemic recovery. Analysts are anticipating revenue growth, which should reflect favorably on your Warner Bros. Discovery holdings."
-   Why bad: Zero specifics, zero numbers, pure speculation ("shifting positively"), no concrete insight.
-   
-   - Between portfolio stories, transition naturally: "Next up for your holdings," or "Looking at your [company] position," or "Shifting gears to [company],"
-   - Say "your [COMPANY] position" naturally (e.g., "your Shopify position"), not raw ticker symbols.
+Market data: S&P ${marketSnapshot.sp500_pct}, Nasdaq ${marketSnapshot.nasdaq_pct}, Dow ${marketSnapshot.dow_pct}.
+${marketSnapshot.sector_hint ? `Sector signal: "${marketSnapshot.sector_hint}"` : ""}
 
-4. ONE THING TO WATCH (30-50 words):
-   - One forward-looking item: earnings date, economic report, Fed meeting, etc.
-   - WHY it matters to their portfolio specifically.
-   - This creates a reason to tune in again tomorrow.
-   - CRITICAL: Do NOT recommend watching events that ALREADY HAPPENED. Check story ages.
+RULES:
+- **Mention each index number EXACTLY ONCE. NEVER repeat them.**
+- After stating the numbers, immediately tell what's driving it (1-2 sentences of context).
+- Connect to holdings if natural.
 
-5. SIGN-OFF (15-20 words):
-   "That's your Pulse for ${naturalDate}. [Confident, energetic closer], ${name}!"
-   Examples: "Go crush it today" / "Have a great week" / "Enjoy the rest of your Sunday"
+**GOOD example:**
+"${timeGreeting}, ${name}. Markets are holding steady today — the S&P flat, Nasdaq up three-tenths of a percent, and the Dow barely budging. Mixed signals across sectors, but tech is showing resilience — which is good news for your holdings. Here's your Pulse."
 
-──── KILL RULES (NEVER include these) ────
+═══════════════════════════════════════
+STEP 1: WRITE RAPID FIRE SECTION NOW
+═══════════════════════════════════════
+
+**CRITICAL: You may ONLY use stories from the MACRO/MARKET candidates below. Do NOT use ANY story from the portfolio data (that comes in Step 2).**
+
+**STYLE: Concise. Punchy. Impactful. Fast-paced.**
+- One tight beat per story: what happened + why it matters for market sentiment.
+- No deep dives — rapid fire means quick hits.
+- Target: 80-120 words total for all 3 stories.
+
+**MANDATORY: Cover exactly 3 stories from the candidates below. Even if all are weak, pick the 3 least weak.**
+
+**HARD RULE: Do NOT mention ${earlyTickers.join(", ") || "any of the listener's portfolio companies"} by name in this section. They are reserved for Step 2 (Portfolio).**
+Mentioning Warner Bros. Discovery, Johnson & Johnson, Shopify, Apple, or any other holding by name in this section makes the briefing invalid.
+
+**TRANSITIONS (required for info card sync):**
+- Story 1: use "first up" or "first up," (e.g., "First up, gold took a hit after today's strong jobs report...")
+- Story 2: use "meanwhile" or "next up" (e.g., "Meanwhile, the House passed legislation...")
+- Story 3: use "and finally" or "also today" (e.g., "And finally, cattle futures rallied...")
+These phrases MUST appear but should feel natural, not robotic.
+
+──── YOUR MACRO/MARKET CANDIDATES (${rapidFireCandidatesForPrompt.length} available — pick 3) ────
+
+${rapidFireCandidatesForPrompt
+  .map(
+    (s, i) => {
+      const whenPhrase = getStoryWhenPhrase(s.datetime, timeZone, s.ageHours);
+      return `
+Candidate ${i + 1}:
+Title: ${s.title}
+What Happened: ${s.what_happened}
+Source: ${s.outlet} | Category: ${s.category}
+Age: ${(s.ageHours || 0).toFixed(1)} hours ago
+When: "${whenPhrase}"
+Breaking Score: ${s.breakingScore}
+`;
+    }
+  )
+  .join("\n")}
+
+Pick the 3 most important:
+- Market-moving impact > political noise (Fed/inflation/jobs > immigration/judges)
+- Macro themes > single-stock news (sector rotation > one company's earnings)
+- Actionable intelligence > general interest
+
+Drop:
+- Pure politics with no market impact (immigration, protests, elections)
+- Weak macro (e.g., "Gold opened modestly higher")
+- Aviation/logistics minutiae
+
+═══════════════════════════════════════
+STEP 2: NOW WRITE PORTFOLIO SECTION
+═══════════════════════════════════════
+
+**You may ONLY use stories from the PORTFOLIO candidates below. These are the ONLY stories where you can mention ${earlyTickers.join(", ")}.**
+
+**STYLE: Insightful. Forward-looking. Educational for investors.**
+- This is where you go deeper than rapid fire.
+- Give context, forward-looking analysis, and actionable takeaways.
+- Help the listener understand what this means for their holdings.
+- Target: 200-260 words total for all 3 stories.
+
+**Start this section with a clear transition:** "Now turning to your portfolio" or "Shifting to your holdings"
+
+**MANDATORY: Cover exactly 3 portfolio stories from the candidates below. Pick the stories that give the listener ACTIONABLE INSIGHT.**
+
+For each story, follow this arc:
+a) THE SETUP (1 sentence): Create tension or curiosity. Why should they care?
+b) WHAT HAPPENED (1-2 sentences): Hard facts. Numbers. Specifics. No hedging.
+c) SO WHAT FOR YOU (1 sentence): Direct connection to their holding. Concrete, not speculative.
+
+**GOOD example:**
+"Now turning to your portfolio — Shopify options traders are pricing in a move to $139 after earnings tomorrow. That's an 8% jump from here, and with yesterday's 8.7% surge, your Shopify position is set up nicely heading into the report."
+
+**BAD example (NEVER write like this):**
+"The narrative across the streaming sector is shifting positively, particularly in the wake of pandemic recovery. Analysts are anticipating revenue growth, which should reflect favorably on your Warner Bros. Discovery holdings."
+Why bad: Zero specifics, zero numbers, pure speculation ("shifting positively"), no concrete insight.
+
+**TRANSITIONS between portfolio stories (required for info card sync):**
+- Story 1: already has "Now turning to your portfolio" intro
+- Story 2: use "next up for your holdings," or "looking at your [company]," or "shifting gears to [company],"
+- Story 3: use similar natural transitions
+These phrases MUST appear for card sync.
+
+Say "your [COMPANY] position" naturally (e.g., "your Shopify position"), not raw ticker symbols.
+
+──── YOUR PORTFOLIO CANDIDATES (${portfolioNewsBatch.length} available — pick 3) ────
+
+${portfolioNewsBatch
+  .map(
+    (s: any, i: number) => {
+      const whenPhrase = getStoryWhenPhrase(s.datetime, timeZone, s.ageHours);
+      return `
+Candidate ${i + 1}:
+Title: ${s.title || ""}
+Summary: ${s.what_happened || s.summary || ""}
+Source: ${s.outlet || s.source || "—"}
+When: ${whenPhrase}
+Age: ${((Date.now() - new Date(s.datetime || 0).getTime()) / (1000 * 60 * 60)).toFixed(1)}h
+`;
+    }
+  )
+  .join("\n")}
+
+═══════════════════════════════════════
+FINAL SECTIONS
+═══════════════════════════════════════
+
+**ONE THING TO WATCH (30-50 words):**
+- One forward-looking item: earnings date, economic report, Fed meeting, etc.
+- WHY it matters to their portfolio specifically.
+- This creates a reason to tune in again tomorrow.
+- CRITICAL: Do NOT recommend watching events that ALREADY HAPPENED. Check story ages.
+
+**SIGN-OFF (15-20 words):**
+"That's your Pulse for ${naturalDate}. [Confident, energetic closer], ${name}!"
+Examples: "Go crush it today" / "Have a great week" / "Enjoy the rest of your Sunday"
+
+──── KILL RULES (applies to ALL sections) ────
 - Stories with ZERO financial market impact (immigration rulings, election cases, protests, social issues)
 - Roundup/recap articles ("Week in Review", "Weekend Round-Up")
-- Stories about companies the listener DOESN'T hold, unless they're direct competitors or suppliers to a holding
 - Stretched connections: if you'd need to say "this doesn't directly affect your holdings but..." — DROP IT
 - Made-up consensus numbers, price targets, or dates
 - The phrase "Go crush it today" if it's evening — match the energy to the time of day
@@ -1605,58 +1681,6 @@ Prioritize fresh intra-day developments. Avoid repeating details already covered
 - Avoid nested clauses. Break them into separate sentences.
 - NEVER say "(NASDAQ:GOOGL)" or "(NYSE:AAPL)" or any exchange-prefixed ticker. Prefer company names in spoken output: "Meta", "your Shopify position".
 - Prefer company names over ticker symbols in spoken script (say "Shopify", not "SHOP").
-
-═══════════════════════════════════════
-DATA: BREAKING / MARKET NEWS CANDIDATES
-═══════════════════════════════════════
-You have ${rapidFireCandidatesForPrompt.length} candidates. **Pick the 3 most important for professional investors.**
-Drop stories that are:
-- Pure politics with no market impact (immigration, protests, elections unless they move markets)
-- Single-stock earnings misses/beats for companies the listener doesn't hold
-- Weak macro stories (e.g., "Gold opened modestly higher")
-- Aviation/logistics minutiae unless it signals broader economic trends
-
-Prioritize stories that are:
-- Fed policy, rate decisions, inflation data
-- Major earnings from market-leading companies
-- Sector rotation signals, broad market moves
-- Trade/tariff developments, geopolitical events that move oil/commodities
-- Major M&A, IPOs, bankruptcies
-
-${rapidFireCandidatesForPrompt
-  .map(
-    (s, i) => {
-      const whenPhrase = getStoryWhenPhrase(s.datetime, timeZone, s.ageHours);
-      return `
-Candidate ${i + 1}:
-Title: ${s.title}
-What Happened: ${s.what_happened}
-Source: ${s.outlet} | Category: ${s.category}
-Age: ${(s.ageHours || 0).toFixed(1)} hours ago
-When (USE this timing in the script): "${whenPhrase}"
-Relevant to holdings: ${s.relevantToUserHoldings}
-Breaking Score: ${s.breakingScore} (higher = more urgent/recent/impactful)
-`;
-    }
-  )
-  .join("\n")}
-
-═══════════════════════════════════════
-DATA: PORTFOLIO NEWS (${userHoldingsStr})
-═══════════════════════════════════════
-These are the TOP pre-scored articles for the listener's holdings. Pick the 2-3 best. Skip the rest.
-${portfolioNewsBatch
-  .map(
-    (s: any, i: number) => {
-      const whenPhrase = getStoryWhenPhrase(s.datetime, timeZone, s.ageHours);
-      return `
-[${i + 1}] ${s.title || ""}
-Summary: ${s.what_happened || s.summary || ""}
-Source: ${s.outlet || s.source || "—"} | When: ${whenPhrase}
-`;
-    }
-  )
-  .join("\n")}
 
 ═══════════════════════════════════════
 RETURN FORMAT (JSON)
