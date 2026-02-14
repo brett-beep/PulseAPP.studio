@@ -53,14 +53,7 @@ export default function NewsCard({ story, index }) {
 
     return (
         <article
-            className="group rounded-xl md:rounded-2xl p-4 md:p-5 transition-all duration-300 hover:scale-[1.01]"
-            style={{ 
-                background: 'rgba(255, 255, 255, 0.7)',
-                backdropFilter: 'blur(20px)',
-                WebkitBackdropFilter: 'blur(20px)',
-                border: '1px solid rgba(148, 163, 184, 0.12)',
-                boxShadow: '0 2px 12px -4px rgba(0, 0, 0, 0.06)',
-            }}
+            className="group rounded-xl md:rounded-2xl p-4 md:p-5 transition-all duration-300 hover:scale-[1.01] news-card-glass"
         >
             {/* Header Row */}
             <div className="flex items-center justify-between gap-2 md:gap-3 mb-2 md:mb-3">

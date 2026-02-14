@@ -376,25 +376,11 @@ export default function AudioPlayer({
       onPointerMove={onPointerMove}
       className="audio-player-controls relative overflow-visible md:overflow-hidden rounded-[32px] md:rounded-[40px] p-5 md:p-10"
       style={{
-        background: "linear-gradient(145deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.55) 100%)",
+        background: "var(--player-bg)",
         backdropFilter: "blur(60px) saturate(1.5) url(#container-glass)",
         WebkitBackdropFilter: "blur(60px) saturate(1.5)",
-        border: "0.5px solid rgba(255, 255, 255, 0.8)",
-        boxShadow: `
-          0 0 80px -20px hsla(25, 80%, 50%, 0.35),
-          0 0 60px -15px hsla(15, 70%, 55%, 0.25),
-          0 0 6px rgba(0,0,0,0.03),
-          0 2px 6px rgba(0,0,0,0.08),
-          inset 3px 3px 0.5px -3px rgba(0,0,0,0.9),
-          inset -3px -3px 0.5px -3px rgba(0,0,0,0.85),
-          inset 1px 1px 1px -0.5px rgba(0,0,0,0.6),
-          inset -1px -1px 1px -0.5px rgba(0,0,0,0.6),
-          inset 0 0 6px 6px rgba(0,0,0,0.12),
-          inset 0 0 2px 2px rgba(0,0,0,0.06),
-          0 0 12px rgba(255,255,255,0.15),
-          0 24px 70px -12px rgba(0,0,0,0.15),
-          0 8px 24px -8px rgba(0,0,0,0.08)
-        `,
+        border: "0.5px solid var(--player-border)",
+        boxShadow: "var(--player-glow)",
       }}
     >
       <GlassFilter />

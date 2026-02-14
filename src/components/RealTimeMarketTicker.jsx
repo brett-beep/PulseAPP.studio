@@ -256,7 +256,7 @@ export default function RealTimeMarketTicker({ watchlist = [] }) {
 
       {/* Divider */}
       {marketData.userStocks.length > 0 && (
-        <div className="h-3 md:h-4 w-px bg-slate-200 flex-shrink-0" />
+        <div className="h-3 md:h-4 w-px bg-slate-200 dark:bg-neutral-700 flex-shrink-0" />
       )}
 
       {/* User's Top 3 Stocks */}

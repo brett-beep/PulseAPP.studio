@@ -17,7 +17,7 @@ export default function KeyHighlights({ highlights = [] }) {
         <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-gradient-to-r from-slate-50 to-amber-50/50 rounded-xl md:rounded-2xl p-4 md:p-6 border border-slate-100"
+            className="bg-gradient-to-r from-slate-50 to-amber-50/50 dark:from-neutral-900 dark:to-neutral-800/60 rounded-xl md:rounded-2xl p-4 md:p-6 border border-slate-100 dark:border-neutral-700/50"
         >
             <div className="flex items-center gap-2 mb-3 md:mb-4">
                 <Zap className="h-3.5 w-3.5 md:h-4 md:w-4 text-amber-500" />
