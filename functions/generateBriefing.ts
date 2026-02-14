@@ -725,6 +725,7 @@ async function fetchFreshTickerNews(
       orderBy: "publishDate",
       order: "DESC",
       pageSize,
+      includeEntities: true,
     }),
   });
 
@@ -809,7 +810,8 @@ async function fetchMarketauxTickerNewsForBriefing(
   hoursAgo: number
 ): Promise<any[]> {
   const MARKETAUX_API_BASE = "https://api.marketaux.com/v1/news/all";
-  const publishedAfter = new Date(Date.now() - hoursAgo * 60 * 60 * 1000).toISOString();
+  // Marketaux requires format: Y-m-d\TH:i:s (no milliseconds, no timezone)
+  const publishedAfter = new Date(Date.now() - hoursAgo * 60 * 60 * 1000).toISOString().replace(/\.\d{3}Z$/, "");
   const url = new URL(MARKETAUX_API_BASE);
   url.searchParams.set("symbols", ticker);
   url.searchParams.set("language", "en");
