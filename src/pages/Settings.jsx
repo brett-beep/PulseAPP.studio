@@ -8,6 +8,17 @@ import { createPageUrl } from '@/utils';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import StockPicker from "@/components/StockPicker";
 import { 
     ArrowLeft, 
@@ -19,7 +30,8 @@ import {
     Save,
     Check,
     TrendingUp,
-    LogOut
+    LogOut,
+    Trash2
 } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { toast } from 'sonner';
@@ -38,6 +50,7 @@ const interestOptions = [
 export default function Settings() {
     const queryClient = useQueryClient();
     const { logout } = useAuth();
+    const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
     const handleLogout = () => {
         logout(true); // Pass true to redirect to landing page
@@ -80,6 +93,21 @@ export default function Settings() {
     const handleSave = () => {
         updateMutation.mutate(editedPrefs);
     };
+
+    const deleteAccountMutation = useMutation({
+        mutationFn: async () => {
+            return base44.functions.invoke("deleteAccount", {
+                confirm: true,
+            });
+        },
+        onSuccess: () => {
+            toast.success("Account data deleted. Signing you out.");
+            logout(true);
+        },
+        onError: (error) => {
+            toast.error(error?.message || "Could not delete account. Please try again.");
+        },
+    });
 
     const handleGoalToggle = (goal) => {
         setEditedPrefs(prev => ({
@@ -146,7 +174,7 @@ export default function Settings() {
                 </div>
             </header>
 
-            <main className="max-w-2xl mx-auto px-4 md:px-6 py-8 md:py-12 space-y-10 md:space-y-12">
+            <main className="max-w-2xl mx-auto px-4 md:px-6 py-8 md:py-12 space-y-10 md:space-y-12 pb-28 md:pb-12">
                 {/* Display Name */}
                 <motion.section
                     initial={{ opacity: 0, y: 20 }}
@@ -379,11 +407,75 @@ export default function Settings() {
 
                 <Separator />
 
-                {/* Logout Section */}
+                {/* Account Deletion */}
                 <motion.section
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.6 }}
+                >
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center">
+                            <Trash2 className="h-5 w-5 text-red-500" />
+                        </div>
+                        <div>
+                            <h2 className="font-semibold text-slate-900">Delete Account</h2>
+                            <p className="text-sm text-slate-500">Permanently delete your account data from PulseApp</p>
+                        </div>
+                    </div>
+
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button
+                                variant="outline"
+                                className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300"
+                            >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete My Account
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Delete your account?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This action is permanent. Type DELETE to confirm account data removal.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <input
+                                value={deleteConfirmText}
+                                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                                placeholder="Type DELETE"
+                                className="w-full px-3 py-2 rounded-md border border-slate-200 focus:outline-none focus:ring-2 focus:ring-red-200 focus:border-red-300"
+                            />
+                            <AlertDialogFooter>
+                                <AlertDialogCancel onClick={() => setDeleteConfirmText('')}>
+                                    Cancel
+                                </AlertDialogCancel>
+                                <AlertDialogAction
+                                    onClick={(e) => {
+                                        if (deleteConfirmText !== 'DELETE') {
+                                            e.preventDefault();
+                                            toast.error("Please type DELETE to confirm.");
+                                            return;
+                                        }
+                                        deleteAccountMutation.mutate();
+                                    }}
+                                    disabled={deleteAccountMutation.isPending}
+                                    className="bg-red-600 hover:bg-red-700"
+                                >
+                                    {deleteAccountMutation.isPending ? 'Deleting...' : 'Confirm Deletion'}
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                </motion.section>
+
+                <Separator />
+
+                {/* Logout Section */}
+                <motion.section
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.7 }}
                 >
                     <div className="flex items-center gap-3 mb-4">
                         <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center">
