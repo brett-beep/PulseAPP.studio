@@ -388,14 +388,14 @@ export default function AudioPlayer({
       <div
         className="pointer-events-none absolute inset-[0.5px] rounded-[31.5px] md:rounded-[39.5px]"
         style={{
-          background: "linear-gradient(180deg, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0) 50%)",
+          background: "var(--player-highlight)",
         }}
       />
       <div
         className="pointer-events-none absolute inset-[1px] rounded-[31px] md:rounded-[39px]"
         style={{
-          border: "0.5px solid rgba(0, 0, 0, 0.04)",
-          boxShadow: "inset 0 0 0 0.5px rgba(255, 255, 255, 0.5)",
+          border: `0.5px solid var(--player-inner-border-color)`,
+          boxShadow: "var(--player-inner-shadow)",
         }}
       />
 
@@ -404,7 +404,7 @@ export default function AudioPlayer({
         style={{
           "--highlight-x": sx,
           "--highlight-y": sy,
-          background: "radial-gradient(320px 240px at var(--highlight-x) var(--highlight-y), rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.25) 40%, transparent 70%)",
+          background: "radial-gradient(320px 240px at var(--highlight-x) var(--highlight-y), var(--player-pointer-glow) 0%, var(--player-pointer-mid) 40%, transparent 70%)",
           mixBlendMode: "overlay",
         }}
       />
