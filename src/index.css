@@ -117,12 +117,15 @@
   body,
   #root {
     min-height: 100%;
+    overscroll-behavior-y: none;
+    overscroll-behavior-x: none;
   }
 
   body {
     @apply bg-background text-foreground;
     padding-top: var(--safe-area-top, 0px);
     padding-right: var(--safe-area-right, 0px);
+    padding-bottom: var(--safe-area-bottom, 0px);
     padding-left: var(--safe-area-left, 0px);
   }
 }
@@ -231,8 +234,52 @@ html {
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not(.light) {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
     color-scheme: dark;
+  }
+}
+
+@supports (-webkit-touch-callout: none) {
+  html,
+  body,
+  #root,
+  .mobile-app-shell {
+    overscroll-behavior-y: none;
+    overscroll-behavior-x: none;
+    -webkit-touch-callout: none;
+    touch-action: pan-y;
   }
 }
 
@@ -304,4 +351,33 @@ html {
     color: rgb(217 119 6);
     background: rgba(251, 191, 36, 0.12);
   }
+}
+
+.dark .app-theme-surface .text-slate-900 {
+  color: hsl(var(--foreground));
+}
+
+.dark .app-theme-surface .text-slate-700,
+.dark .app-theme-surface .text-slate-600,
+.dark .app-theme-surface .text-slate-500 {
+  color: hsl(var(--muted-foreground));
+}
+
+.dark .app-theme-surface .text-slate-400 {
+  color: hsl(var(--muted-foreground) / 0.8);
+}
+
+.dark .app-theme-surface .bg-white\/80,
+.dark .app-theme-surface .bg-white\/70 {
+  background-color: hsl(var(--card) / 0.8);
+}
+
+.dark .app-theme-surface .bg-slate-50,
+.dark .app-theme-surface .bg-slate-100 {
+  background-color: hsl(var(--muted));
+}
+
+.dark .app-theme-surface .border-slate-100,
+.dark .app-theme-surface .border-slate-200 {
+  border-color: hsl(var(--border));
 }

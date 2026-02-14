@@ -22,6 +22,7 @@ const LayoutWrapper = ({ children, currentPageName }) => Layout ?
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
   const touchStartYRef = useRef(0);
+  const touchStartXRef = useRef(0);
 
   useEffect(() => {
     const isCoarseMobile = window.matchMedia('(max-width: 767px) and (pointer: coarse)').matches;
@@ -29,11 +30,16 @@ const AuthenticatedApp = () => {
 
     const onTouchStart = (event) => {
       touchStartYRef.current = event.touches?.[0]?.clientY ?? 0;
+      touchStartXRef.current = event.touches?.[0]?.clientX ?? 0;
     };
 
     const onTouchMove = (event) => {
       const currentY = event.touches?.[0]?.clientY ?? 0;
-      const isPullingDownAtTop = window.scrollY <= 0 && currentY > touchStartYRef.current;
+      const currentX = event.touches?.[0]?.clientX ?? 0;
+      const deltaY = currentY - touchStartYRef.current;
+      const deltaX = Math.abs(currentX - touchStartXRef.current);
+      const scrollTop = document.scrollingElement?.scrollTop ?? window.scrollY;
+      const isPullingDownAtTop = scrollTop <= 0 && deltaY > 8 && deltaY > deltaX;
       if (isPullingDownAtTop) {
         event.preventDefault();
       }

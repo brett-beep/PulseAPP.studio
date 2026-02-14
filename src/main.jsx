@@ -10,6 +10,7 @@ const applySystemTheme = () => {
   const useDark = savedTheme ? savedTheme === 'dark' : prefersDark;
 
   root.classList.toggle('dark', useDark);
+  root.classList.toggle('light', !useDark);
   root.style.colorScheme = useDark ? 'dark' : 'light';
 };
 
