@@ -144,16 +144,19 @@ export default function Settings() {
 
     if (isLoading || !editedPrefs) {
         return (
-            <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'hsl(45, 40%, 95%)' }}>
+            <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'hsl(var(--background))' }}>
                 <div className="animate-pulse text-slate-400">Loading...</div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen" style={{ backgroundColor: 'hsl(45, 40%, 95%)' }}>
+        <div className="min-h-screen" style={{ backgroundColor: 'hsl(var(--background))' }}>
             {/* Header */}
-            <header className="border-b border-slate-100 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
+            <header
+                className="border-b border-slate-100 bg-white/80 backdrop-blur-sm sticky top-0 z-50"
+                style={{ top: 'var(--safe-area-top)' }}
+            >
                 <div className="max-w-2xl mx-auto px-4 md:px-6 py-4 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-4">
                         <Link to={createPageUrl('Home')}>

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
@@ -20,6 +21,31 @@ const LayoutWrapper = ({ children, currentPageName }) => Layout ?
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
+  const touchStartYRef = useRef(0);
+
+  useEffect(() => {
+    const isCoarseMobile = window.matchMedia('(max-width: 767px) and (pointer: coarse)').matches;
+    if (!isCoarseMobile) return;
+
+    const onTouchStart = (event) => {
+      touchStartYRef.current = event.touches?.[0]?.clientY ?? 0;
+    };
+
+    const onTouchMove = (event) => {
+      const currentY = event.touches?.[0]?.clientY ?? 0;
+      const isPullingDownAtTop = window.scrollY <= 0 && currentY > touchStartYRef.current;
+      if (isPullingDownAtTop) {
+        event.preventDefault();
+      }
+    };
+
+    document.addEventListener('touchstart', onTouchStart, { passive: true });
+    document.addEventListener('touchmove', onTouchMove, { passive: false });
+    return () => {
+      document.removeEventListener('touchstart', onTouchStart);
+      document.removeEventListener('touchmove', onTouchMove);
+    };
+  }, []);
 
   // Show loading spinner while checking app public settings or auth
   if (isLoadingPublicSettings || isLoadingAuth) {

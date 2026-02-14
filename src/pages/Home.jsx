@@ -908,13 +908,16 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
     <div
       className="min-h-screen relative"
       style={{
-        backgroundColor: "hsl(45, 40%, 95%)",
+        backgroundColor: "hsl(var(--background))",
       }}
     >
       {/* Animated Aurora Background */}
       <AmbientAurora />
       {/* Header */}
-      <header className="border-b border-slate-100 bg-white/80 backdrop-blur-sm sticky top-0 z-50 overflow-hidden">
+      <header
+        className="border-b border-slate-100 bg-white/80 backdrop-blur-sm sticky top-0 z-50 overflow-hidden"
+        style={{ top: "var(--safe-area-top)" }}
+      >
         <div className="max-w-4xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between gap-3 min-w-0">
           <div className="flex items-center gap-3 min-w-0 flex-shrink">
             <div className="h-12 w-12 flex items-center justify-center overflow-hidden flex-shrink-0">
