@@ -66,11 +66,14 @@ Deno.serve(async (req) => {
       report.waitlistSignup = 0;
     }
 
+    // Final compliance step: permanently remove the auth identity itself.
+    await base44.auth.deleteMe();
+
     return Response.json(
       {
         success: true,
         deleted: report,
-        message: "Account data deleted successfully.",
+        message: "Account and user data deleted successfully.",
       },
       { headers },
     );
