@@ -374,7 +374,7 @@ export default function AudioPlayer({
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
       onPointerMove={onPointerMove}
-      className="relative overflow-visible md:overflow-hidden rounded-[32px] md:rounded-[40px] p-5 md:p-10"
+      className="audio-player-controls relative overflow-visible md:overflow-hidden rounded-[32px] md:rounded-[40px] p-5 md:p-10"
       style={{
         background: "linear-gradient(145deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.55) 100%)",
         backdropFilter: "blur(60px) saturate(1.5) url(#container-glass)",

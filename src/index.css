@@ -283,6 +283,17 @@ html {
   }
 }
 
+.mobile-tabbar,
+.mobile-tabbar *,
+.audio-player-controls,
+.audio-player-controls button,
+button,
+[role="button"] {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
 @media (max-width: 767px) and (pointer: coarse) {
   html,
   body,

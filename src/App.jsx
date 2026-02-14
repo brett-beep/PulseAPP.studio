@@ -34,6 +34,11 @@ const AuthenticatedApp = () => {
     };
 
     const onTouchMove = (event) => {
+      const inPullRefreshZone =
+        event.target instanceof Element &&
+        !!event.target.closest('[data-pull-refresh-zone="true"]');
+      if (inPullRefreshZone) return;
+
       const currentY = event.touches?.[0]?.clientY ?? 0;
       const currentX = event.touches?.[0]?.clientX ?? 0;
       const deltaY = currentY - touchStartYRef.current;

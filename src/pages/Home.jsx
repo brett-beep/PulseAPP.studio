@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
@@ -290,6 +290,12 @@ export default function Home() {
   const [lastExpandedSection, setLastExpandedSection] = useState("market"); // "market" | "portfolio" – whichever is expanded sits on top
 
   const [lastRefreshTime, setLastRefreshTime] = useState(null);
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isPullRefreshing, setIsPullRefreshing] = useState(false);
+  const pullStartYRef = useRef(0);
+  const isPullingRef = useRef(false);
+  const pullZoneRef = useRef(null);
+  const pullDistanceRef = useRef(0);
 
   // Countdown timer state for briefing limits (3 per day, 3-hour cooldown) - FREE USERS ONLY
   const [timeUntilNextBriefing, setTimeUntilNextBriefing] = useState(null);
@@ -664,7 +670,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
   }, [user, preferences?.onboarding_completed]);
 
   // Manual refresh for news cards
-  const refreshNewsCards = async () => {
+  const refreshNewsCards = useCallback(async () => {
     if (!user || !preferences?.onboarding_completed) return;
 
     const CACHE_KEY = `newsCards:${user.email}`;
@@ -715,7 +721,73 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
     } finally {
       setIsLoadingNews(false);
     }
-  };
+  }, [user, preferences]);
+
+  useEffect(() => {
+    const zone = pullZoneRef.current;
+    if (!zone) return;
+    const isCoarseMobile = window.matchMedia("(max-width: 767px) and (pointer: coarse)").matches;
+    if (!isCoarseMobile) return;
+
+    const THRESHOLD = 72;
+    const MAX_PULL = 120;
+
+    const onTouchStart = (event) => {
+      const scrollTop = document.scrollingElement?.scrollTop ?? window.scrollY;
+      if (scrollTop > 0 || isLoadingNews || isPullRefreshing) {
+        isPullingRef.current = false;
+        return;
+      }
+      pullStartYRef.current = event.touches?.[0]?.clientY ?? 0;
+      isPullingRef.current = true;
+    };
+
+    const onTouchMove = (event) => {
+      if (!isPullingRef.current) return;
+      const scrollTop = document.scrollingElement?.scrollTop ?? window.scrollY;
+      if (scrollTop > 0) return;
+
+      const currentY = event.touches?.[0]?.clientY ?? 0;
+      const delta = currentY - pullStartYRef.current;
+      if (delta <= 0) {
+        pullDistanceRef.current = 0;
+        setPullDistance(0);
+        return;
+      }
+      event.preventDefault();
+      const nextPull = Math.min(MAX_PULL, delta * 0.55);
+      pullDistanceRef.current = nextPull;
+      setPullDistance(nextPull);
+    };
+
+    const onTouchEnd = async () => {
+      if (!isPullingRef.current) return;
+      isPullingRef.current = false;
+
+      if (pullDistanceRef.current >= THRESHOLD && !isLoadingNews && !isPullRefreshing) {
+        setIsPullRefreshing(true);
+        try {
+          await refreshNewsCards();
+        } finally {
+          setIsPullRefreshing(false);
+        }
+      }
+      pullDistanceRef.current = 0;
+      setPullDistance(0);
+    };
+
+    zone.addEventListener("touchstart", onTouchStart, { passive: true });
+    zone.addEventListener("touchmove", onTouchMove, { passive: false });
+    zone.addEventListener("touchend", onTouchEnd, { passive: true });
+    zone.addEventListener("touchcancel", onTouchEnd, { passive: true });
+
+    return () => {
+      zone.removeEventListener("touchstart", onTouchStart);
+      zone.removeEventListener("touchmove", onTouchMove);
+      zone.removeEventListener("touchend", onTouchEnd);
+      zone.removeEventListener("touchcancel", onTouchEnd);
+    };
+  }, [refreshNewsCards, isLoadingNews, isPullRefreshing]);
 
   // Save preferences mutation
   const savePreferencesMutation = useMutation({
@@ -1001,11 +1073,31 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
 
         {/* NEWS CARDS – Market News + Your Portfolio */}
         <motion.section
+          ref={pullZoneRef}
+          data-pull-refresh-zone="true"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
           className="space-y-6"
+          style={{
+            transform: pullDistance > 0 ? `translateY(${Math.min(56, pullDistance)}px)` : "translateY(0px)",
+            transition: isPullingRef.current ? "none" : "transform 180ms ease",
+          }}
         >
+          <div className="md:hidden -mt-1 mb-1 h-8 flex items-center justify-center text-sm text-slate-500">
+            {isPullRefreshing ? (
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Refreshing
+              </span>
+            ) : pullDistance > 0 ? (
+              <span className="inline-flex items-center gap-2">
+                <RefreshCw className="w-4 h-4" />
+                {pullDistance >= 72 ? "Release to refresh" : "Pull to refresh"}
+              </span>
+            ) : null}
+          </div>
+
           <div className="flex items-center justify-between flex-wrap gap-y-1">
             <h2 className="text-lg md:text-xl font-semibold text-slate-900 shrink-0">News for You</h2>
             <div className="flex flex-col items-end gap-0.5">
@@ -1014,17 +1106,17 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
                   onClick={refreshNewsCards}
                   disabled={isLoadingNews}
                   title="Fetch latest news"
-                  className="text-xs md:text-sm text-amber-600 hover:text-amber-700 transition-colors disabled:opacity-50 flex items-center gap-1 shrink-0"
+                  className="min-h-11 px-2 rounded-md text-sm text-amber-600 hover:text-amber-700 transition-colors disabled:opacity-50 flex items-center gap-1 shrink-0 select-none"
                 >
                   {isLoadingNews ? <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 md:w-4 md:h-4" />}
                   Refresh
                 </button>
-                <span className="text-[10px] md:text-sm text-slate-400 shrink-0">
+                <span className="text-sm text-slate-400 shrink-0">
                   {marketStories.length + portfolioStories.length} stories
                 </span>
               </div>
               {lastRefreshTime && !isNaN(new Date(lastRefreshTime).getTime()) && (
-                <span className="text-xs text-slate-400">
+                <span className="text-sm text-slate-400">
                   Updated {formatDistanceToNow(lastRefreshTime, { addSuffix: true })}
                 </span>
               )}
