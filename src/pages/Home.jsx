@@ -1018,7 +1018,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 md:px-6 py-8 md:py-12 relative z-10">
+      <main className="max-w-4xl mx-auto px-4 md:px-6 py-8 md:py-12 relative z-10" style={{ overscrollBehavior: "none" }}>
         {/* AUDIO PLAYER */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
@@ -1059,7 +1059,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
             className="mb-12"
           >
             {todayBriefing?.summary ? (
-              <div className="bg-white rounded-2xl p-6 border border-slate-100 mb-6">
+              <div className="bg-white dark:bg-card rounded-2xl p-6 border border-slate-100 dark:border-border mb-6">
                 <FormattedSummary text={todayBriefing.summary} />
               </div>
             ) : null}

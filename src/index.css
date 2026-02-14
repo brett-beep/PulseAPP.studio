@@ -423,10 +423,77 @@ textarea,
 
 .mobile-app-shell {
   overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: none;
 }
 
 .mobile-safe-sticky {
   position: sticky;
   top: env(safe-area-inset-top, 0px);
   z-index: 50;
+}
+
+@media (max-width: 767px) and (pointer: coarse) {
+  .mobile-safe-sticky {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding-top: env(safe-area-inset-top, 0px);
+    z-index: 50;
+  }
+
+  .mobile-safe-sticky + * {
+    padding-top: calc(60px + env(safe-area-inset-top, 0px));
+  }
+
+  .mobile-tabbar {
+    background: rgba(255, 255, 255, 0.92);
+  }
+
+  .dark .mobile-tabbar {
+    background: rgba(10, 10, 10, 0.92);
+    border-top-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .dark .mobile-tabbar-item {
+    color: rgba(163, 163, 163, 0.9);
+  }
+
+  .dark .mobile-tabbar-item.is-active {
+    color: rgb(251 191 36);
+    background: rgba(251, 191, 36, 0.12);
+  }
+}
+
+/* Dark mode: remap inline-style-heavy components */
+.dark .audio-player-controls {
+  --glass-bg: rgba(30, 30, 30, 0.85);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-shadow: 0 0 80px -20px hsla(25, 80%, 50%, 0.25);
+}
+
+/* Optimistic UI: instant visual feedback on interactive elements */
+button:active,
+[role="button"]:active {
+  transform: scale(0.97);
+  transition: transform 60ms ease;
+}
+
+a:active {
+  opacity: 0.85;
+  transition: opacity 60ms ease;
+}
+
+/* Touch manipulation on all interactive elements for gesture suppression */
+a,
+button,
+[role="button"],
+input,
+select,
+textarea,
+label,
+summary {
+  touch-action: manipulation;
 }

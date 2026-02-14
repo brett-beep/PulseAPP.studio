@@ -84,9 +84,21 @@ export default function Settings() {
         mutationFn: async (prefs) => {
             return base44.entities.UserPreferences.update(preferences.id, prefs);
         },
-        onSuccess: () => {
+        onMutate: async (newPrefs) => {
+            await queryClient.cancelQueries({ queryKey: ['userPreferences'] });
+            const previous = queryClient.getQueryData(['userPreferences']);
+            queryClient.setQueryData(['userPreferences'], (old) => old ? { ...old, ...newPrefs } : old);
+            toast.success('Preferences saved');
+            return { previous };
+        },
+        onError: (_err, _newPrefs, context) => {
+            if (context?.previous) {
+                queryClient.setQueryData(['userPreferences'], context.previous);
+            }
+            toast.error('Save failed. Reverted.');
+        },
+        onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ['userPreferences'] });
-            toast.success('Preferences saved successfully');
         },
     });
 
