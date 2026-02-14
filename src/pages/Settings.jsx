@@ -153,7 +153,7 @@ export default function Settings() {
     return (
         <div className="min-h-screen app-theme-surface" style={{ backgroundColor: 'hsl(var(--background))' }}>
             {/* Header */}
-            <header className="border-b border-slate-100 bg-white/80 backdrop-blur-sm sticky top-[var(--safe-area-top)] z-50">
+            <header className="mobile-safe-sticky border-b border-slate-100 bg-white/80 backdrop-blur-sm">
                 <div className="max-w-2xl mx-auto px-4 md:px-6 py-4 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-4">
                         <Link to={createPageUrl('Home')}>

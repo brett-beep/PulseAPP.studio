@@ -5,13 +5,9 @@ import '@/index.css'
 
 const applySystemTheme = () => {
   const root = document.documentElement;
-  const savedTheme = window.localStorage.getItem('pulse-theme');
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const useDark = savedTheme ? savedTheme === 'dark' : prefersDark;
-
-  root.classList.toggle('dark', useDark);
-  root.classList.toggle('light', !useDark);
-  root.style.colorScheme = useDark ? 'dark' : 'light';
+  root.classList.toggle('dark', prefersDark);
+  root.style.colorScheme = prefersDark ? 'dark' : 'light';
 };
 
 applySystemTheme();
