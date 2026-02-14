@@ -802,6 +802,49 @@ function roundupPenaltyRefresh(story: any): number {
 }
 
 /**
+ * Fetch ticker news from NewsAPI (fallback when Marketaux returns 0)
+ * Uses ticker symbol + optional company name from user holdings for wider search.
+ */
+async function fetchNewsApiTickerNewsForBriefing(
+  apiKey: string,
+  ticker: string,
+  hoursAgo: number,
+  companyName?: string
+): Promise<any[]> {
+  const NEWSAPI_API_BASE = "https://newsapi.org/v2/everything";
+  const from = new Date(Date.now() - hoursAgo * 60 * 60 * 1000).toISOString();
+  // Build query: always include ticker, add company name if available from holdings
+  const query = companyName
+    ? `("${ticker}" OR "${companyName}")`
+    : `"${ticker}"`;
+
+  const url = new URL(NEWSAPI_API_BASE);
+  url.searchParams.set("q", query);
+  url.searchParams.set("language", "en");
+  url.searchParams.set("sortBy", "publishedAt");
+  url.searchParams.set("pageSize", "10");
+  url.searchParams.set("from", from);
+  url.searchParams.set("apiKey", apiKey);
+
+  const response = await fetch(url.toString(), { method: "GET" });
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`NewsAPI failed: ${response.status} - ${errText}`);
+  }
+
+  const data = await response.json();
+  const rows = Array.isArray(data?.articles) ? data.articles : [];
+  return rows.map((row: any) => ({
+    title: (row?.title || "Breaking News").trim(),
+    summary: (row?.description || row?.content || "").trim(),
+    link: row?.url || "#",
+    source: row?.source?.name || "NewsAPI",
+    publishDate: row?.publishedAt || new Date().toISOString(),
+    companies: [{ ticker }],
+  }));
+}
+
+/**
  * Fetch ticker news from Marketaux API (fallback source)
  */
 async function fetchMarketauxTickerNewsForBriefing(
@@ -954,6 +997,35 @@ async function refreshPortfolioNewsForBriefing(
               }
             } else {
               console.log(`⚠️ [Marketaux Fallback] No articles found for ${ticker}`);
+              // Try NewsAPI when Marketaux returns 0
+              const newsApiKey = Deno.env.get("NEWSAPI_API_KEY") || Deno.env.get("NEWSAPI_KEY") || "";
+              if (newsApiKey) {
+                try {
+                  // Look up company name from userHoldings for better NewsAPI search
+                  const holdingObj = userHoldings.find((h: any) => {
+                    const sym = (typeof h === "string" ? h : h?.symbol || h?.ticker || "").toUpperCase().trim();
+                    return sym === ticker;
+                  });
+                  const holdingName = typeof holdingObj === "object" ? (holdingObj?.name || "") : "";
+                  console.log(`🔄 [NewsAPI Fallback] Trying NewsAPI for: ${ticker}${holdingName ? ` ("${holdingName}")` : ""}`);
+                  const newsApiArticles = await fetchNewsApiTickerNewsForBriefing(newsApiKey, ticker, hoursAgo, holdingName || undefined);
+                  if (newsApiArticles.length > 0) {
+                    console.log(`✅ [NewsAPI Fallback] Found ${newsApiArticles.length} articles for ${ticker}`);
+                    for (const article of newsApiArticles) {
+                      const transformed = transformArticleForBriefing(article, tickers);
+                      if (!deduped.some(existing => isSimilarTitle(existing.title, transformed.title))) {
+                        deduped.push(transformed);
+                      }
+                    }
+                  } else {
+                    console.log(`⚠️ [NewsAPI Fallback] No articles found for ${ticker}`);
+                  }
+                } catch (newsApiErr: any) {
+                  console.warn(`⚠️ [NewsAPI Fallback] Failed for ${ticker}: ${newsApiErr.message}`);
+                }
+              } else {
+                console.log(`⚠️ [NewsAPI Fallback] No NEWSAPI_API_KEY available`);
+              }
             }
           } catch (marketauxErr: any) {
             console.warn(`⚠️ [Marketaux Fallback] Failed for ${ticker}: ${marketauxErr.message}`);
