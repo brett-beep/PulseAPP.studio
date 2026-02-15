@@ -27,10 +27,10 @@ export function LoginFormGlass() {
   };
 
   return (
-    <div className="w-full max-w-sm p-8 space-y-6 bg-white/10 backdrop-blur-lg rounded-2xl border border-white/20 shadow-2xl">
+    <div className="w-full max-w-sm p-8 space-y-6 bg-white/10 dark:bg-neutral-900/40 backdrop-blur-lg rounded-2xl border border-white/20 dark:border-neutral-700/30 shadow-2xl">
       <div className="text-center">
-        <h2 className="text-3xl font-bold text-white">Welcome Back</h2>
-        <p className="mt-2 text-sm text-gray-300">Sign in to continue</p>
+        <h2 className="text-3xl font-bold text-white dark:text-neutral-100">Welcome Back</h2>
+        <p className="mt-2 text-sm text-gray-300 dark:text-neutral-400">Sign in to continue</p>
       </div>
       <form className="space-y-8" onSubmit={handleSubmit}>
         {/* Email Input with Animated Label */}
@@ -40,13 +40,13 @@ export function LoginFormGlass() {
             id="floating_email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="block py-2.5 px-0 w-full text-sm text-white bg-transparent border-0 border-b-2 border-gray-300 appearance-none focus:outline-none focus:ring-0 focus:border-blue-500 peer"
+            className="block py-2.5 px-0 w-full text-sm text-white dark:text-neutral-100 bg-transparent border-0 border-b-2 border-gray-300 dark:border-neutral-600 appearance-none focus:outline-none focus:ring-0 focus:border-blue-500 dark:focus:border-blue-400 peer"
             placeholder=" "
             required
           />
           <label
             htmlFor="floating_email"
-            className="absolute text-sm text-gray-300 duration-300 transform -translate-y-6 scale-75 top-3 -z-10 origin-[0] peer-focus:left-0 peer-focus:text-blue-400 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-6"
+            className="absolute text-sm text-gray-300 dark:text-neutral-400 duration-300 transform -translate-y-6 scale-75 top-3 -z-10 origin-[0] peer-focus:left-0 peer-focus:text-blue-400 dark:peer-focus:text-blue-300 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-6"
           >
             <User className="inline-block mr-2 -mt-1" size={16} />
             Email Address
@@ -60,13 +60,13 @@ export function LoginFormGlass() {
             id="floating_password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="block py-2.5 px-0 w-full text-sm text-white bg-transparent border-0 border-b-2 border-gray-300 appearance-none focus:outline-none focus:ring-0 focus:border-blue-500 peer"
+            className="block py-2.5 px-0 w-full text-sm text-white dark:text-neutral-100 bg-transparent border-0 border-b-2 border-gray-300 dark:border-neutral-600 appearance-none focus:outline-none focus:ring-0 focus:border-blue-500 dark:focus:border-blue-400 peer"
             placeholder=" "
             required
           />
           <label
             htmlFor="floating_password"
-            className="absolute text-sm text-gray-300 duration-300 transform -translate-y-6 scale-75 top-3 -z-10 origin-[0] peer-focus:left-0 peer-focus:text-blue-400 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-6"
+            className="absolute text-sm text-gray-300 dark:text-neutral-400 duration-300 transform -translate-y-6 scale-75 top-3 -z-10 origin-[0] peer-focus:left-0 peer-focus:text-blue-400 dark:peer-focus:text-blue-300 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-6"
           >
             <Lock className="inline-block mr-2 -mt-1" size={16} />
             Password
@@ -74,7 +74,7 @@ export function LoginFormGlass() {
         </div>
 
         <div className="flex items-center justify-between">
-          <a href="#" className="text-xs text-gray-300 hover:text-white transition">
+          <a href="#" className="text-xs text-gray-300 dark:text-neutral-400 hover:text-white dark:hover:text-neutral-200 transition">
             Forgot Password?
           </a>
         </div>
@@ -82,7 +82,7 @@ export function LoginFormGlass() {
         <button
           type="submit"
           disabled={isLoading}
-          className="group w-full flex items-center justify-center py-3 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:cursor-not-allowed rounded-lg text-white font-semibold focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-blue-500 transition-all duration-300"
+          className="group w-full flex items-center justify-center py-3 px-4 bg-blue-600 dark:bg-blue-700 hover:bg-blue-700 dark:hover:bg-blue-600 disabled:bg-blue-800 dark:disabled:bg-blue-900 disabled:cursor-not-allowed rounded-lg text-white dark:text-neutral-50 font-semibold focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 dark:focus:ring-offset-neutral-950 focus:ring-blue-500 dark:focus:ring-blue-400 transition-all duration-300"
         >
           {isLoading ? "Signing In..." : "Sign In"}
           <ArrowRight className="ml-2 h-5 w-5 transform group-hover:translate-x-1 transition-transform" />
@@ -90,16 +90,16 @@ export function LoginFormGlass() {
 
         {/* Divider */}
         <div className="relative flex py-2 items-center">
-          <div className="flex-grow border-t border-gray-400/30"></div>
-          <span className="flex-shrink mx-4 text-gray-400 text-xs">OR CONTINUE WITH</span>
-          <div className="flex-grow border-t border-gray-400/30"></div>
+          <div className="flex-grow border-t border-gray-400/30 dark:border-neutral-600/30"></div>
+          <span className="flex-shrink mx-4 text-gray-400 dark:text-neutral-500 text-xs">OR CONTINUE WITH</span>
+          <div className="flex-grow border-t border-gray-400/30 dark:border-neutral-600/30"></div>
         </div>
 
         {/* Google Login Button */}
         <button
           type="button"
           onClick={handleGoogleLogin}
-          className="w-full flex items-center justify-center py-2.5 px-4 bg-white/90 hover:bg-white rounded-lg text-gray-700 font-semibold focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-blue-500 transition-all duration-300"
+          className="w-full flex items-center justify-center py-2.5 px-4 bg-white/90 dark:bg-neutral-800/90 hover:bg-white dark:hover:bg-neutral-700 rounded-lg text-gray-700 dark:text-neutral-200 font-semibold focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 dark:focus:ring-offset-neutral-950 focus:ring-blue-500 dark:focus:ring-blue-400 transition-all duration-300"
         >
           <svg className="w-5 h-5 mr-2" viewBox="0 0 48 48">
             <path
@@ -122,9 +122,9 @@ export function LoginFormGlass() {
           Sign in with Google
         </button>
       </form>
-      <p className="text-center text-xs text-gray-400">
+      <p className="text-center text-xs text-gray-400 dark:text-neutral-500">
         Don't have an account?{" "}
-        <a href="#" onClick={handleGoogleLogin} className="font-semibold text-blue-400 hover:text-blue-300 transition">
+        <a href="#" onClick={handleGoogleLogin} className="font-semibold text-blue-400 dark:text-blue-300 hover:text-blue-300 dark:hover:text-blue-200 transition">
           Sign Up
         </a>
       </p>

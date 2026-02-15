@@ -1,6 +1,22 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 
+// Hook to detect mobile devices
+const useIsMobile = () => {
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.matchMedia("(max-width: 767px) and (pointer: coarse)").matches)
+    }
+    checkMobile()
+    window.addEventListener("resize", checkMobile)
+    return () => window.removeEventListener("resize", checkMobile)
+  }, [])
+
+  return isMobile
+}
+
 // Vertex shader source code
 const vertexSmokeySource = `
   attribute vec4 a_position;
@@ -65,6 +81,7 @@ export function SmokeyBackground({
   const canvasRef = useRef(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [isHovering, setIsHovering] = useState(false);
+  const isMobile = useIsMobile();
 
   const hexToRgb = (hex) => {
     const r = parseInt(hex.substring(1, 3), 16) / 255;
@@ -74,6 +91,9 @@ export function SmokeyBackground({
   };
 
   useEffect(() => {
+    // Disable WebGL canvas on mobile for performance
+    if (isMobile) return;
+    
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -165,14 +185,14 @@ export function SmokeyBackground({
       canvas.removeEventListener("mouseenter", handleMouseEnter);
       canvas.removeEventListener("mouseleave", handleMouseLeave);
     };
-  }, [isHovering, mousePosition, color]);
+  }, [isHovering, mousePosition, color, isMobile]);
 
   const finalBlurClass = blurClassMap[backdropBlurAmount] || blurClassMap["sm"];
 
   return (
     <div className={`absolute inset-0 w-full h-full overflow-hidden ${className}`}>
-      <canvas ref={canvasRef} className="w-full h-full" />
-      <div className={`absolute inset-0 ${finalBlurClass}`}></div>
+      {!isMobile && <canvas ref={canvasRef} className="w-full h-full" />}
+      <div className={`absolute inset-0 ${finalBlurClass} ${isMobile ? 'bg-gradient-to-br from-blue-900/20 to-blue-950/30' : ''}`}></div>
     </div>
   );
 }

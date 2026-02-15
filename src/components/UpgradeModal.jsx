@@ -49,7 +49,7 @@ export default function UpgradeModal({ isOpen, onClose }) {
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto max-h-[100dvh]"
           >
-            <div className="bg-white dark:bg-neutral-900 rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden max-h-[calc(100dvh-2rem)] min-h-0 flex flex-col my-auto">
+            <div className="bg-white dark:bg-neutral-900 rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden min-h-0 flex flex-col my-auto" style={{ maxHeight: "calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 2rem)" }}>
               {/* Header */}
               <div className="relative bg-gradient-to-br from-amber-500 to-orange-600 p-6 md:p-8 text-white flex-shrink-0">
                 <button
@@ -83,22 +83,22 @@ export default function UpgradeModal({ isOpen, onClose }) {
                     transition={{ delay: i * 0.1 }}
                     className="flex items-center gap-3"
                   >
-                    <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
-                      <feature.icon className="h-5 w-5 text-amber-600" />
+                    <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                      <feature.icon className="h-5 w-5 text-amber-600 dark:text-amber-400" />
                     </div>
-                    <p className="text-slate-700">{feature.text}</p>
+                    <p className="text-slate-700 dark:text-neutral-300">{feature.text}</p>
                   </motion.div>
                 ))}
               </div>
 
               {/* Pricing */}
-              <div className="px-6 md:px-8 pb-6 md:pb-8">
-                <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-2xl p-6 mb-6">
+              <div className="px-6 md:px-8 pb-6 md:pb-8" style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}>
+                <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-neutral-800 dark:to-neutral-700 rounded-2xl p-6 mb-6">
                   <div className="flex items-baseline justify-center gap-2">
-                    <span className="text-4xl font-bold text-slate-900">$9.99</span>
-                    <span className="text-slate-600">/month</span>
+                    <span className="text-4xl font-bold text-slate-900 dark:text-neutral-100">$9.99</span>
+                    <span className="text-slate-600 dark:text-neutral-400">/month</span>
                   </div>
-                  <p className="text-center text-slate-500 text-sm mt-2">
+                  <p className="text-center text-slate-500 dark:text-neutral-400 text-sm mt-2">
                     Cancel anytime, no long-term commitment
                   </p>
                 </div>

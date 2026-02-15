@@ -52,6 +52,13 @@ export default function Settings() {
     const { logout } = useAuth();
     const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
+    // Page transition animation variants
+    const pageVariants = {
+        initial: { x: '100%', opacity: 0 },
+        enter: { x: 0, opacity: 1, transition: { type: 'tween', duration: 0.3, ease: 'easeOut' } },
+        exit: { x: '100%', opacity: 0, transition: { type: 'tween', duration: 0.25, ease: 'easeIn' } }
+    };
+
     const handleLogout = () => {
         logout(true); // Pass true to redirect to landing page
     };
@@ -163,9 +170,16 @@ export default function Settings() {
     }
 
     return (
-        <div className="min-h-screen app-theme-surface" style={{ backgroundColor: 'hsl(var(--background))' }}>
+        <motion.div 
+            className="min-h-screen app-theme-surface" 
+            style={{ backgroundColor: 'hsl(var(--background))' }}
+            variants={pageVariants}
+            initial="initial"
+            animate="enter"
+            exit="exit"
+        >
             {/* Header */}
-            <header className="mobile-safe-sticky backdrop-blur-sm" style={{ background: "var(--header-bg)", borderBottom: "1px solid var(--header-border)" }}>
+            <header className="mobile-safe-sticky backdrop-blur-sm" style={{ background: "var(--header-bg)", borderBottom: "1px solid var(--header-border)", paddingTop: "env(safe-area-inset-top, 0px)" }}>
                 <div className="max-w-2xl mx-auto px-4 md:px-6 py-4 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-4">
                         <Link to={createPageUrl('Home')}>
@@ -508,6 +522,6 @@ export default function Settings() {
                     </Button>
                 </motion.section>
             </main>
-        </div>
+        </motion.div>
     );
 }
