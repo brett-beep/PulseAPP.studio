@@ -540,7 +540,7 @@ export default function AudioPlayer({
                     <X className="w-4 h-4" />
                   </motion.button>
                 </div>
-                <div className="px-4 md:px-5 py-4 md:py-5 max-h-[280px] md:max-h-[320px] overflow-y-auto">
+                <div className="px-4 md:px-5 py-4 md:py-5 max-h-[280px] md:max-h-[320px] overflow-y-auto" data-allow-selection="true">
                   {transcript
                     .trim()
                     .split(/\n\n+/)
