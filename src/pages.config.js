@@ -47,15 +47,15 @@
  *
  * The mainPage value must match a key in the PAGES object exactly.
  */
-import Settings from './pages/Settings';
-import Home from './pages/Home';
 import AdminWaitlist from './pages/AdminWaitlist';
+import Home from './pages/Home';
+import Settings from './pages/Settings';
 
 
 export const PAGES = {
-    "Settings": Settings,
+    "AdminWaitlist": AdminWaitlist,
     "Home": Home,
-    "admin/waitlist": AdminWaitlist,
+    "Settings": Settings,
 }
 
 export const pagesConfig = {
