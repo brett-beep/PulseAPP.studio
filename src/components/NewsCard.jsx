@@ -66,16 +66,16 @@ export default function NewsCard({ story, index }) {
             </div>
 
             {/* Title */}
-            <h3 className="text-sm md:text-base font-semibold text-slate-800 mb-2 leading-snug group-hover:text-amber-600 transition-colors line-clamp-2 md:line-clamp-none">
+            <h3 className="text-sm md:text-base font-semibold text-slate-800 dark:text-neutral-100 mb-2 leading-snug group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors line-clamp-2 md:line-clamp-none">
                 {story.title}
             </h3>
 
             {/* Description */}
             <div className="mb-2 md:mb-3">
                 {isExpanded ? (
-                    <p className="text-slate-600 text-xs md:text-sm leading-relaxed">{expandedText}</p>
+                    <p className="text-slate-600 dark:text-neutral-400 text-xs md:text-sm leading-relaxed">{expandedText}</p>
                 ) : (
-                    <p className="text-slate-500 text-xs md:text-sm leading-relaxed line-clamp-3">{descriptionText}</p>
+                    <p className="text-slate-500 dark:text-neutral-400 text-xs md:text-sm leading-relaxed line-clamp-3">{descriptionText}</p>
                 )}
                 {needsExpansion && (
                     <button
@@ -85,7 +85,7 @@ export default function NewsCard({ story, index }) {
                             e.preventDefault();
                             setIsExpanded(!isExpanded);
                         }}
-                        className="text-xs md:text-sm font-medium text-amber-600 hover:text-amber-700 transition-colors mt-1.5 md:mt-2 inline-flex items-center gap-1"
+                        className="text-xs md:text-sm font-medium text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 transition-colors mt-1.5 md:mt-2 inline-flex items-center gap-1"
                     >
                         {isExpanded ? "Show less" : "Read more"}
                     </button>
@@ -94,10 +94,10 @@ export default function NewsCard({ story, index }) {
 
             {/* Why It Matters */}
             {whyItMattersText && (
-                <div className="pt-2 md:pt-3 border-t border-slate-100/80">
+                <div className="pt-2 md:pt-3 border-t border-slate-100/80 dark:border-neutral-700/50">
                     <div className="flex items-start gap-2">
                         <div className="w-1 h-1 bg-amber-400 rounded-full mt-[6px] md:mt-[7px] flex-shrink-0" />
-                        <p className="text-[11px] md:text-xs text-slate-500 leading-relaxed">
+                        <p className="text-[11px] md:text-xs text-slate-500 dark:text-neutral-500 leading-relaxed">
                             {whyItMattersText}
                         </p>
                     </div>

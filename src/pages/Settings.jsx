@@ -165,7 +165,7 @@ export default function Settings() {
     return (
         <div className="min-h-screen app-theme-surface" style={{ backgroundColor: 'hsl(var(--background))' }}>
             {/* Header */}
-            <header className="mobile-safe-sticky border-b border-slate-100 bg-white/80 backdrop-blur-sm">
+            <header className="mobile-safe-sticky backdrop-blur-sm" style={{ background: "var(--header-bg)", borderBottom: "1px solid var(--header-border)" }}>
                 <div className="max-w-2xl mx-auto px-4 md:px-6 py-4 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-4">
                         <Link to={createPageUrl('Home')}>
@@ -193,7 +193,7 @@ export default function Settings() {
                     animate={{ opacity: 1, y: 0 }}
                 >
                     <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center">
+                        <div className="w-10 h-10 bg-slate-50 dark:bg-neutral-800 rounded-xl flex items-center justify-center">
                             <span className="text-lg">👋</span>
                         </div>
                         <div>
@@ -206,7 +206,7 @@ export default function Settings() {
                         value={editedPrefs.display_name || ''}
                         onChange={(e) => setEditedPrefs(prev => ({ ...prev, display_name: e.target.value }))}
                         placeholder="Enter your name"
-                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 transition-all"
+                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 focus:border-amber-500 dark:focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 dark:focus:ring-amber-400/20 transition-all"
                     />
                 </motion.section>
 
@@ -219,7 +219,7 @@ export default function Settings() {
                     transition={{ delay: 0.1 }}
                 >
                     <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center">
+                        <div className="w-10 h-10 bg-amber-50 dark:bg-amber-900/30 rounded-xl flex items-center justify-center">
                             <Target className="h-5 w-5 text-amber-500" />
                         </div>
                         <div>
@@ -234,8 +234,8 @@ export default function Settings() {
                                 onClick={() => handleGoalToggle(goal)}
                                 className={`px-4 py-2 rounded-full border transition-all ${
                                     editedPrefs.investment_goals?.includes(goal)
-                                        ? 'border-amber-500 bg-amber-50 text-amber-700'
-                                        : 'border-slate-200 hover:border-slate-300 text-slate-600'
+                                        ? 'border-amber-500 bg-amber-50 text-amber-700 dark:border-amber-400 dark:bg-amber-400/12 dark:text-amber-400'
+                                        : 'border-slate-200 hover:border-slate-300 text-slate-600 dark:border-neutral-700 dark:hover:border-neutral-600 dark:text-neutral-400'
                                 }`}
                             >
                                 {editedPrefs.investment_goals?.includes(goal) && (
@@ -256,7 +256,7 @@ export default function Settings() {
                     transition={{ delay: 0.2 }}
                 >
                     <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
+                        <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/30 rounded-xl flex items-center justify-center">
                             <Shield className="h-5 w-5 text-blue-500" />
                         </div>
                         <div>
@@ -271,14 +271,14 @@ export default function Settings() {
                                 onClick={() => setEditedPrefs(prev => ({ ...prev, risk_tolerance: level }))}
                                 className={`p-4 rounded-xl border-2 transition-all ${
                                     editedPrefs.risk_tolerance === level
-                                        ? 'border-amber-500 bg-amber-50'
-                                        : 'border-slate-200 hover:border-slate-300'
+                                        ? 'border-amber-500 bg-amber-50 dark:border-amber-400 dark:bg-amber-400/12'
+                                        : 'border-slate-200 hover:border-slate-300 dark:border-neutral-700 dark:hover:border-neutral-600'
                                 }`}
                             >
                                 <div className="text-xl mb-2">
                                     {level === 'conservative' ? '🛡️' : level === 'moderate' ? '⚖️' : '🚀'}
                                 </div>
-                                <span className="font-medium capitalize text-slate-900">{level}</span>
+                                <span className="font-medium capitalize text-slate-900 dark:text-neutral-100">{level}</span>
                             </button>
                         ))}
                     </div>
@@ -293,7 +293,7 @@ export default function Settings() {
                     transition={{ delay: 0.3 }}
                 >
                     <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center">
+                        <div className="w-10 h-10 bg-purple-50 dark:bg-purple-900/30 rounded-xl flex items-center justify-center">
                             <Briefcase className="h-5 w-5 text-purple-500" />
                         </div>
                         <div>
@@ -308,8 +308,8 @@ export default function Settings() {
                                 onClick={() => handleInterestToggle(interest)}
                                 className={`px-3 py-1.5 rounded-full border text-sm transition-all ${
                                     editedPrefs.investment_interests?.includes(interest)
-                                        ? 'border-amber-500 bg-amber-50 text-amber-700'
-                                        : 'border-slate-200 hover:border-slate-300 text-slate-600'
+                                        ? 'border-amber-500 bg-amber-50 text-amber-700 dark:border-amber-400 dark:bg-amber-400/12 dark:text-amber-400'
+                                        : 'border-slate-200 hover:border-slate-300 text-slate-600 dark:border-neutral-700 dark:hover:border-neutral-600 dark:text-neutral-400'
                                 }`}
                             >
                                 {editedPrefs.investment_interests?.includes(interest) && (
@@ -330,7 +330,7 @@ export default function Settings() {
                     transition={{ delay: 0.4 }}
                 >
                     <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center">
+                        <div className="w-10 h-10 bg-green-50 dark:bg-green-900/30 rounded-xl flex items-center justify-center">
                             <TrendingUp className="h-5 w-5 text-green-500" />
                         </div>
                         <div>
@@ -358,7 +358,7 @@ export default function Settings() {
                     transition={{ delay: 0.5 }}
                 >
                     <div className="flex items-start gap-3 mb-6">
-                        <div className="w-10 h-10 bg-cyan-50 rounded-xl flex items-center justify-center shrink-0">
+                        <div className="w-10 h-10 bg-cyan-50 dark:bg-cyan-900/30 rounded-xl flex items-center justify-center shrink-0">
                             <Mic className="h-5 w-5 text-cyan-500" />
                         </div>
                         <div className="min-w-0 flex-1">
@@ -381,12 +381,12 @@ export default function Settings() {
                                         onClick={() => setEditedPrefs(prev => ({ ...prev, briefing_length: opt.value }))}
                                         className={`p-3 rounded-xl border-2 transition-all flex items-center justify-center gap-2 ${
                                             editedPrefs.briefing_length === opt.value
-                                                ? 'border-amber-500 bg-amber-50'
-                                                : 'border-slate-200 hover:border-slate-300'
+                                                ? 'border-amber-500 bg-amber-50 dark:border-amber-400 dark:bg-amber-400/12'
+                                                : 'border-slate-200 hover:border-slate-300 dark:border-neutral-700 dark:hover:border-neutral-600'
                                         }`}
                                     >
-                                        <Clock className="h-4 w-4 text-slate-400 shrink-0" />
-                                        <span className="font-medium text-slate-900 text-sm sm:text-base">{opt.label}</span>
+                                        <Clock className="h-4 w-4 text-slate-400 dark:text-neutral-500 shrink-0" />
+                                        <span className="font-medium text-slate-900 dark:text-neutral-100 text-sm sm:text-base">{opt.label}</span>
                                     </button>
                                 ))}
                             </div>
@@ -405,11 +405,11 @@ export default function Settings() {
                                         onClick={() => setEditedPrefs(prev => ({ ...prev, preferred_voice: opt.value }))}
                                         className={`p-3 rounded-xl border-2 transition-all ${
                                             editedPrefs.preferred_voice === opt.value
-                                                ? 'border-amber-500 bg-amber-50'
-                                                : 'border-slate-200 hover:border-slate-300'
+                                                ? 'border-amber-500 bg-amber-50 dark:border-amber-400 dark:bg-amber-400/12'
+                                                : 'border-slate-200 hover:border-slate-300 dark:border-neutral-700 dark:hover:border-neutral-600'
                                         }`}
                                     >
-                                        <span className="font-medium text-slate-900 text-sm sm:text-base block text-center">{opt.label}</span>
+                                        <span className="font-medium text-slate-900 dark:text-neutral-100 text-sm sm:text-base block text-center">{opt.label}</span>
                                     </button>
                                 ))}
                             </div>
@@ -426,7 +426,7 @@ export default function Settings() {
                     transition={{ delay: 0.6 }}
                 >
                     <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center">
+                        <div className="w-10 h-10 bg-red-50 dark:bg-red-900/30 rounded-xl flex items-center justify-center">
                             <Trash2 className="h-5 w-5 text-red-500" />
                         </div>
                         <div>
@@ -456,7 +456,7 @@ export default function Settings() {
                                 value={deleteConfirmText}
                                 onChange={(e) => setDeleteConfirmText(e.target.value)}
                                 placeholder="Type DELETE"
-                                className="w-full px-3 py-2 rounded-md border border-slate-200 focus:outline-none focus:ring-2 focus:ring-red-200 focus:border-red-300"
+                                className="w-full px-3 py-2 rounded-md border border-slate-200 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-red-200 dark:focus:ring-red-800 focus:border-red-300 dark:focus:border-red-600"
                             />
                             <AlertDialogFooter>
                                 <AlertDialogCancel onClick={() => setDeleteConfirmText('')}>
@@ -490,7 +490,7 @@ export default function Settings() {
                     transition={{ delay: 0.7 }}
                 >
                     <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center">
+                        <div className="w-10 h-10 bg-red-50 dark:bg-red-900/30 rounded-xl flex items-center justify-center">
                             <LogOut className="h-5 w-5 text-red-500" />
                         </div>
                         <div>

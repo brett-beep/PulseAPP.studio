@@ -69,7 +69,7 @@ function FormattedSummary({ text }) {
 
   // If no headers found, just return clean text
   if (headerPositions.length === 0) {
-    return <p className="text-slate-700 leading-relaxed">{text.replace(/\*\*/g, '')}</p>;
+    return <p className="text-slate-700 dark:text-neutral-300 leading-relaxed">{text.replace(/\*\*/g, '')}</p>;
   }
 
   // Build sections from header positions
@@ -101,15 +101,15 @@ function FormattedSummary({ text }) {
       {sections.map((section, index) => (
         section.type === 'section' ? (
           <div key={index} className="space-y-2">
-            <h4 className="text-sm font-semibold text-amber-600 uppercase tracking-wide">
+            <h4 className="text-sm font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wide">
               {section.title}
             </h4>
-            <p className="text-slate-700 leading-relaxed">
+            <p className="text-slate-700 dark:text-neutral-300 leading-relaxed">
               {section.content}
             </p>
           </div>
         ) : (
-          <p key={index} className="text-slate-700 leading-relaxed">
+          <p key={index} className="text-slate-700 dark:text-neutral-300 leading-relaxed">
             {section.content}
           </p>
         )
@@ -126,9 +126,9 @@ function MarketSection({ marketSectionOpen, setMarketSectionOpen, setLastExpande
       className={`rounded-3xl overflow-hidden ${marketSectionOpen || isSecond ? "lg:col-span-2" : ""}`}
       style={{
         order: gridOrder,
-        background: "linear-gradient(145deg, rgba(255,255,255,0.94) 0%, rgba(224, 242, 254, 0.35) 50%, rgba(248,250,252,0.9) 100%)",
-        border: "1px solid rgba(148, 163, 184, 0.14)",
-        boxShadow: "0 0 48px -10px rgba(96, 165, 250, 0.22), 0 4px 20px -8px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.85)",
+        background: "var(--section-market-bg)",
+        border: "1px solid var(--section-border)",
+        boxShadow: "var(--section-market-shadow)",
       }}
     >
       <motion.div layout={false} className="flex-shrink-0">
@@ -155,7 +155,8 @@ function MarketSection({ marketSectionOpen, setMarketSectionOpen, setLastExpande
             <motion.div
               animate={{ rotate: marketSectionOpen ? 180 : 0 }}
               transition={{ duration: 0.2 }}
-              className="w-8 h-8 rounded-full bg-slate-100/80 flex items-center justify-center flex-shrink-0"
+              className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+              style={{ background: "var(--chevron-bg)" }}
             >
               <ChevronDown className="w-4 h-4 text-slate-500" />
             </motion.div>
@@ -178,7 +179,8 @@ function MarketSection({ marketSectionOpen, setMarketSectionOpen, setLastExpande
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.22, ease: SMOOTH_EASE }}
-          className="border-t border-slate-100/80 overflow-hidden"
+          className="overflow-hidden"
+          style={{ borderTop: "1px solid var(--section-divider)" }}
         >
           <motion.div
             initial={{ opacity: 0, y: -6 }}
@@ -206,9 +208,9 @@ function PortfolioSection({ portfolioSectionOpen, setPortfolioSectionOpen, setLa
       className={`rounded-3xl overflow-hidden ${portfolioSectionOpen || isSecond ? "lg:col-span-2" : ""}`}
       style={{
         order: gridOrder,
-        background: "linear-gradient(145deg, rgba(255,255,255,0.94) 0%, rgba(254, 243, 199, 0.35) 50%, rgba(255,251,235,0.9) 100%)",
-        border: "1px solid rgba(148, 163, 184, 0.14)",
-        boxShadow: "0 0 48px -10px rgba(251, 191, 36, 0.2), 0 4px 20px -8px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.85)",
+        background: "var(--section-portfolio-bg)",
+        border: "1px solid var(--section-border)",
+        boxShadow: "var(--section-portfolio-shadow)",
       }}
     >
       <motion.div layout={false} className="flex-shrink-0">
@@ -235,7 +237,8 @@ function PortfolioSection({ portfolioSectionOpen, setPortfolioSectionOpen, setLa
             <motion.div
               animate={{ rotate: portfolioSectionOpen ? 180 : 0 }}
               transition={{ duration: 0.2 }}
-              className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-slate-100/80 flex items-center justify-center flex-shrink-0"
+              className="w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center flex-shrink-0"
+              style={{ background: "var(--chevron-bg)" }}
             >
               <ChevronDown className="w-3.5 h-3.5 md:w-4 md:h-4 text-slate-500" />
             </motion.div>
@@ -258,7 +261,8 @@ function PortfolioSection({ portfolioSectionOpen, setPortfolioSectionOpen, setLa
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.22, ease: SMOOTH_EASE }}
-          className="border-t border-slate-100/80 overflow-hidden"
+          className="overflow-hidden"
+          style={{ borderTop: "1px solid var(--section-divider)" }}
         >
           <motion.div
             initial={{ opacity: 0, y: -6 }}
@@ -897,7 +901,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
   // Loading state
   if (userLoading || prefsLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white p-4 md:p-6">
+      <div className="min-h-screen p-4 md:p-6" style={{ background: "var(--loading-skeleton-bg)" }}>
         <div className="max-w-4xl mx-auto space-y-6 md:space-y-8">
           <Skeleton className="h-12 w-64" />
           <Skeleton className="h-64 w-full rounded-3xl" />
@@ -986,7 +990,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
       {/* Animated Aurora Background */}
       <AmbientAurora />
       {/* Header */}
-      <header className="mobile-safe-sticky border-b border-slate-100 bg-white/80 backdrop-blur-sm">
+      <header className="mobile-safe-sticky backdrop-blur-sm" style={{ background: "var(--header-bg)", borderBottom: "1px solid var(--header-border)" }}>
         <div className="max-w-4xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between gap-3 min-w-0">
           <div className="flex items-center gap-3 min-w-0 flex-shrink">
             <div className="h-12 w-12 flex items-center justify-center overflow-hidden flex-shrink-0">
@@ -1125,8 +1129,8 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
 
           {isLoadingNews ? (
             <div className="space-y-4">
-              <div className="rounded-2xl border border-slate-100 bg-white/70 overflow-hidden">
-                <div className="p-4 border-b border-slate-100">
+              <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid var(--section-border)", background: "var(--empty-card-bg)" }}>
+                <div className="p-4" style={{ borderBottom: "1px solid var(--section-border)" }}>
                   <Skeleton className="h-5 w-40" />
                 </div>
                 <div className="p-6 grid gap-4 md:grid-cols-2">
@@ -1137,7 +1141,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
               </div>
             </div>
           ) : !hasAnyNews ? (
-            <div className="rounded-2xl border border-slate-100 bg-white/70 p-8 text-center">
+            <div className="rounded-2xl p-8 text-center" style={{ border: "1px solid var(--section-border)", background: "var(--empty-card-bg)" }}>
               <p className="text-slate-600">
                 No news available yet. Check back in a few minutes or try refreshing.
               </p>

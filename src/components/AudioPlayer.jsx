@@ -521,12 +521,14 @@ export default function AudioPlayer({
               className="mb-6"
             >
               <div
-                className="rounded-2xl border border-slate-200/80 bg-slate-50/95 backdrop-blur-sm overflow-hidden"
+                className="rounded-2xl overflow-hidden"
                 style={{
-                  boxShadow: "0 4px 24px -4px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.8)",
+                  background: "var(--transcript-bg)",
+                  border: "1px solid var(--transcript-border)",
+                  boxShadow: "var(--transcript-shadow)",
                 }}
               >
-                <div className="flex items-center justify-between px-4 md:px-5 py-2.5 md:py-3 border-b border-slate-200/80 bg-white/70">
+                <div className="flex items-center justify-between px-4 md:px-5 py-2.5 md:py-3" style={{ background: "var(--transcript-header-bg)", borderBottom: "1px solid var(--transcript-border)" }}>
                   <span className="text-[10px] md:text-xs font-semibold tracking-wider uppercase text-slate-500">Briefing transcript</span>
                   <motion.button
                     type="button"
@@ -594,13 +596,8 @@ export default function AudioPlayer({
                 padding: 0,
                 marginBottom: 60,
                 opacity: 0.75,
-                background: "rgba(240, 240, 240, 0.4)",
-                boxShadow: [
-                  "0 0 0 1px rgba(0, 0, 0, 0.05)",
-                  "0 0 50px 12px rgba(0, 0, 0, 0.18)",
-                  "0 0 85px 20px rgba(0, 0, 0, 0.12)",
-                  "0 0 120px 28px rgba(0, 0, 0, 0.08)",
-                ].join(", "),
+                background: "var(--infocard-bg)",
+                boxShadow: "var(--infocard-shadow)",
               }}
             >
               <AnimatePresence mode="wait">
@@ -621,14 +618,14 @@ export default function AudioPlayer({
                     />
                   </div>
                   <div className="flex-1 min-w-0 flex flex-col justify-center px-4 py-3 md:px-6 md:py-5">
-                    <p className="text-slate-800 text-xs md:text-[13px] font-semibold leading-tight drop-shadow-sm line-clamp-2 md:line-clamp-none" style={{ textShadow: "0 0 12px rgba(255,255,255,0.8)" }}>
+                    <p className="text-slate-800 text-xs md:text-[13px] font-semibold leading-tight drop-shadow-sm line-clamp-2 md:line-clamp-none" style={{ textShadow: "var(--infocard-text-shadow)" }}>
                       {currentSectionStory.title || currentSectionStory.what_happened || "This section"}
                     </p>
                     {sectionSummary && (
                       <div className="mt-1 max-w-xl">
                         <p
                           className={`text-slate-600 text-[11px] md:text-sm leading-snug drop-shadow-sm md:line-clamp-none ${infoCardExpanded ? "" : "line-clamp-3"}`}
-                          style={{ textShadow: "0 0 10px rgba(255,255,255,0.6)" }}
+                          style={{ textShadow: "var(--infocard-text-shadow-sm)" }}
                         >
                           {sectionSummary}
                         </p>
@@ -681,13 +678,13 @@ export default function AudioPlayer({
               onClick={toggleMute}
               className="w-14 h-14 rounded-full flex items-center justify-center"
               style={{
-                background: "rgba(255, 255, 255, 0.6)",
+                background: "var(--glass-btn-bg)",
                 backdropFilter: "blur(10px)",
-                border: "0.5px solid rgba(255, 255, 255, 0.8)",
-                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
+                border: `0.5px solid var(--glass-btn-border)`,
+                boxShadow: "var(--glass-btn-shadow)",
               }}
             >
-              {isMuted ? <VolumeX className="h-5 w-5 text-slate-600" /> : <Volume2 className="h-5 w-5 text-slate-600" />}
+              {isMuted ? <VolumeX className="h-5 w-5" style={{ color: "var(--glass-btn-icon)" }} /> : <Volume2 className="h-5 w-5" style={{ color: "var(--glass-btn-icon)" }} />}
             </motion.button>
             <AnimatePresence>
               {showVolumeSlider && (
@@ -698,10 +695,10 @@ export default function AudioPlayer({
                   transition={{ duration: 0.15 }}
                   className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 rounded-2xl px-3 py-4 flex flex-col items-center"
                   style={{
-                    background: "rgba(255, 255, 255, 0.95)",
+                    background: "var(--glass-popup-bg)",
                     backdropFilter: "blur(20px)",
-                    border: "0.5px solid rgba(255, 255, 255, 0.8)",
-                    boxShadow: "0 8px 24px rgba(0, 0, 0, 0.12), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
+                    border: `0.5px solid var(--glass-popup-border)`,
+                    boxShadow: "var(--glass-popup-shadow)",
                     height: "120px",
                     width: "40px",
                   }}
@@ -725,13 +722,13 @@ export default function AudioPlayer({
             onClick={() => skip(-15)}
             className="w-14 h-14 rounded-full flex items-center justify-center"
             style={{
-              background: "rgba(255, 255, 255, 0.6)",
+              background: "var(--glass-btn-bg)",
               backdropFilter: "blur(10px)",
-              border: "0.5px solid rgba(255, 255, 255, 0.8)",
-              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
+              border: `0.5px solid var(--glass-btn-border)`,
+              boxShadow: "var(--glass-btn-shadow)",
             }}
           >
-            <RotateCcw className="h-5 w-5 text-slate-600" />
+            <RotateCcw className="h-5 w-5" style={{ color: "var(--glass-btn-icon)" }} />
           </motion.button>
 
           <motion.button
@@ -770,13 +767,13 @@ export default function AudioPlayer({
             onClick={() => skip(30)}
             className="w-14 h-14 rounded-full flex items-center justify-center"
             style={{
-              background: "rgba(255, 255, 255, 0.6)",
+              background: "var(--glass-btn-bg)",
               backdropFilter: "blur(10px)",
-              border: "0.5px solid rgba(255, 255, 255, 0.8)",
-              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
+              border: `0.5px solid var(--glass-btn-border)`,
+              boxShadow: "var(--glass-btn-shadow)",
             }}
           >
-            <FastForward className="h-5 w-5 text-slate-600" />
+            <FastForward className="h-5 w-5" style={{ color: "var(--glass-btn-icon)" }} />
           </motion.button>
 
           <div className="relative">
@@ -786,13 +783,13 @@ export default function AudioPlayer({
               onClick={() => setShowSpeedMenu(!showSpeedMenu)}
               className="w-14 h-14 rounded-full flex items-center justify-center relative"
               style={{
-                background: "rgba(255, 255, 255, 0.6)",
+                background: "var(--glass-btn-bg)",
                 backdropFilter: "blur(10px)",
-                border: "0.5px solid rgba(255, 255, 255, 0.8)",
-                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
+                border: `0.5px solid var(--glass-btn-border)`,
+                boxShadow: "var(--glass-btn-shadow)",
               }}
             >
-              <Gauge className="h-5 w-5 text-slate-600" />
+              <Gauge className="h-5 w-5" style={{ color: "var(--glass-btn-icon)" }} />
               <span className="absolute -bottom-0 text-[10px] font-semibold text-slate-700">
                 {playbackRate}x
               </span>
@@ -807,10 +804,10 @@ export default function AudioPlayer({
                   transition={{ duration: 0.15 }}
                   className="absolute bottom-full mb-2 right-0 rounded-2xl overflow-hidden"
                   style={{
-                    background: "rgba(255, 255, 255, 0.95)",
+                    background: "var(--glass-popup-bg)",
                     backdropFilter: "blur(20px)",
-                    border: "0.5px solid rgba(255, 255, 255, 0.8)",
-                    boxShadow: "0 8px 24px rgba(0, 0, 0, 0.12), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
+                    border: `0.5px solid var(--glass-popup-border)`,
+                    boxShadow: "var(--glass-popup-shadow)",
                   }}
                 >
                   <div className="p-2 flex flex-col gap-1">
@@ -823,9 +820,9 @@ export default function AudioPlayer({
                         className="px-4 py-2 rounded-xl text-sm font-medium text-left transition-colors"
                         style={{
                           background: playbackRate === speed 
-                            ? "linear-gradient(135deg, rgba(230, 115, 26, 0.2) 0%, rgba(219, 114, 67, 0.2) 100%)"
+                            ? "var(--speed-active-bg)"
                             : "transparent",
-                          color: playbackRate === speed ? "rgb(219, 114, 67)" : "rgb(71, 85, 105)",
+                          color: playbackRate === speed ? "var(--speed-active-color)" : "var(--speed-inactive-color)",
                         }}
                       >
                         {speed}x
@@ -907,13 +904,13 @@ export default function AudioPlayer({
                   onClick={() => setShowControls(!showControls)}
                   className="w-12 h-12 rounded-full flex items-center justify-center shrink-0 justify-self-end"
                   style={{
-                    background: "rgba(255, 255, 255, 0.6)",
+                    background: "var(--glass-btn-bg)",
                     backdropFilter: "blur(10px)",
-                    border: "0.5px solid rgba(255, 255, 255, 0.8)",
-                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
+                    border: `0.5px solid var(--glass-btn-border)`,
+                    boxShadow: "var(--glass-btn-shadow)",
                   }}
                 >
-                  <Settings2 className="h-5 w-5 text-slate-600" />
+                  <Settings2 className="h-5 w-5" style={{ color: "var(--glass-btn-icon)" }} />
                 </button>
               </div>
 
@@ -996,10 +993,10 @@ export default function AudioPlayer({
                         transition={{ duration: 0.15 }}
                         className="absolute bottom-full mb-2 right-0 rounded-2xl px-3 py-4 flex flex-col items-center z-40"
                         style={{
-                          background: "rgba(255, 255, 255, 0.98)",
+                          background: "var(--glass-popup-bg)",
                           backdropFilter: "blur(20px)",
-                          border: "0.5px solid rgba(255, 255, 255, 0.8)",
-                          boxShadow: "0 8px 24px rgba(0, 0, 0, 0.12), inset 0 1px 1px rgba(255, 255, 255, 0.9)",
+                          border: `0.5px solid var(--glass-popup-border)`,
+                          boxShadow: "var(--glass-popup-shadow)",
                           height: "100px",
                           width: "36px",
                         }}
@@ -1017,29 +1014,29 @@ export default function AudioPlayer({
                   </AnimatePresence>
                   <button type="button" onClick={() => setShowVolumeSlider((v) => !v)}
                     className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
-                    style={{ background: "rgba(255, 255, 255, 0.95)", backdropFilter: "blur(10px)", border: "0.5px solid rgba(255, 255, 255, 0.8)", boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)" }}
+                    style={{ background: "var(--glass-btn-bg)", backdropFilter: "blur(10px)", border: "0.5px solid var(--glass-btn-border)", boxShadow: "var(--glass-btn-shadow)" }}
                   >
-                    {isMuted ? <VolumeX className="h-4 w-4 text-slate-600" /> : <Volume2 className="h-4 w-4 text-slate-600" />}
+                    {isMuted ? <VolumeX className="h-4 w-4" style={{ color: "var(--glass-btn-icon)" }} /> : <Volume2 className="h-4 w-4" style={{ color: "var(--glass-btn-icon)" }} />}
                   </button>
                 </div>
                 <button type="button" onClick={() => skip(-15)}
                   className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
-                  style={{ background: "rgba(255, 255, 255, 0.95)", backdropFilter: "blur(10px)", border: "0.5px solid rgba(255, 255, 255, 0.8)", boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)" }}
+                  style={{ background: "var(--glass-btn-bg)", backdropFilter: "blur(10px)", border: "0.5px solid var(--glass-btn-border)", boxShadow: "var(--glass-btn-shadow)" }}
                 >
-                  <RotateCcw className="h-4 w-4 text-slate-600" />
+                  <RotateCcw className="h-4 w-4" style={{ color: "var(--glass-btn-icon)" }} />
                 </button>
                 <button type="button" onClick={() => skip(30)}
                   className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
-                  style={{ background: "rgba(255, 255, 255, 0.95)", backdropFilter: "blur(10px)", border: "0.5px solid rgba(255, 255, 255, 0.8)", boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)" }}
+                  style={{ background: "var(--glass-btn-bg)", backdropFilter: "blur(10px)", border: "0.5px solid var(--glass-btn-border)", boxShadow: "var(--glass-btn-shadow)" }}
                 >
-                  <FastForward className="h-4 w-4 text-slate-600" />
+                  <FastForward className="h-4 w-4" style={{ color: "var(--glass-btn-icon)" }} />
                 </button>
                 <div className="relative">
                   <button type="button" onClick={() => setShowSpeedMenu(!showSpeedMenu)}
                     className="w-12 h-12 rounded-full flex items-center justify-center relative shrink-0"
-                    style={{ background: "rgba(255, 255, 255, 0.95)", backdropFilter: "blur(10px)", border: "0.5px solid rgba(255, 255, 255, 0.8)", boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)" }}
+                    style={{ background: "var(--glass-btn-bg)", backdropFilter: "blur(10px)", border: "0.5px solid var(--glass-btn-border)", boxShadow: "var(--glass-btn-shadow)" }}
                   >
-                    <Gauge className="h-4 w-4 text-slate-600" />
+                    <Gauge className="h-4 w-4" style={{ color: "var(--glass-btn-icon)" }} />
                     <span className="absolute -bottom-0 text-[9px] font-semibold text-slate-700">{playbackRate}x</span>
                   </button>
                   <AnimatePresence>
@@ -1050,13 +1047,13 @@ export default function AudioPlayer({
                         exit={{ opacity: 0, y: 10, scale: 0.95 }}
                         transition={{ duration: 0.15 }}
                         className="absolute bottom-full mb-2 right-0 rounded-xl overflow-hidden z-40"
-                        style={{ background: "rgba(255, 255, 255, 0.98)", backdropFilter: "blur(20px)", border: "0.5px solid rgba(255, 255, 255, 0.8)", boxShadow: "0 8px 24px rgba(0, 0, 0, 0.12), inset 0 1px 1px rgba(255, 255, 255, 0.9)" }}
+                        style={{ background: "var(--glass-popup-bg)", backdropFilter: "blur(20px)", border: "0.5px solid var(--glass-popup-border)", boxShadow: "var(--glass-popup-shadow)" }}
                       >
                         <div className="p-1.5 flex flex-col gap-0.5">
                           {speedOptions.map((speed) => (
                             <motion.button key={speed} whileHover={{ scale: 1.05, x: 2 }} whileTap={{ scale: 0.98 }} onClick={() => changeSpeed(speed)}
                               className="px-3 py-1.5 rounded-lg text-xs font-medium text-left transition-colors"
-                              style={{ background: playbackRate === speed ? "linear-gradient(135deg, rgba(230, 115, 26, 0.2) 0%, rgba(219, 114, 67, 0.2) 100%)" : "transparent", color: playbackRate === speed ? "rgb(219, 114, 67)" : "rgb(71, 85, 105)" }}
+                              style={{ background: playbackRate === speed ? "var(--speed-active-bg)" : "transparent", color: playbackRate === speed ? "var(--speed-active-color)" : "var(--speed-inactive-color)" }}
                             >
                               {speed}x
                             </motion.button>

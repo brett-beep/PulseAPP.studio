@@ -221,13 +221,13 @@ export default function StockPicker({ selectedStocks = [], onAdd, onRemove, maxS
 
           {/* Dropdown Results */}
           {showDropdown && searchResults.length > 0 && (
-            <div className="absolute z-10 w-full mt-2 bg-white rounded-lg shadow-lg border border-slate-200 max-h-56 md:max-h-64 overflow-y-auto">
+            <div className="absolute z-10 w-full mt-2 bg-white dark:bg-neutral-900 rounded-lg shadow-lg border border-slate-200 dark:border-neutral-700 max-h-56 md:max-h-64 overflow-y-auto">
               {searchResults.map((stock) => (
                 <button
                   key={stock.symbol}
                   onClick={() => handleSelectStock(stock)}
                   disabled={selectedStocks.includes(stock.symbol)}
-                  className={`w-full px-3 md:px-4 py-2.5 md:py-3 text-left hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0 ${
+                  className={`w-full px-3 md:px-4 py-2.5 md:py-3 text-left hover:bg-slate-50 dark:hover:bg-neutral-800 transition-colors border-b border-slate-100 dark:border-neutral-800 last:border-b-0 ${
                     selectedStocks.includes(stock.symbol) ? 'opacity-50 cursor-not-allowed' : ''
                   }`}
                 >

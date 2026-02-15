@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") {
     return Response.json({ error: "Method not allowed" }, { status: 405, headers });
   }
-
+``
   try {
     const body = await req.json().catch(() => ({}));
     if (body?.confirm !== true) {

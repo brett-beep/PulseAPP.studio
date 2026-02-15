@@ -49,7 +49,7 @@ export default function UpgradeModal({ isOpen, onClose }) {
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto max-h-[100dvh]"
           >
-            <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden max-h-[calc(100dvh-2rem)] min-h-0 flex flex-col my-auto">
+            <div className="bg-white dark:bg-neutral-900 rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden max-h-[calc(100dvh-2rem)] min-h-0 flex flex-col my-auto">
               {/* Header */}
               <div className="relative bg-gradient-to-br from-amber-500 to-orange-600 p-6 md:p-8 text-white flex-shrink-0">
                 <button
