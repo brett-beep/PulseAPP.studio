@@ -469,6 +469,9 @@ textarea,
 
   .mobile-app-shell {
     min-height: 100dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     overscroll-behavior: none;
     padding-bottom: calc(72px + var(--safe-area-bottom));
   }
@@ -600,12 +603,8 @@ textarea,
   border-color: rgba(255, 255, 255, 0.06) !important;
 }
 
-.mobile-app-shell {
-  overflow-x: hidden;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: none;
-}
+/* Mobile-only: create a scroll container for the app shell. 
+   On desktop, let the normal document scroll handle everything. */
 
 .mobile-safe-sticky {
   position: sticky;
