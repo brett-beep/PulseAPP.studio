@@ -1,6 +1,14 @@
+css
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Dark mode based on system preference */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+  }
+}
 
 /* iOS Mobile Enhancement: Prevent text selection on interactive elements */
 button,
@@ -15,15 +23,39 @@ a,
   -ms-user-select: none;
 }
 
-/* Explicitly enable selection for body text */
+/* Explicitly enable selection for body text AND transcript */
 p,
 article,
 .news-content p,
-.news-content article {
-  user-select: text;
-  -webkit-user-select: text;
-  -moz-user-select: text;
-  -ms-user-select: text;
+.news-content article,
+.transcript-text,
+pre,
+code {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+}
+
+/* Minimum tap target size for mobile (44x44px) */
+@media (pointer: coarse) {
+  button,
+  a,
+  [role="button"],
+  .tap-target {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  /* Icon buttons specifically */
+  button[aria-label],
+  [role="button"][aria-label] {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
 
 /* Safe Area Bottom Padding Helper */

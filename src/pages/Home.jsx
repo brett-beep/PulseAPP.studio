@@ -990,7 +990,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
       {/* Animated Aurora Background */}
       <AmbientAurora />
       {/* Header */}
-      <header className="mobile-safe-sticky backdrop-blur-sm" style={{ background: "var(--header-bg)", borderBottom: "1px solid var(--header-border)" }}>
+      <header className="mobile-safe-sticky backdrop-blur-sm" style={{ background: "var(--header-bg)", borderBottom: "1px solid var(--header-border)", paddingTop: "env(safe-area-inset-top, 0px)" }}>
         <div className="max-w-4xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between gap-3 min-w-0">
           <div className="flex items-center gap-3 min-w-0 flex-shrink">
             <div className="h-12 w-12 flex items-center justify-center overflow-hidden flex-shrink-0">

@@ -179,7 +179,7 @@ export default function Settings() {
             exit="exit"
         >
             {/* Header */}
-            <header className="mobile-safe-sticky backdrop-blur-sm" style={{ background: "var(--header-bg)", borderBottom: "1px solid var(--header-border)" }}>
+            <header className="mobile-safe-sticky backdrop-blur-sm" style={{ background: "var(--header-bg)", borderBottom: "1px solid var(--header-border)", paddingTop: "env(safe-area-inset-top, 0px)" }}>
                 <div className="max-w-2xl mx-auto px-4 md:px-6 py-4 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-4">
                         <Link to={createPageUrl('Home')}>
