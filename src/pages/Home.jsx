@@ -1022,7 +1022,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 md:px-6 py-8 md:py-12 relative z-10" style={{ overscrollBehavior: "none" }}>
+      <main className="max-w-4xl mx-auto px-4 md:px-6 py-8 md:py-12 pb-safe relative z-10" style={{ overscrollBehavior: "none" }}>
         {/* AUDIO PLAYER */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}

@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* iOS Mobile Enhancement: Prevent text selection on interactive elements */
+button,
+a,
+.news-content h1,
+.news-content h2,
+.news-content h3,
+.news-content h4 {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+/* Explicitly enable selection for body text */
+p,
+article,
+.news-content p,
+.news-content article {
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+}
+
+/* Safe Area Bottom Padding Helper */
+.pb-safe {
+  padding-bottom: calc(7rem + env(safe-area-inset-bottom, 0px));
+}
+
+@media (min-width: 768px) {
+  .pb-safe {
+    padding-bottom: 3rem;
+  }
+}
