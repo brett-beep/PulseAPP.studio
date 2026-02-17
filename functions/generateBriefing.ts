@@ -1946,6 +1946,12 @@ function getDataDepth(
 }
 
 // ── TICKER NEWS ARTICLE INTERFACE ──
+// relevance_type classifies how directly the article relates to the ticker:
+//   "direct"     — article is specifically about this company (mentions name/ticker in title/summary)
+//   "tangential" — article mentions the company in passing (listicle, roundup, Buffett mention)
+//   "sector"     — article is about the sector, not the company specifically
+type ArticleRelevance = "direct" | "tangential" | "sector";
+
 interface TickerNewsArticle {
   id: string;
   title: string;
@@ -1956,8 +1962,72 @@ interface TickerNewsArticle {
   sentiment: string;
   sentiment_confidence: number;
   is_sector_level: boolean;
+  relevance_type: ArticleRelevance;
   href: string;
 }
+
+// Classify how directly an article relates to a specific ticker.
+// Uses company name, raw ticker symbol, and aliases from COMPANY_ALIASES.
+function classifyRelevance(
+  title: string,
+  summary: string,
+  ticker: string,
+  isSectorLevel: boolean
+): ArticleRelevance {
+  if (isSectorLevel) return "sector";
+
+  const aliasInfo = getCompanyAliases(ticker);
+  const titleLower = title.toLowerCase();
+  const summaryLower = summary.toLowerCase();
+  const text = `${titleLower} ${summaryLower}`;
+
+  // Check if title directly mentions company name or ticker
+  const companyLower = aliasInfo.name.toLowerCase();
+  const tickerLower = ticker.toLowerCase();
+
+  // Direct: company name or ticker appears in the TITLE
+  // (Title mention = the article is *about* the company, not just mentioning it)
+  if (titleLower.includes(companyLower) || titleLower.includes(tickerLower)) {
+    return "direct";
+  }
+
+  // Also direct if Finlight entity-tagged it AND company name is in the body
+  if (text.includes(companyLower) || text.includes(tickerLower)) {
+    // Check if title contains strong company-specific signals
+    const DIRECT_SIGNALS = [
+      "earnings", "revenue", "profit", "loss", "guidance",
+      "upgrade", "downgrade", "price target", "analyst",
+      "CEO", "CFO", "acquisition", "merger", "lawsuit",
+      "dividend", "buyback", "layoff", "restructur",
+    ];
+    if (DIRECT_SIGNALS.some((s) => text.includes(s))) {
+      return "direct";
+    }
+  }
+
+  // Check aliases in the title for direct classification
+  for (const alias of aliasInfo.aliases) {
+    if (alias.length >= 4 && titleLower.includes(alias.toLowerCase())) {
+      return "direct";
+    }
+  }
+
+  // If company name or ticker appears anywhere in text but didn't qualify as direct
+  if (text.includes(companyLower) || text.includes(tickerLower)) {
+    return "tangential";
+  }
+  for (const alias of aliasInfo.aliases) {
+    if (alias.length >= 4 && text.includes(alias.toLowerCase())) {
+      return "tangential";
+    }
+  }
+
+  // Default: tangential (it was returned by our query, so it's at least loosely related)
+  return "tangential";
+}
+
+// Minimum target: try to get at least this many articles per ticker
+const MIN_ARTICLES_TARGET = 5;
 
 // ── TICKER PACKAGE INTERFACE ──
 interface TickerPackage {
@@ -1993,6 +2063,7 @@ async function fetchTickerNewsCascade(
     if (seenTitles.some((t) => isSimilarTitle(t, title))) return false;
     seenTitles.push(title);
 
+    const summary = (raw.summary || raw.description || "").trim();
     const publishedAt = raw.publishDate
       ? new Date(raw.publishDate).toISOString()
       : new Date().toISOString();
@@ -2000,24 +2071,25 @@ async function fetchTickerNewsCascade(
     articles.push({
       id: `${ticker.toLowerCase()}_${simpleHash(raw.link || title)}`,
       title,
-      summary: (raw.summary || raw.description || "").trim(),
+      summary,
       source: raw.source || "Unknown",
       published_at: publishedAt,
       age_hours: Math.round(((nowMs - new Date(publishedAt).getTime()) / (1000 * 60 * 60)) * 10) / 10,
       sentiment: raw.sentiment || "neutral",
       sentiment_confidence: raw.confidence ?? 0,
       is_sector_level: isSectorLevel,
+      relevance_type: classifyRelevance(title, summary, ticker, isSectorLevel),
       href: raw.link || "#",
     });
     return true;
   };
 
-  // Step 1: Direct ticker search (24h)
+  // Step 1: Direct ticker search (48h, wider than before)
   try {
     const step1 = await finlightQuery(apiKey, {
       query: `ticker:${ticker}`,
-      from: new Date(nowMs - 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-      pageSize: 5,
+      from: new Date(nowMs - 48 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      pageSize: 10,
     });
     step1.forEach((a) => addArticle(a, false));
     if (step1.length > 0) console.log(`   [${ticker}] Step 1 (ticker search): ${step1.length} articles`);
@@ -2026,13 +2098,14 @@ async function fetchTickerNewsCascade(
   }
 
   // Step 2: Company name + high-signal financial terms (48h)
-  if (articles.length < 3 && aliasInfo.name !== ticker) {
+  // Always run unless we already hit the target
+  if (articles.length < MIN_ARTICLES_TARGET && aliasInfo.name !== ticker) {
     try {
       const nameQuery = `"${aliasInfo.name}" AND ("earnings" OR "analyst" OR "upgrade" OR "downgrade" OR "price target" OR "revenue" OR "guidance")`;
       const step2 = await finlightQuery(apiKey, {
         query: nameQuery,
         from: new Date(nowMs - 48 * 60 * 60 * 1000).toISOString().slice(0, 10),
-        pageSize: 5,
+        pageSize: 10,
       });
       step2.forEach((a) => addArticle(a, false));
       if (step2.length > 0) console.log(`   [${ticker}] Step 2 (company name): ${step2.length} articles`);
@@ -2042,7 +2115,8 @@ async function fetchTickerNewsCascade(
   }
 
   // Step 3: Aliases — key people, products, brand names (48h)
-  if (articles.length < 2 && aliasInfo.aliases.length > 1) {
+  // Always run unless we already hit the target
+  if (articles.length < MIN_ARTICLES_TARGET && aliasInfo.aliases.length > 1) {
     try {
       const aliasQuery = aliasInfo.aliases
         .filter((a) => a !== aliasInfo.name)
@@ -2053,7 +2127,7 @@ async function fetchTickerNewsCascade(
         const step3 = await finlightQuery(apiKey, {
           query: aliasQuery,
           from: new Date(nowMs - 48 * 60 * 60 * 1000).toISOString().slice(0, 10),
-          pageSize: 3,
+          pageSize: 5,
         });
         step3.forEach((a) => addArticle(a, false));
         if (step3.length > 0) console.log(`   [${ticker}] Step 3 (aliases): ${step3.length} articles`);
@@ -2063,45 +2137,48 @@ async function fetchTickerNewsCascade(
     }
   }
 
-  // ── AGGRESSIVE FALLBACK CHAIN (if < 2 articles after Finlight) ──
-  if (articles.length < 2) {
+  // ── FALLBACK CHAIN (runs until we hit MIN_ARTICLES_TARGET or exhaust all sources) ──
+  if (articles.length < MIN_ARTICLES_TARGET) {
     const finnhubKey = Deno.env.get("FINNHUB_API_KEY") || FINNHUB_FALLBACK_KEY;
+    console.log(`   [${ticker}] ${articles.length} articles after Finlight (target: ${MIN_ARTICLES_TARGET}), running fallbacks...`);
 
-    // Fallback A: Finnhub company news (different sources than Finlight)
-    try {
-      const fromDate = new Date(nowMs - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-      const toDate = new Date().toISOString().slice(0, 10);
-      const url = `https://finnhub.io/api/v1/company-news?symbol=${encodeURIComponent(ticker)}&from=${fromDate}&to=${toDate}&token=${finnhubKey}`;
-      const resp = await fetch(url);
-      if (resp.ok) {
-        const newsItems = await resp.json();
-        const items = Array.isArray(newsItems) ? newsItems.slice(0, 5) : [];
-        let added = 0;
-        for (const item of items) {
-          const mapped = {
-            title: item.headline || "",
-            summary: item.summary || "",
-            link: item.url || "#",
-            source: item.source || "Finnhub",
-            publishDate: item.datetime ? new Date(item.datetime * 1000).toISOString() : new Date().toISOString(),
-          };
-          if (addArticle(mapped, false)) added++;
+    // Fallback A: Finnhub company news (different sources than Finlight, 7-day window)
+    if (articles.length < MIN_ARTICLES_TARGET) {
+      try {
+        const fromDate = new Date(nowMs - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        const toDate = new Date().toISOString().slice(0, 10);
+        const url = `https://finnhub.io/api/v1/company-news?symbol=${encodeURIComponent(ticker)}&from=${fromDate}&to=${toDate}&token=${finnhubKey}`;
+        const resp = await fetch(url);
+        if (resp.ok) {
+          const newsItems = await resp.json();
+          const items = Array.isArray(newsItems) ? newsItems.slice(0, 10) : [];
+          let added = 0;
+          for (const item of items) {
+            const mapped = {
+              title: item.headline || "",
+              summary: item.summary || "",
+              link: item.url || "#",
+              source: item.source || "Finnhub",
+              publishDate: item.datetime ? new Date(item.datetime * 1000).toISOString() : new Date().toISOString(),
+            };
+            if (addArticle(mapped, false)) added++;
+          }
+          if (added > 0) {
+            console.log(`   [${ticker}] Fallback A (Finnhub company-news): +${added} articles (total: ${articles.length})`);
+            fallbacksUsed.push("finnhub_company_news");
+          }
         }
-        if (added > 0) {
-          console.log(`   [${ticker}] Fallback A (Finnhub company-news): +${added} articles`);
-          fallbacksUsed.push("finnhub_company_news");
-        }
+      } catch (e: any) {
+        console.warn(`   [${ticker}] Fallback A failed: ${e.message}`);
       }
-    } catch (e: any) {
-      console.warn(`   [${ticker}] Fallback A failed: ${e.message}`);
     }
 
-    // Fallback B: MarketAux with FULL company name
-    if (articles.length < 2) {
+    // Fallback B: MarketAux with FULL company name (72h window)
+    if (articles.length < MIN_ARTICLES_TARGET) {
       const marketauxKey = Deno.env.get("MARKETAUX_API_KEY") || Deno.env.get("MARKETAUX_KEY") || "";
       if (marketauxKey) {
         try {
-          const mxArticles = await fetchMarketauxTickerNewsForBriefing(marketauxKey, ticker, 48);
+          const mxArticles = await fetchMarketauxTickerNewsForBriefing(marketauxKey, ticker, 72);
           let added = 0;
           for (const a of mxArticles) {
             const mapped = {
@@ -2114,7 +2191,7 @@ async function fetchTickerNewsCascade(
             if (addArticle(mapped, false)) added++;
           }
           if (added > 0) {
-            console.log(`   [${ticker}] Fallback B (Marketaux): +${added} articles`);
+            console.log(`   [${ticker}] Fallback B (Marketaux): +${added} articles (total: ${articles.length})`);
             fallbacksUsed.push("marketaux");
           }
         } catch (e: any) {
@@ -2123,12 +2200,12 @@ async function fetchTickerNewsCascade(
       }
     }
 
-    // Fallback C: NewsAPI with company name
-    if (articles.length < 2) {
+    // Fallback C: NewsAPI with company name (72h window)
+    if (articles.length < MIN_ARTICLES_TARGET) {
       const newsApiKey = Deno.env.get("NEWSAPI_API_KEY") || Deno.env.get("NEWSAPI_KEY") || "";
       if (newsApiKey) {
         try {
-          const naArticles = await fetchNewsApiTickerNewsForBriefing(newsApiKey, ticker, 48, aliasInfo.name);
+          const naArticles = await fetchNewsApiTickerNewsForBriefing(newsApiKey, ticker, 72, aliasInfo.name);
           let added = 0;
           for (const a of naArticles) {
             const mapped = {
@@ -2141,7 +2218,7 @@ async function fetchTickerNewsCascade(
             if (addArticle(mapped, false)) added++;
           }
           if (added > 0) {
-            console.log(`   [${ticker}] Fallback C (NewsAPI): +${added} articles`);
+            console.log(`   [${ticker}] Fallback C (NewsAPI): +${added} articles (total: ${articles.length})`);
             fallbacksUsed.push("newsapi");
           }
         } catch (e: any) {
@@ -2150,21 +2227,21 @@ async function fetchTickerNewsCascade(
       }
     }
 
-    // Fallback D: Sector-level news (use sector_terms)
-    if (articles.length < 2 && aliasInfo.sector_terms.length > 0) {
+    // Fallback D: Sector-level news (use sector_terms from COMPANY_ALIASES)
+    if (articles.length < MIN_ARTICLES_TARGET && aliasInfo.sector_terms.length > 0) {
       try {
         const sectorQ = aliasInfo.sector_terms.slice(0, 3).map((t) => `"${t}"`).join(" OR ");
         const sectorArticles = await finlightQuery(apiKey, {
           query: sectorQ,
           from: new Date(nowMs - 48 * 60 * 60 * 1000).toISOString().slice(0, 10),
-          pageSize: 3,
+          pageSize: 5,
         });
         let added = 0;
         for (const a of sectorArticles) {
           if (addArticle(a, true)) added++;
         }
         if (added > 0) {
-          console.log(`   [${ticker}] Fallback D (sector-level): +${added} articles`);
+          console.log(`   [${ticker}] Fallback D (sector-level): +${added} articles (total: ${articles.length})`);
           fallbacksUsed.push("sector_level_search");
         }
       } catch (e: any) {
@@ -2172,20 +2249,20 @@ async function fetchTickerNewsCascade(
       }
     }
 
-    // Fallback E: Widen time window to 72h (re-run Finlight Step 1)
-    if (articles.length < 1) {
+    // Fallback E: Widen Finlight to 72h (re-run ticker search with wider window)
+    if (articles.length < MIN_ARTICLES_TARGET) {
       try {
         const step1Wide = await finlightQuery(apiKey, {
           query: `ticker:${ticker}`,
           from: new Date(nowMs - 72 * 60 * 60 * 1000).toISOString().slice(0, 10),
-          pageSize: 5,
+          pageSize: 10,
         });
         let added = 0;
         for (const a of step1Wide) {
           if (addArticle(a, false)) added++;
         }
         if (added > 0) {
-          console.log(`   [${ticker}] Fallback E (72h widen): +${added} articles`);
+          console.log(`   [${ticker}] Fallback E (72h widen): +${added} articles (total: ${articles.length})`);
           fallbacksUsed.push("72h_widen");
         }
       } catch (e: any) {
@@ -2197,12 +2274,17 @@ async function fetchTickerNewsCascade(
   return { articles, fallbacksUsed };
 }
 
-// Determine news_coverage level based on article count and quality
+// Determine news_coverage level based on article relevance quality, not just count.
+// "strong"   = 2+ direct articles (real company-specific news)
+// "moderate"  = 1 direct article OR 3+ tangential articles
+// "thin"      = only tangential or sector-level articles, no direct
+// "none"      = zero articles of any kind
 function assessNewsCoverage(articles: TickerNewsArticle[]): TickerPackage["news_coverage"] {
-  const companySpecific = articles.filter((a) => !a.is_sector_level);
-  if (companySpecific.length >= 3) return "strong";
-  if (companySpecific.length >= 1) return "moderate";
-  if (articles.length >= 1) return "thin"; // sector-level only
+  const direct = articles.filter((a) => a.relevance_type === "direct");
+  const tangential = articles.filter((a) => a.relevance_type === "tangential");
+  if (direct.length >= 2) return "strong";
+  if (direct.length >= 1 || tangential.length >= 3) return "moderate";
+  if (articles.length >= 1) return "thin";
   return "none";
 }
 
@@ -2614,15 +2696,21 @@ Deno.serve(async (req) => {
     const tickerPackages = await fetchAllTickerPackages(briefingTickers, tickerMarketMap);
     console.log(`\n🧪 [Stage 1C TEST] ${tickerPackages.length} ticker packages:`);
     for (const pkg of tickerPackages) {
-      const articleSummary = pkg.news_articles.length > 0
-        ? pkg.news_articles.slice(0, 2).map((a) => `"${a.title.slice(0, 45)}..."`).join(", ")
-        : "(no articles)";
+      const directCount = pkg.news_articles.filter((a) => a.relevance_type === "direct").length;
+      const tangentialCount = pkg.news_articles.filter((a) => a.relevance_type === "tangential").length;
+      const sectorCount = pkg.news_articles.filter((a) => a.relevance_type === "sector").length;
       console.log(
         `   ${pkg.ticker} (${pkg.company_name}): depth=${pkg.data_depth}, ` +
-        `coverage=${pkg.news_coverage}, articles=${pkg.news_articles.length}, ` +
+        `coverage=${pkg.news_coverage}, articles=${pkg.news_articles.length} ` +
+        `(${directCount} direct, ${tangentialCount} tangential, ${sectorCount} sector), ` +
         `fallbacks=[${pkg.fallback_sources_used.join(", ") || "none"}]`
       );
-      console.log(`      → ${articleSummary}`);
+      for (const a of pkg.news_articles.slice(0, 4)) {
+        console.log(`      [${a.relevance_type}] [${a.age_hours}h] ${a.title.slice(0, 65)}...`);
+      }
+      if (pkg.news_articles.length > 4) {
+        console.log(`      ... and ${pkg.news_articles.length - 4} more`);
+      }
     }
     console.log(""); // blank line separator
 
