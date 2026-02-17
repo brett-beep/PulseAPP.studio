@@ -1713,6 +1713,577 @@ async function fetchMacroCandidates(
   return candidates;
 }
 
+// =========================================================
+// STAGE 1C: Per-Ticker Data Package
+// For each ticker in the user's portfolio, pull BOTH market
+// data (reuses Stage 1A) AND news articles via a multi-step
+// Finlight cascade with aggressive fallbacks.
+// The depth of data pulled is governed by the Data Relevance
+// Calendar so we don't dump fundamentals every single day.
+// =========================================================
+
+// ── COMPANY_ALIASES ──
+// Critical for mid-cap and small-cap coverage. The multi-step
+// Finlight cascade uses these to search by company name,
+// key people, and products — not just raw ticker symbols.
+// Extend this map as users add new holdings.
+const COMPANY_ALIASES: Record<string, {
+  name: string;
+  aliases: string[];
+  sector_terms: string[];
+}> = {
+  AAPL: {
+    name: "Apple",
+    aliases: ["Apple", "Tim Cook", "iPhone", "Apple Inc"],
+    sector_terms: ["smartphone", "consumer electronics", "App Store"],
+  },
+  MSFT: {
+    name: "Microsoft",
+    aliases: ["Microsoft", "Satya Nadella", "Azure", "Windows", "Copilot"],
+    sector_terms: ["cloud computing", "enterprise software", "AI"],
+  },
+  GOOGL: {
+    name: "Alphabet",
+    aliases: ["Alphabet", "Google", "Sundar Pichai", "YouTube", "Gemini"],
+    sector_terms: ["search engine", "digital advertising", "AI"],
+  },
+  GOOG: {
+    name: "Alphabet",
+    aliases: ["Alphabet", "Google", "Sundar Pichai", "YouTube", "Gemini"],
+    sector_terms: ["search engine", "digital advertising", "AI"],
+  },
+  AMZN: {
+    name: "Amazon",
+    aliases: ["Amazon", "Andy Jassy", "AWS", "Prime"],
+    sector_terms: ["e-commerce", "cloud computing", "logistics"],
+  },
+  META: {
+    name: "Meta",
+    aliases: ["Meta", "Facebook", "Mark Zuckerberg", "Instagram", "WhatsApp", "Threads"],
+    sector_terms: ["social media", "digital advertising", "metaverse", "AI"],
+  },
+  NVDA: {
+    name: "NVIDIA",
+    aliases: ["NVIDIA", "Jensen Huang", "Blackwell", "H100", "CUDA"],
+    sector_terms: ["AI chips", "GPU", "data center chips"],
+  },
+  TSLA: {
+    name: "Tesla",
+    aliases: ["Tesla", "Elon Musk", "Cybertruck", "Model Y", "Gigafactory"],
+    sector_terms: ["electric vehicles", "EV", "autonomous driving", "battery"],
+  },
+  TSM: {
+    name: "TSMC",
+    aliases: ["TSMC", "Taiwan Semiconductor", "Taiwan Semi", "Morris Chang"],
+    sector_terms: ["chip foundry", "semiconductor manufacturing", "wafer fabrication"],
+  },
+  "BRK.B": {
+    name: "Berkshire Hathaway",
+    aliases: ["Berkshire Hathaway", "Warren Buffett", "Charlie Munger", "Berkshire"],
+    sector_terms: ["conglomerate", "insurance", "value investing"],
+  },
+  "BRK.A": {
+    name: "Berkshire Hathaway",
+    aliases: ["Berkshire Hathaway", "Warren Buffett", "Charlie Munger", "Berkshire"],
+    sector_terms: ["conglomerate", "insurance", "value investing"],
+  },
+  SHOP: {
+    name: "Shopify",
+    aliases: ["Shopify", "Tobi Lutke", "Shopify Inc"],
+    sector_terms: ["e-commerce platform", "online retail", "merchant services"],
+  },
+  NFLX: {
+    name: "Netflix",
+    aliases: ["Netflix", "Ted Sarandos", "Netflix Inc"],
+    sector_terms: ["streaming", "entertainment", "content"],
+  },
+  WBD: {
+    name: "Warner Bros. Discovery",
+    aliases: ["Warner Bros", "Warner Bros Discovery", "David Zaslav", "Max streaming", "HBO"],
+    sector_terms: ["streaming", "entertainment", "media"],
+  },
+  DIS: {
+    name: "Disney",
+    aliases: ["Disney", "Walt Disney", "Bob Iger", "Disney+", "Marvel", "Pixar"],
+    sector_terms: ["entertainment", "streaming", "theme parks"],
+  },
+  JPM: {
+    name: "JPMorgan Chase",
+    aliases: ["JPMorgan", "JP Morgan", "Jamie Dimon", "Chase"],
+    sector_terms: ["banking", "investment banking", "financial services"],
+  },
+  V: {
+    name: "Visa",
+    aliases: ["Visa", "Visa Inc"],
+    sector_terms: ["payments", "fintech", "credit card"],
+  },
+  MA: {
+    name: "Mastercard",
+    aliases: ["Mastercard", "Mastercard Inc"],
+    sector_terms: ["payments", "fintech", "credit card"],
+  },
+  COIN: {
+    name: "Coinbase",
+    aliases: ["Coinbase", "Brian Armstrong", "Coinbase Global"],
+    sector_terms: ["crypto exchange", "cryptocurrency", "digital assets"],
+  },
+  CRM: {
+    name: "Salesforce",
+    aliases: ["Salesforce", "Marc Benioff", "Salesforce Inc"],
+    sector_terms: ["cloud CRM", "enterprise software", "SaaS"],
+  },
+  ADBE: {
+    name: "Adobe",
+    aliases: ["Adobe", "Adobe Inc", "Photoshop", "Creative Cloud"],
+    sector_terms: ["software", "creative tools", "SaaS"],
+  },
+  UBER: {
+    name: "Uber",
+    aliases: ["Uber", "Dara Khosrowshahi", "Uber Technologies"],
+    sector_terms: ["ride-sharing", "food delivery", "gig economy"],
+  },
+  ABNB: {
+    name: "Airbnb",
+    aliases: ["Airbnb", "Brian Chesky", "Airbnb Inc"],
+    sector_terms: ["short-term rentals", "travel", "hospitality"],
+  },
+  TGT: {
+    name: "Target",
+    aliases: ["Target", "Target Corporation", "Brian Cornell"],
+    sector_terms: ["retail", "consumer goods", "discount stores"],
+  },
+  WMT: {
+    name: "Walmart",
+    aliases: ["Walmart", "Walmart Inc", "Doug McMillon"],
+    sector_terms: ["retail", "consumer goods", "grocery"],
+  },
+  BAC: {
+    name: "Bank of America",
+    aliases: ["Bank of America", "BofA", "Brian Moynihan"],
+    sector_terms: ["banking", "financial services", "consumer banking"],
+  },
+  GS: {
+    name: "Goldman Sachs",
+    aliases: ["Goldman Sachs", "David Solomon", "Goldman"],
+    sector_terms: ["investment banking", "trading", "financial services"],
+  },
+  PLTR: {
+    name: "Palantir",
+    aliases: ["Palantir", "Palantir Technologies", "Alex Karp"],
+    sector_terms: ["data analytics", "AI", "government technology"],
+  },
+  AMD: {
+    name: "AMD",
+    aliases: ["AMD", "Advanced Micro Devices", "Lisa Su"],
+    sector_terms: ["semiconductor", "CPU", "GPU", "AI chips"],
+  },
+  INTC: {
+    name: "Intel",
+    aliases: ["Intel", "Intel Corporation", "Pat Gelsinger"],
+    sector_terms: ["semiconductor", "chip manufacturing", "CPU"],
+  },
+  AVGO: {
+    name: "Broadcom",
+    aliases: ["Broadcom", "Broadcom Inc", "Hock Tan"],
+    sector_terms: ["semiconductor", "networking", "infrastructure software"],
+  },
+  ORCL: {
+    name: "Oracle",
+    aliases: ["Oracle", "Oracle Corporation", "Larry Ellison", "Safra Catz"],
+    sector_terms: ["cloud computing", "enterprise software", "database"],
+  },
+};
+
+// Resolve company aliases for any ticker.
+// Falls back to resolveCompanyName() for unknown tickers.
+function getCompanyAliases(ticker: string): { name: string; aliases: string[]; sector_terms: string[] } {
+  if (COMPANY_ALIASES[ticker]) return COMPANY_ALIASES[ticker];
+  const name = TICKER_TO_COMPANY[ticker] || ticker;
+  return { name, aliases: [name], sector_terms: [] };
+}
+
+// ── DATA RELEVANCE CALENDAR ──
+type DataDepth =
+  | "daily"
+  | "weekly"
+  | "monthly"
+  | "earnings_ramp"
+  | "earnings_day"
+  | "earnings_aftermath"
+  | "weekend";
+
+function getDataDepth(
+  today: Date,
+  earningsDate: string | null
+): { depth: DataDepth; reason: string } {
+  const dayOfWeek = today.getUTCDay();
+  const dayOfMonth = today.getUTCDate();
+  const isFirstMondayOfMonth = dayOfWeek === 1 && dayOfMonth <= 7;
+  const isMonday = dayOfWeek === 1;
+  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+  if (earningsDate) {
+    const earningsMs = new Date(earningsDate).getTime();
+    const todayMs = today.getTime();
+    const diffDays = Math.ceil((earningsMs - todayMs) / (1000 * 60 * 60 * 24));
+    const daysSince = Math.ceil((todayMs - earningsMs) / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0)
+      return { depth: "earnings_day", reason: `Earnings today` };
+    if (daysSince >= 0 && daysSince <= 2)
+      return { depth: "earnings_aftermath", reason: `Earnings were ${daysSince} day${daysSince !== 1 ? "s" : ""} ago` };
+    if (diffDays > 0 && diffDays <= 7)
+      return { depth: "earnings_ramp", reason: `Earnings in ${diffDays} day${diffDays !== 1 ? "s" : ""}` };
+  }
+
+  if (isFirstMondayOfMonth)
+    return { depth: "monthly", reason: "First Monday of the month" };
+  if (isMonday)
+    return { depth: "weekly", reason: "Monday — weekly review" };
+  if (isWeekend)
+    return { depth: "weekend", reason: "Weekend — markets closed" };
+  return { depth: "daily", reason: "Standard weekday" };
+}
+
+// ── TICKER NEWS ARTICLE INTERFACE ──
+interface TickerNewsArticle {
+  id: string;
+  title: string;
+  summary: string;
+  source: string;
+  published_at: string;
+  age_hours: number;
+  sentiment: string;
+  sentiment_confidence: number;
+  is_sector_level: boolean;
+  href: string;
+}
+
+// ── TICKER PACKAGE INTERFACE ──
+interface TickerPackage {
+  ticker: string;
+  company_name: string;
+  data_depth: DataDepth;
+  data_depth_reason: string;
+  quote: TickerQuote;
+  fundamentals: null; // Placeholder for Phase 2
+  earnings: null;     // Placeholder for Phase 2
+  news_articles: TickerNewsArticle[];
+  news_coverage: "strong" | "moderate" | "thin" | "none";
+  fallback_sources_used: string[];
+}
+
+// ── MULTI-STEP FINLIGHT QUERY CASCADE (per ticker) ──
+// Step 1: Direct ticker search (24h)
+// Step 2: Company name + high-signal terms (48h)
+// Step 3: Aliases / key people / products (48h)
+async function fetchTickerNewsCascade(
+  apiKey: string,
+  ticker: string,
+  nowMs: number
+): Promise<{ articles: TickerNewsArticle[]; fallbacksUsed: string[] }> {
+  const aliasInfo = getCompanyAliases(ticker);
+  const articles: TickerNewsArticle[] = [];
+  const seenTitles: string[] = [];
+  const fallbacksUsed: string[] = [];
+
+  const addArticle = (raw: any, isSectorLevel: boolean): boolean => {
+    const title = (raw.title || "").trim();
+    if (!title || title.length < 10) return false;
+    if (seenTitles.some((t) => isSimilarTitle(t, title))) return false;
+    seenTitles.push(title);
+
+    const publishedAt = raw.publishDate
+      ? new Date(raw.publishDate).toISOString()
+      : new Date().toISOString();
+
+    articles.push({
+      id: `${ticker.toLowerCase()}_${simpleHash(raw.link || title)}`,
+      title,
+      summary: (raw.summary || raw.description || "").trim(),
+      source: raw.source || "Unknown",
+      published_at: publishedAt,
+      age_hours: Math.round(((nowMs - new Date(publishedAt).getTime()) / (1000 * 60 * 60)) * 10) / 10,
+      sentiment: raw.sentiment || "neutral",
+      sentiment_confidence: raw.confidence ?? 0,
+      is_sector_level: isSectorLevel,
+      href: raw.link || "#",
+    });
+    return true;
+  };
+
+  // Step 1: Direct ticker search (24h)
+  try {
+    const step1 = await finlightQuery(apiKey, {
+      query: `ticker:${ticker}`,
+      from: new Date(nowMs - 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      pageSize: 5,
+    });
+    step1.forEach((a) => addArticle(a, false));
+    if (step1.length > 0) console.log(`   [${ticker}] Step 1 (ticker search): ${step1.length} articles`);
+  } catch (e: any) {
+    console.warn(`   [${ticker}] Step 1 failed: ${e.message}`);
+  }
+
+  // Step 2: Company name + high-signal financial terms (48h)
+  if (articles.length < 3 && aliasInfo.name !== ticker) {
+    try {
+      const nameQuery = `"${aliasInfo.name}" AND ("earnings" OR "analyst" OR "upgrade" OR "downgrade" OR "price target" OR "revenue" OR "guidance")`;
+      const step2 = await finlightQuery(apiKey, {
+        query: nameQuery,
+        from: new Date(nowMs - 48 * 60 * 60 * 1000).toISOString().slice(0, 10),
+        pageSize: 5,
+      });
+      step2.forEach((a) => addArticle(a, false));
+      if (step2.length > 0) console.log(`   [${ticker}] Step 2 (company name): ${step2.length} articles`);
+    } catch (e: any) {
+      console.warn(`   [${ticker}] Step 2 failed: ${e.message}`);
+    }
+  }
+
+  // Step 3: Aliases — key people, products, brand names (48h)
+  if (articles.length < 2 && aliasInfo.aliases.length > 1) {
+    try {
+      const aliasQuery = aliasInfo.aliases
+        .filter((a) => a !== aliasInfo.name)
+        .slice(0, 4)
+        .map((a) => `"${a}"`)
+        .join(" OR ");
+      if (aliasQuery) {
+        const step3 = await finlightQuery(apiKey, {
+          query: aliasQuery,
+          from: new Date(nowMs - 48 * 60 * 60 * 1000).toISOString().slice(0, 10),
+          pageSize: 3,
+        });
+        step3.forEach((a) => addArticle(a, false));
+        if (step3.length > 0) console.log(`   [${ticker}] Step 3 (aliases): ${step3.length} articles`);
+      }
+    } catch (e: any) {
+      console.warn(`   [${ticker}] Step 3 failed: ${e.message}`);
+    }
+  }
+
+  // ── AGGRESSIVE FALLBACK CHAIN (if < 2 articles after Finlight) ──
+  if (articles.length < 2) {
+    const finnhubKey = Deno.env.get("FINNHUB_API_KEY") || FINNHUB_FALLBACK_KEY;
+
+    // Fallback A: Finnhub company news (different sources than Finlight)
+    try {
+      const fromDate = new Date(nowMs - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      const toDate = new Date().toISOString().slice(0, 10);
+      const url = `https://finnhub.io/api/v1/company-news?symbol=${encodeURIComponent(ticker)}&from=${fromDate}&to=${toDate}&token=${finnhubKey}`;
+      const resp = await fetch(url);
+      if (resp.ok) {
+        const newsItems = await resp.json();
+        const items = Array.isArray(newsItems) ? newsItems.slice(0, 5) : [];
+        let added = 0;
+        for (const item of items) {
+          const mapped = {
+            title: item.headline || "",
+            summary: item.summary || "",
+            link: item.url || "#",
+            source: item.source || "Finnhub",
+            publishDate: item.datetime ? new Date(item.datetime * 1000).toISOString() : new Date().toISOString(),
+          };
+          if (addArticle(mapped, false)) added++;
+        }
+        if (added > 0) {
+          console.log(`   [${ticker}] Fallback A (Finnhub company-news): +${added} articles`);
+          fallbacksUsed.push("finnhub_company_news");
+        }
+      }
+    } catch (e: any) {
+      console.warn(`   [${ticker}] Fallback A failed: ${e.message}`);
+    }
+
+    // Fallback B: MarketAux with FULL company name
+    if (articles.length < 2) {
+      const marketauxKey = Deno.env.get("MARKETAUX_API_KEY") || Deno.env.get("MARKETAUX_KEY") || "";
+      if (marketauxKey) {
+        try {
+          const mxArticles = await fetchMarketauxTickerNewsForBriefing(marketauxKey, ticker, 48);
+          let added = 0;
+          for (const a of mxArticles) {
+            const mapped = {
+              title: a.title || "",
+              summary: a.what_happened || a.summary || "",
+              link: a.href || "#",
+              source: a.outlet || "Marketaux",
+              publishDate: a.datetime || new Date().toISOString(),
+            };
+            if (addArticle(mapped, false)) added++;
+          }
+          if (added > 0) {
+            console.log(`   [${ticker}] Fallback B (Marketaux): +${added} articles`);
+            fallbacksUsed.push("marketaux");
+          }
+        } catch (e: any) {
+          console.warn(`   [${ticker}] Fallback B failed: ${e.message}`);
+        }
+      }
+    }
+
+    // Fallback C: NewsAPI with company name
+    if (articles.length < 2) {
+      const newsApiKey = Deno.env.get("NEWSAPI_API_KEY") || Deno.env.get("NEWSAPI_KEY") || "";
+      if (newsApiKey) {
+        try {
+          const naArticles = await fetchNewsApiTickerNewsForBriefing(newsApiKey, ticker, 48, aliasInfo.name);
+          let added = 0;
+          for (const a of naArticles) {
+            const mapped = {
+              title: a.title || "",
+              summary: a.summary || "",
+              link: a.link || "#",
+              source: a.source || "NewsAPI",
+              publishDate: a.publishDate || new Date().toISOString(),
+            };
+            if (addArticle(mapped, false)) added++;
+          }
+          if (added > 0) {
+            console.log(`   [${ticker}] Fallback C (NewsAPI): +${added} articles`);
+            fallbacksUsed.push("newsapi");
+          }
+        } catch (e: any) {
+          console.warn(`   [${ticker}] Fallback C failed: ${e.message}`);
+        }
+      }
+    }
+
+    // Fallback D: Sector-level news (use sector_terms)
+    if (articles.length < 2 && aliasInfo.sector_terms.length > 0) {
+      try {
+        const sectorQ = aliasInfo.sector_terms.slice(0, 3).map((t) => `"${t}"`).join(" OR ");
+        const sectorArticles = await finlightQuery(apiKey, {
+          query: sectorQ,
+          from: new Date(nowMs - 48 * 60 * 60 * 1000).toISOString().slice(0, 10),
+          pageSize: 3,
+        });
+        let added = 0;
+        for (const a of sectorArticles) {
+          if (addArticle(a, true)) added++;
+        }
+        if (added > 0) {
+          console.log(`   [${ticker}] Fallback D (sector-level): +${added} articles`);
+          fallbacksUsed.push("sector_level_search");
+        }
+      } catch (e: any) {
+        console.warn(`   [${ticker}] Fallback D failed: ${e.message}`);
+      }
+    }
+
+    // Fallback E: Widen time window to 72h (re-run Finlight Step 1)
+    if (articles.length < 1) {
+      try {
+        const step1Wide = await finlightQuery(apiKey, {
+          query: `ticker:${ticker}`,
+          from: new Date(nowMs - 72 * 60 * 60 * 1000).toISOString().slice(0, 10),
+          pageSize: 5,
+        });
+        let added = 0;
+        for (const a of step1Wide) {
+          if (addArticle(a, false)) added++;
+        }
+        if (added > 0) {
+          console.log(`   [${ticker}] Fallback E (72h widen): +${added} articles`);
+          fallbacksUsed.push("72h_widen");
+        }
+      } catch (e: any) {
+        console.warn(`   [${ticker}] Fallback E failed: ${e.message}`);
+      }
+    }
+  }
+
+  return { articles, fallbacksUsed };
+}
+
+// Determine news_coverage level based on article count and quality
+function assessNewsCoverage(articles: TickerNewsArticle[]): TickerPackage["news_coverage"] {
+  const companySpecific = articles.filter((a) => !a.is_sector_level);
+  if (companySpecific.length >= 3) return "strong";
+  if (companySpecific.length >= 1) return "moderate";
+  if (articles.length >= 1) return "thin"; // sector-level only
+  return "none";
+}
+
+// Build one complete TickerPackage for a single holding
+async function fetchTickerPackage(
+  ticker: string,
+  marketData: TickerMarketData,
+): Promise<TickerPackage> {
+  const finlightKey = Deno.env.get("FINLIGHT_API_KEY") || "";
+  const nowMs = Date.now();
+  const today = new Date();
+
+  // Earnings date lookup is a Phase 2 feature — pass null for now
+  const { depth, reason } = getDataDepth(today, null);
+
+  console.log(`📦 [Stage 1C] ${ticker} (${marketData.company_name}): depth=${depth} — ${reason}`);
+
+  // Fetch news via multi-step cascade + fallbacks
+  let newsResult = { articles: [] as TickerNewsArticle[], fallbacksUsed: [] as string[] };
+  if (finlightKey) {
+    newsResult = await fetchTickerNewsCascade(finlightKey, ticker, nowMs);
+  } else {
+    console.warn(`   [${ticker}] No FINLIGHT_API_KEY — skipping news cascade`);
+  }
+
+  const coverage = assessNewsCoverage(newsResult.articles);
+
+  console.log(
+    `   [${ticker}] Result: ${newsResult.articles.length} articles, ` +
+    `coverage=${coverage}, fallbacks=[${newsResult.fallbacksUsed.join(", ") || "none"}]`
+  );
+
+  return {
+    ticker,
+    company_name: marketData.company_name,
+    data_depth: depth,
+    data_depth_reason: reason,
+    quote: marketData.quote,
+    fundamentals: null,
+    earnings: null,
+    news_articles: newsResult.articles,
+    news_coverage: coverage,
+    fallback_sources_used: newsResult.fallbacksUsed,
+  };
+}
+
+// Fetch ticker packages for ALL user holdings in parallel.
+async function fetchAllTickerPackages(
+  tickers: string[],
+  tickerMarketMap: Record<string, TickerMarketData>
+): Promise<TickerPackage[]> {
+  if (!tickers || tickers.length === 0) return [];
+
+  console.log(`\n📦 [Stage 1C] Building ticker packages for ${tickers.length} holdings...`);
+
+  const packages = await Promise.all(
+    tickers.map((t) => {
+      const marketData = tickerMarketMap[t] || {
+        ticker: t,
+        company_name: t,
+        quote: {
+          current_price: null,
+          change_pct: 0,
+          change_dollar: 0,
+          daily_high: null,
+          daily_low: null,
+          open: null,
+          previous_close: null,
+        },
+        provider: "none" as const,
+      };
+      return fetchTickerPackage(t, marketData);
+    })
+  );
+
+  const withNews = packages.filter((p) => p.news_coverage !== "none").length;
+  console.log(`📦 [Stage 1C] Done: ${withNews}/${tickers.length} tickers have news coverage\n`);
+
+  return packages;
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -2032,6 +2603,27 @@ Deno.serve(async (req) => {
         `${c.title.slice(0, 70)}...`
       );
     });
+    console.log(""); // blank line separator
+
+    // =========================================================
+    // STAGE 1C TEST: Build per-ticker data packages
+    // Multi-step Finlight cascade + aggressive fallback chain.
+    // This replaces the old single-query portfolio refresh.
+    // TODO: Remove test log once pipeline integration is complete.
+    // =========================================================
+    const tickerPackages = await fetchAllTickerPackages(briefingTickers, tickerMarketMap);
+    console.log(`\n🧪 [Stage 1C TEST] ${tickerPackages.length} ticker packages:`);
+    for (const pkg of tickerPackages) {
+      const articleSummary = pkg.news_articles.length > 0
+        ? pkg.news_articles.slice(0, 2).map((a) => `"${a.title.slice(0, 45)}..."`).join(", ")
+        : "(no articles)";
+      console.log(
+        `   ${pkg.ticker} (${pkg.company_name}): depth=${pkg.data_depth}, ` +
+        `coverage=${pkg.news_coverage}, articles=${pkg.news_articles.length}, ` +
+        `fallbacks=[${pkg.fallback_sources_used.join(", ") || "none"}]`
+      );
+      console.log(`      → ${articleSummary}`);
+    }
     console.log(""); // blank line separator
 
     // --- ALWAYS fetch fresh portfolio news from Finlight ---
