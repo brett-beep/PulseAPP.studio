@@ -2826,6 +2826,30 @@ Keep it tight. Every sentence earns its place. But don't sacrifice personality
 for brevity — a 500-word script that's fun to listen to beats a 430-word
 script that sounds like a spreadsheet.
 
+═══════════════════════════════════════
+METADATA (summary, key_highlights, market_sentiment)
+═══════════════════════════════════════
+
+You must return metadata for the app UI — the Summary and Key Takeaways sections. Match the same quality as the script. No generic filler.
+
+**summary**: A holistic 4-6 sentence executive summary of the ENTIRE briefing. Cover:
+1. Market moves (indices, sector color).
+2. What happened across breaking/market news.
+3. Key portfolio developments for ${userHoldingsStr} with specific tickers/numbers.
+4. What to watch and why it matters.
+Think: if someone read only this summary, they'd get the full story. BAD: "A detailed briefing focusing on market movements and portfolio analysis." GOOD: "Markets were mixed today — S&P flat, Nasdaq down a tenth, Dow up slightly. Wall Street paused the AI selloff with Amazon and Nvidia clawing back. Berkshire's Buffett-era 13F showed trims to Apple and BofA and a new stake in the New York Times. Goldman's Minnis flagged credit market convergence. Watch NVIDIA earnings next week — options are pricing in an 8% move."
+
+**key_highlights**: 3-5 bullets. Format each as:
+"**[Bold hook]:** [What happened] — [specific implication for ${userHoldingsStr}]"
+Rules: Must include numbers and specific company names. Avoid raw ticker symbols when possible. No vague filler. No "could potentially" hedging.
+Examples:
+- "**Berkshire trims Apple, BofA:** Buffett's 13F shows stake reductions — signals shifting focus as new management takes over."
+- "**NVIDIA-Meta chip deal:** Multi-year supply agreement — boosts TSMC as key foundry partner."
+- "**S&P 500 up 0.2%, Nasdaq down 0.1%:** Mixed day — tech resilience with Amazon and Nvidia recovering from early losses."
+
+**market_sentiment**: { label: "bullish"|"bearish"|"neutral"|"mixed", description: "one punchy sentence with indices and sector color" }
+Example: { "label": "mixed", "description": "Indices split — S&P and Dow edging higher on value rotation while Nasdaq dips on rate sensitivity." }
+
 USER:
 
 <analyzed_brief>
@@ -2837,7 +2861,7 @@ ${JSON.stringify(watchItemHistory)}
 </watch_history>
 
 Voice mode: ${userVoicePreference}
-Write the audio script and metadata now. Return valid JSON only.`;
+Write the audio script and metadata (summary, key_highlights, market_sentiment) now. Follow the METADATA section above — summary and key_highlights must be specific and actionable, not generic. Return valid JSON only.`;
 }
 
 const SCRIPTWRITER_OUTPUT_SCHEMA = {
