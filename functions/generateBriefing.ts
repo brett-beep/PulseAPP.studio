@@ -2043,6 +2043,76 @@ interface TickerPackage {
   fallback_sources_used: string[];
 }
 
+// =========================================================
+// STAGE 1D — RAW INTELLIGENCE PACKAGE
+// Bundles all Stage 1 outputs into a single object for Stage 2.
+// No new API calls — pure aggregation of 1A, 1B, 1C results.
+// =========================================================
+
+interface RawIntelligencePackage {
+  generated_at: string;
+  user_context: {
+    user_name: string;
+    interests: string[];
+    holdings: string[];
+    time_zone: string;
+  };
+  ticker_packages: TickerPackage[];
+  macro_candidates: MacroCandidate[];
+  metadata: {
+    ticker_count: number;
+    macro_candidate_count: number;
+    total_ticker_articles: number;
+    tickers_with_strong_coverage: number;
+    tickers_with_moderate_coverage: number;
+    tickers_with_thin_coverage: number;
+    tickers_with_no_coverage: number;
+    avg_articles_per_ticker: number;
+    direct_article_pct: number;
+    pipeline_duration_ms: number;
+  };
+}
+
+function buildRawIntelligencePackage(
+  tickerPackages: TickerPackage[],
+  macroCandidates: MacroCandidate[],
+  userContext: { user_name: string; interests: string[]; holdings: string[]; time_zone: string },
+  pipelineStartMs: number,
+): RawIntelligencePackage {
+  const totalArticles = tickerPackages.reduce((sum, p) => sum + p.news_articles.length, 0);
+  const directArticles = tickerPackages.reduce(
+    (sum, p) => sum + p.news_articles.filter((a) => a.relevance_type === "direct").length, 0
+  );
+
+  const coverageCounts = { strong: 0, moderate: 0, thin: 0, none: 0 };
+  for (const pkg of tickerPackages) {
+    coverageCounts[pkg.news_coverage]++;
+  }
+
+  return {
+    generated_at: new Date().toISOString(),
+    user_context: userContext,
+    ticker_packages: tickerPackages,
+    macro_candidates: macroCandidates,
+    metadata: {
+      ticker_count: tickerPackages.length,
+      macro_candidate_count: macroCandidates.length,
+      total_ticker_articles: totalArticles,
+      tickers_with_strong_coverage: coverageCounts.strong,
+      tickers_with_moderate_coverage: coverageCounts.moderate,
+      tickers_with_thin_coverage: coverageCounts.thin,
+      tickers_with_no_coverage: coverageCounts.none,
+      avg_articles_per_ticker: tickerPackages.length > 0
+        ? Math.round((totalArticles / tickerPackages.length) * 10) / 10
+        : 0,
+      direct_article_pct: totalArticles > 0
+        ? Math.round((directArticles / totalArticles) * 100)
+        : 0,
+      pipeline_duration_ms: Date.now() - pipelineStartMs,
+    },
+  };
+}
+
 // ── MULTI-STEP FINLIGHT QUERY CASCADE (per ticker) ──
 // Step 1: Direct ticker search (24h)
 // Step 2: Company name + high-signal terms (48h)
@@ -2649,10 +2719,12 @@ Deno.serve(async (req) => {
       .map((h: any) => (typeof h === "string" ? h : h?.symbol || h?.ticker || "").toUpperCase().trim())
       .filter(Boolean);
 
+    // Pipeline timing — tracks total wall-clock for Stages 1A → 1D
+    const pipelineStartMs = Date.now();
+
     // =========================================================
-    // STAGE 1A TEST: Fetch per-ticker market data for all holdings
+    // STAGE 1A: Fetch per-ticker market data for all holdings
     // This runs in parallel and logs structured quote data.
-    // Check logs for [Stage 1A] entries to verify correctness.
     // TODO: Remove test log once pipeline integration is complete.
     // =========================================================
     const tickerMarketMap = await fetchAllTickerMarketData(briefingTickers);
@@ -2712,6 +2784,36 @@ Deno.serve(async (req) => {
         console.log(`      ... and ${pkg.news_articles.length - 4} more`);
       }
     }
+    console.log(""); // blank line separator
+
+    // =========================================================
+    // STAGE 1D: Bundle into Raw Intelligence Package
+    // Aggregates 1A (market data), 1B (macro news), 1C (ticker
+    // packages) into a single object for Stage 2 consumption.
+    // No new API calls — pure aggregation.
+    // TODO: Remove test log once Stage 2 is wired up.
+    // =========================================================
+    const userName = safeText(preferences?.user_name || user?.name, "");
+    const rawIntelligence = buildRawIntelligencePackage(
+      tickerPackages,
+      macroCandidates,
+      {
+        user_name: userName,
+        interests: userInterests,
+        holdings: briefingTickers,
+        time_zone: timeZone,
+      },
+      pipelineStartMs,
+    );
+
+    const meta = rawIntelligence.metadata;
+    console.log(`\n🧪 [Stage 1D TEST] Raw Intelligence Package built:`);
+    console.log(`   generated_at: ${rawIntelligence.generated_at}`);
+    console.log(`   user: "${userName}" | interests: ${userInterests.length} | holdings: ${briefingTickers.length}`);
+    console.log(`   ticker_packages: ${meta.ticker_count} (strong=${meta.tickers_with_strong_coverage}, moderate=${meta.tickers_with_moderate_coverage}, thin=${meta.tickers_with_thin_coverage}, none=${meta.tickers_with_no_coverage})`);
+    console.log(`   total_ticker_articles: ${meta.total_ticker_articles} (avg ${meta.avg_articles_per_ticker}/ticker, ${meta.direct_article_pct}% direct)`);
+    console.log(`   macro_candidates: ${meta.macro_candidate_count}`);
+    console.log(`   pipeline_duration: ${meta.pipeline_duration_ms}ms`);
     console.log(""); // blank line separator
 
     // --- ALWAYS fetch fresh portfolio news from Finlight ---
