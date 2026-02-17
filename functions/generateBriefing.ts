@@ -595,39 +595,45 @@ async function generateAudioFile(script, date, elevenLabsApiKey) {
   return new File([audioBlob], `briefing-${date}.mp3`, { type: "audio/mpeg" });
 }
 
-// Fetch quote with Finnhub primary, Finlight fallback
+// Fetch quote — Finlight PRIMARY when API key present (premium real-time), Finnhub fallback
 async function fetchQuoteWithFallback(symbol: string, finnhubKey: string, finlightKey: string) {
-  // Try Finnhub first (free tier, 60/min)
+  // Try Finlight first when key present (premium, real-time quotes — fresher than Finnhub)
+  if (finlightKey) {
+    const finlightResult = await fetchFinlightQuote(symbol, finlightKey);
+    if (finlightResult.provider === "finlight") return finlightResult;
+    // Finlight failed or no data — fall through to Finnhub
+  }
+
+  // Finnhub fallback (free tier, may have minor latency)
   try {
     const url = `https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${finnhubKey}`;
     const response = await fetch(url);
-    
+
     if (response.status === 429) {
-      console.warn(`⚠️ Finnhub rate limit (429) for ${symbol}, trying Finlight fallback...`);
-      return await fetchFinlightQuote(symbol, finlightKey);
+      console.warn(`⚠️ Finnhub rate limit (429) for ${symbol}`);
+      return { symbol, change_pct: "0.0%", provider: "none" };
     }
-    
+
     if (!response.ok) {
       console.error(`Finnhub error for ${symbol}: ${response.status}`);
-      return await fetchFinlightQuote(symbol, finlightKey);
+      return { symbol, change_pct: "0.0%", provider: "none" };
     }
-    
+
     const data = await response.json();
     const changePct = data.dp ?? 0;
-    
+
     if (data.c === undefined || data.c === null) {
-      console.error(`No Finnhub price data for ${symbol}, trying Finlight...`);
-      return await fetchFinlightQuote(symbol, finlightKey);
+      return { symbol, change_pct: "0.0%", provider: "none" };
     }
-    
+
     return {
       symbol,
       change_pct: `${changePct > 0 ? "+" : ""}${Number(changePct).toFixed(1)}%`,
-      provider: 'finnhub'
+      provider: "finnhub",
     };
   } catch (err) {
     console.error(`Finnhub fetch failed for ${symbol}:`, err.message);
-    return await fetchFinlightQuote(symbol, finlightKey);
+    return { symbol, change_pct: "0.0%", provider: "none" };
   }
 }
 
@@ -658,7 +664,7 @@ async function fetchFinlightQuote(symbol: string, apiKey: string) {
     // Map Finlight response (adjust based on actual response format)
     const changePercent = data.changePercent || data.dp || data.changePercentage || 0;
     
-    console.log(`✅ Using Finlight fallback for ${symbol}`);
+    console.log(`✅ [Market snapshot] Finlight real-time: ${symbol}`);
     return {
       symbol,
       change_pct: `${changePercent > 0 ? "+" : ""}${Number(changePercent).toFixed(1)}%`,
@@ -1145,7 +1151,8 @@ const FINNHUB_FALLBACK_KEY = "d5n7s19r01qh5ppc5ln0d5n7s19r01qh5ppc5lng";
 async function fetchMarketSnapshot() {
   const finnhubKey = Deno.env.get("FINNHUB_API_KEY") || FINNHUB_FALLBACK_KEY;
   const finlightKey = Deno.env.get("FINLIGHT_API_KEY");
-  
+  if (finlightKey) console.log("📈 [Market snapshot] Using Finlight as primary (real-time); Finnhub fallback");
+
   const symbols = ["SPY", "QQQ", "DIA"];
   
   try {
