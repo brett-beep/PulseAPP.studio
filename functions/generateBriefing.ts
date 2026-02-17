@@ -2113,6 +2113,325 @@ function buildRawIntelligencePackage(
   };
 }
 
+// =========================================================
+// STAGE 2: THE ANALYST DESK — Interfaces & Schema
+// A dedicated LLM call that thinks about the data: selects
+// stories, extracts insights, flags gaps, and sets market energy.
+// Input: Raw Intelligence Package from Stage 1
+// Output: Analyzed Brief for Stage 3 (Scriptwriter)
+// =========================================================
+
+interface MacroSelection {
+  rank: number;
+  source_id: string;
+  source_query: string;
+  hook: string;
+  facts: string[];
+  so_what: string;
+  plain_english_bridge: string;
+  confidence: "high" | "medium" | "low";
+  transition_suggestion: string;
+  is_sector_personalized?: boolean;
+  matched_sector?: string;
+}
+
+interface PortfolioSelection {
+  ticker: string;
+  company_name: string;
+  data_depth: string;
+  source_type: "news" | "market_data_only";
+  source_id: string | null;
+  hook: string;
+  facts: string[];
+  so_what: string;
+  confidence: "high" | "medium" | "low";
+  quote_context: {
+    current_price: number | null;
+    change_today_pct: number;
+  };
+  data_gap_note?: string;
+  transition_suggestion: string;
+}
+
+interface WatchItem {
+  event: string;
+  date: string;
+  importance: "high" | "medium" | "low";
+  affects_holdings: string[];
+  why_it_matters: string;
+  is_future_event: boolean;
+}
+
+interface DataQualityFlag {
+  ticker: string;
+  issue: string;
+  recommendation: string;
+}
+
+type MarketEnergy = "volatile_up" | "volatile_down" | "mixed_calm" | "breakout" | "quiet";
+
+interface AnalyzedBrief {
+  macro_selections: MacroSelection[];
+  portfolio_selections: PortfolioSelection[];
+  watch_items: {
+    primary: WatchItem | null;
+    secondary: WatchItem | null;
+  };
+  data_quality_flags: DataQualityFlag[];
+  market_energy: MarketEnergy;
+}
+
+// JSON schema for invokeLLM structured output
+const ANALYST_OUTPUT_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    macro_selections: {
+      type: "array",
+      minItems: 2,
+      maxItems: 3,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          rank: { type: "number" },
+          source_id: { type: "string" },
+          source_query: { type: "string" },
+          hook: { type: "string" },
+          facts: { type: "array", items: { type: "string" }, minItems: 1, maxItems: 4 },
+          so_what: { type: "string" },
+          plain_english_bridge: { type: "string" },
+          confidence: { type: "string", enum: ["high", "medium", "low"] },
+          transition_suggestion: { type: "string" },
+          is_sector_personalized: { type: "boolean" },
+          matched_sector: { type: "string" },
+        },
+        required: ["rank", "source_id", "hook", "facts", "so_what", "plain_english_bridge", "confidence", "transition_suggestion"],
+      },
+    },
+    portfolio_selections: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          ticker: { type: "string" },
+          company_name: { type: "string" },
+          data_depth: { type: "string" },
+          source_type: { type: "string", enum: ["news", "market_data_only"] },
+          source_id: { type: ["string", "null"] },
+          hook: { type: "string" },
+          facts: { type: "array", items: { type: "string" }, minItems: 1, maxItems: 4 },
+          so_what: { type: "string" },
+          confidence: { type: "string", enum: ["high", "medium", "low"] },
+          quote_context: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              current_price: { type: ["number", "null"] },
+              change_today_pct: { type: "number" },
+            },
+            required: ["current_price", "change_today_pct"],
+          },
+          data_gap_note: { type: "string" },
+          transition_suggestion: { type: "string" },
+        },
+        required: ["ticker", "company_name", "data_depth", "source_type", "hook", "facts", "so_what", "confidence", "quote_context", "transition_suggestion"],
+      },
+    },
+    watch_items: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        primary: {
+          type: ["object", "null"],
+          additionalProperties: false,
+          properties: {
+            event: { type: "string" },
+            date: { type: "string" },
+            importance: { type: "string", enum: ["high", "medium", "low"] },
+            affects_holdings: { type: "array", items: { type: "string" } },
+            why_it_matters: { type: "string" },
+            is_future_event: { type: "boolean" },
+          },
+          required: ["event", "date", "importance", "affects_holdings", "why_it_matters", "is_future_event"],
+        },
+        secondary: {
+          type: ["object", "null"],
+          additionalProperties: false,
+          properties: {
+            event: { type: "string" },
+            date: { type: "string" },
+            importance: { type: "string", enum: ["high", "medium", "low"] },
+            affects_holdings: { type: "array", items: { type: "string" } },
+            why_it_matters: { type: "string" },
+            is_future_event: { type: "boolean" },
+          },
+          required: ["event", "date", "importance", "affects_holdings", "why_it_matters", "is_future_event"],
+        },
+      },
+      required: ["primary", "secondary"],
+    },
+    data_quality_flags: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          ticker: { type: "string" },
+          issue: { type: "string" },
+          recommendation: { type: "string" },
+        },
+        required: ["ticker", "issue", "recommendation"],
+      },
+    },
+    market_energy: {
+      type: "string",
+      enum: ["volatile_up", "volatile_down", "mixed_calm", "breakout", "quiet"],
+    },
+  },
+  required: ["macro_selections", "portfolio_selections", "watch_items", "data_quality_flags", "market_energy"],
+};
+
+// Build the Analyst prompt from the Raw Intelligence Package
+function buildAnalystPrompt(
+  rawIntelligence: RawIntelligencePackage,
+  isWeekend: boolean,
+): string {
+  const userCtx = rawIntelligence.user_context;
+  const holdings = userCtx.holdings;
+  const interests = userCtx.interests;
+
+  const weekendBlock = `
+WEEKEND MODE: Markets are closed. Do NOT select stories framed as live
+market moves ("stocks rallied today", "the S&P gained"). Instead:
+
+WEEK IN REVIEW: Select the 2-3 biggest stories of the WEEK — the
+narratives that defined the past 5 trading days. Frame them as a recap,
+not breaking news. "This week was defined by..."
+
+WEEK AHEAD: Identify upcoming events from the earnings calendar and
+economic calendar. Earnings dates, CPI reports, Fed meetings, etc.
+
+PORTFOLIO: For each holding, summarize the WEEKLY performance (not daily).
+"Your NVIDIA position had a strong week — up 7% on the back of..."
+
+DO NOT report Friday's closing prices as if they're fresh news. The
+listener already heard Friday's briefing. Weekend is about perspective
+and preparation, not play-by-play.
+`;
+
+  const weekdayBlock = `
+Story 1: ALWAYS the biggest market-moving headline of the day — regardless
+of sector. This is what makes the briefing feel authoritative. Prefer stories
+from "editorial_net" or "targeted_macro" source queries.
+
+Story 2: Second most important macro story, OR a sector-interest story if
+it has strong enough market impact to earn the slot. Check which candidates
+have matches_user_sector: true.
+
+Story 3: Sector-interest story — actively serve the user's preferences.
+The user's sector interests are: ${interests.join(", ")}.
+Look for candidates with matches_user_sector: true or source_query: "sector_interest".
+IF no sector story is strong enough (thin sourcing, no real market impact),
+fall back to the next best macro story. Never force a weak sector story
+just to personalize.
+`;
+
+  return `You are a senior financial analyst preparing a research brief for an audio
+scriptwriter. Your job is to ANALYZE, not write a script. Be precise,
+data-driven, and honest about gaps.
+
+You will receive a Raw Intelligence Package containing:
+- Market data per ticker (real-time quotes from Finnhub)
+- Macro/market news candidates (tagged with source_query and sector relevance)
+- Per-ticker data packages (quote data, news articles with relevance types)
+- Each ticker has a data_depth level that controls how much detail to include
+
+Your task:
+1. SELECT the 3 best macro stories for a rapid-fire segment
+2. SELECT the best story (or data angle) for each portfolio holding
+3. EXTRACT the core insight for each selected story
+4. FLAG any holdings with insufficient coverage
+
+═══════════════════════════════════════
+${isWeekend ? "WEEKEND EDITION — DIFFERENT SELECTION LOGIC" : "RAPID FIRE STORY ALLOCATION (3 stories)"}
+═══════════════════════════════════════
+
+${isWeekend ? weekendBlock : weekdayBlock}
+
+GENERAL SELECTION CRITERIA:
+- Market-moving impact > political noise
+- Macro themes > single-stock news
+- Fresh (< 12 hours) > stale
+- Actionable intelligence > general interest
+- DROP: pure politics with no market impact, weak macro, aviation/logistics minutiae
+
+═══════════════════════════════════════
+PORTFOLIO STORY SELECTION
+═══════════════════════════════════════
+
+SELECTION CRITERIA:
+- Specific news with numbers > vague commentary
+- Analyst actions (upgrades/downgrades/price targets) = high priority
+- Earnings-related = high priority
+- Articles tagged relevance_type "direct" should be preferred over "tangential" or "sector"
+- If NO news articles exist for a holding, use the quote data to create a
+  "market_data_only" angle. Be explicit that this is data-driven, not news-driven.
+- If articles are flagged is_sector_level: true, frame the insight at the sector
+  level and connect it to the specific holding — don't pretend it's company-specific news.
+- NEVER fabricate news. If there's nothing, say so.
+
+═══════════════════════════════════════
+DATA DEPTH RULES
+═══════════════════════════════════════
+
+Each ticker has a data_depth field. Respect it:
+
+- "daily" → Keep it brief. Price + change + one news insight (if any). No fundamentals.
+- "weekly" (Mondays) → Include week-in-review context, key technical levels,
+  upcoming catalysts within 14 days.
+- "monthly" (1st Monday) → Full position review. Include fundamentals, sector context,
+  performance recap. This is the "state of your portfolio" moment.
+- "earnings_ramp" (7 days before) → Focus on the upcoming earnings. Build anticipation.
+  Include estimates and last quarter's result.
+- "earnings_day" → Lead with this holding. Full earnings preview. Make it the top
+  portfolio story regardless of other news.
+- "earnings_aftermath" (0-2 days after) → Lead with results vs expectations and market reaction.
+- "weekend" → Light touch. Week-in-review angle. Preview next week.
+
+The data_depth for each holding is provided in the ticker_packages.
+
+═══════════════════════════════════════
+EXTRACTION FORMAT
+═══════════════════════════════════════
+
+FOR EACH SELECTED STORY, EXTRACT:
+a) HOOK: One sentence that creates tension or curiosity
+b) FACTS: 2-3 specific data points (numbers, dates, names)
+c) SO_WHAT: One sentence connecting it to the listener's portfolio or market outlook
+d) PLAIN_ENGLISH_BRIDGE: A one-liner that translates the concept into simple terms
+   (e.g. "In simple terms — borrowing money stays expensive")
+e) CONFIDENCE: "high" (strong source, specific data), "medium" (decent source,
+   some specifics), "low" (thin sourcing, mostly data-driven)
+
+OUTPUT FORMAT: Return valid JSON only. No markdown, no commentary.
+
+═══════════════════════════════════════
+RAW INTELLIGENCE PACKAGE
+═══════════════════════════════════════
+
+${JSON.stringify(rawIntelligence)}
+
+═══════════════════════════════════════
+TASK
+═══════════════════════════════════════
+
+Analyze this intelligence package for listener "${userCtx.user_name}" who holds
+${holdings.join(", ")} with sector interests in ${interests.join(", ")}.
+Select stories and extract insights now. Return valid JSON only.`;
+}
+
 // ── MULTI-STEP FINLIGHT QUERY CASCADE (per ticker) ──
 // Step 1: Direct ticker search (24h)
 // Step 2: Company name + high-signal terms (48h)
@@ -2814,6 +3133,58 @@ Deno.serve(async (req) => {
     console.log(`   total_ticker_articles: ${meta.total_ticker_articles} (avg ${meta.avg_articles_per_ticker}/ticker, ${meta.direct_article_pct}% direct)`);
     console.log(`   macro_candidates: ${meta.macro_candidate_count}`);
     console.log(`   pipeline_duration: ${meta.pipeline_duration_ms}ms`);
+    console.log(""); // blank line separator
+
+    // =========================================================
+    // STAGE 2: THE ANALYST DESK (LLM Call)
+    // Analyzes the Raw Intelligence Package: selects stories,
+    // extracts insights, flags data gaps, sets market energy.
+    // Runs SIDE-BY-SIDE with existing script generation for now.
+    // Stage 3 will consume this output to replace the combined prompt.
+    // =========================================================
+    let analyzedBrief: AnalyzedBrief | null = null;
+    try {
+      console.log(`\n🧠 [Stage 2] Analyst Desk: analyzing intelligence package...`);
+      const analystStartMs = Date.now();
+      const analystPrompt = buildAnalystPrompt(rawIntelligence, isWeekendDay);
+      const analystResult = await invokeLLM(base44, analystPrompt, false, ANALYST_OUTPUT_SCHEMA);
+
+      if (analystResult && analystResult.macro_selections) {
+        analyzedBrief = analystResult as AnalyzedBrief;
+        const analystMs = Date.now() - analystStartMs;
+
+        console.log(`✅ [Stage 2] Analyst Desk complete (${analystMs}ms)`);
+        console.log(`   market_energy: ${analyzedBrief.market_energy}`);
+        console.log(`   macro_selections: ${analyzedBrief.macro_selections.length}`);
+        analyzedBrief.macro_selections.forEach((s, i) => {
+          console.log(`      ${i + 1}. [${s.confidence}] [${s.source_query || "—"}] ${s.hook.slice(0, 70)}...`);
+          console.log(`         facts: ${s.facts.slice(0, 2).join(" | ")}`);
+          console.log(`         so_what: ${s.so_what.slice(0, 80)}...`);
+        });
+        console.log(`   portfolio_selections: ${analyzedBrief.portfolio_selections.length}`);
+        analyzedBrief.portfolio_selections.forEach((s) => {
+          console.log(`      ${s.ticker} (${s.company_name}): [${s.confidence}] [${s.source_type}] [depth=${s.data_depth}]`);
+          console.log(`         hook: ${s.hook.slice(0, 70)}...`);
+          console.log(`         facts: ${s.facts.slice(0, 2).join(" | ")}`);
+          console.log(`         so_what: ${s.so_what.slice(0, 80)}...`);
+          if (s.data_gap_note) console.log(`         ⚠️ gap: ${s.data_gap_note}`);
+        });
+        if (analyzedBrief.watch_items.primary) {
+          console.log(`   watch_primary: ${analyzedBrief.watch_items.primary.event} (${analyzedBrief.watch_items.primary.date})`);
+        }
+        if (analyzedBrief.watch_items.secondary) {
+          console.log(`   watch_secondary: ${analyzedBrief.watch_items.secondary.event} (${analyzedBrief.watch_items.secondary.date})`);
+        }
+        if (analyzedBrief.data_quality_flags.length > 0) {
+          console.log(`   data_quality_flags: ${analyzedBrief.data_quality_flags.map((f) => `${f.ticker}: ${f.issue}`).join(", ")}`);
+        }
+      } else {
+        console.warn(`⚠️ [Stage 2] Analyst returned unexpected format, skipping`);
+      }
+    } catch (analystErr: any) {
+      console.error(`❌ [Stage 2] Analyst Desk failed: ${analystErr.message}`);
+      console.log(`   Continuing with existing script generation flow...`);
+    }
     console.log(""); // blank line separator
 
     // --- ALWAYS fetch fresh portfolio news from Finlight ---
