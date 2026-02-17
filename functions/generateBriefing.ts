@@ -595,35 +595,27 @@ async function generateAudioFile(script, date, elevenLabsApiKey) {
   return new File([audioBlob], `briefing-${date}.mp3`, { type: "audio/mpeg" });
 }
 
-// Fetch quote — Finlight PRIMARY when API key present (premium real-time), Finnhub fallback
+// Fetch quote — Finnhub PRIMARY (Finlight /api/stock/realtime returns 404 for SPY/QQQ/DIA)
 async function fetchQuoteWithFallback(symbol: string, finnhubKey: string, finlightKey: string) {
-  // Try Finlight first when key present (premium, real-time quotes — fresher than Finnhub)
-  if (finlightKey) {
-    const finlightResult = await fetchFinlightQuote(symbol, finlightKey);
-    if (finlightResult.provider === "finlight") return finlightResult;
-    // Finlight failed or no data — fall through to Finnhub
-  }
-
-  // Finnhub fallback (free tier, may have minor latency)
   try {
     const url = `https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${finnhubKey}`;
     const response = await fetch(url);
 
     if (response.status === 429) {
-      console.warn(`⚠️ Finnhub rate limit (429) for ${symbol}`);
-      return { symbol, change_pct: "0.0%", provider: "none" };
+      console.warn(`⚠️ Finnhub rate limit (429) for ${symbol}, trying Finlight...`);
+      return await fetchFinlightQuote(symbol, finlightKey);
     }
 
     if (!response.ok) {
       console.error(`Finnhub error for ${symbol}: ${response.status}`);
-      return { symbol, change_pct: "0.0%", provider: "none" };
+      return await fetchFinlightQuote(symbol, finlightKey);
     }
 
     const data = await response.json();
     const changePct = data.dp ?? 0;
 
     if (data.c === undefined || data.c === null) {
-      return { symbol, change_pct: "0.0%", provider: "none" };
+      return await fetchFinlightQuote(symbol, finlightKey);
     }
 
     return {
@@ -633,7 +625,7 @@ async function fetchQuoteWithFallback(symbol: string, finnhubKey: string, finlig
     };
   } catch (err) {
     console.error(`Finnhub fetch failed for ${symbol}:`, err.message);
-    return { symbol, change_pct: "0.0%", provider: "none" };
+    return await fetchFinlightQuote(symbol, finlightKey);
   }
 }
 
@@ -1151,7 +1143,6 @@ const FINNHUB_FALLBACK_KEY = "d5n7s19r01qh5ppc5ln0d5n7s19r01qh5ppc5lng";
 async function fetchMarketSnapshot() {
   const finnhubKey = Deno.env.get("FINNHUB_API_KEY") || FINNHUB_FALLBACK_KEY;
   const finlightKey = Deno.env.get("FINLIGHT_API_KEY");
-  if (finlightKey) console.log("📈 [Market snapshot] Using Finlight as primary (real-time); Finnhub fallback");
 
   const symbols = ["SPY", "QQQ", "DIA"];
   
@@ -2329,20 +2320,22 @@ and preparation, not play-by-play.
 `;
 
   const weekdayBlock = `
-Story 1: ALWAYS the biggest market-moving headline of the day — regardless
-of sector. This is what makes the briefing feel authoritative. Prefer stories
-from "editorial_net" or "targeted_macro" source queries.
+HARD RULE — macro_selections must be TRUE MACRO news, NOT portfolio-company stories:
+- Macro = Fed, inflation, interest rates, sector rotation, indices, regulatory, geopolitical, broad market themes.
+- Do NOT select stories that are primarily about ${holdings.join(", ")} or any of the listener's holdings.
+  Examples of WRONG macro picks: "Amazon rebounds", "Nvidia-Meta deal", "Boeing job shift".
+  Those belong in portfolio_selections. Keep macro and portfolio strictly separated.
 
-Story 2: Second most important macro story, OR a sector-interest story if
-it has strong enough market impact to earn the slot. Check which candidates
-have matches_user_sector: true.
+Story 1: ALWAYS the biggest market-moving headline of the day — Fed, inflation, indices, regulatory.
+Prefer "editorial_net" or "targeted_macro". Must NOT be about a portfolio holding.
 
-Story 3: Sector-interest story — actively serve the user's preferences.
-The user's sector interests are: ${interests.join(", ")}.
-Look for candidates with matches_user_sector: true or source_query: "sector_interest".
-IF no sector story is strong enough (thin sourcing, no real market impact),
-fall back to the next best macro story. Never force a weak sector story
-just to personalize.
+Story 2: Second macro story — rates, sector rotation, broad market theme.
+Check matches_user_sector: true for sector relevance, but still macro (not single-holding news).
+
+Story 3: Sector-interest story that is macro-level (e.g. "AI sector resilience", "credit market convergence").
+User interests: ${interests.join(", ")}.
+If the best sector story is about a portfolio company, skip it — pick true macro instead.
+Never put portfolio-company news (Amazon, Nvidia, etc.) in macro_selections.
 `;
 
   return `You are a senior financial analyst preparing a research brief for an audio
@@ -2547,7 +2540,7 @@ you're curious, but you need the jargon translated.
   NOT a dictionary definition — a "here's what that actually means for you" take.
   Example: "The Fed was hawkish today — basically saying don't expect
   borrowing to get cheaper anytime soon."
-- Use the plain_english_bridge from the analyst brief for macro stories.
+- Use the plain_english_bridge from the analyst brief for at most 1-2 macro stories — pick the concepts that genuinely need translation. Do NOT add "In plain English" or "In simple terms" after every story. That sounds repetitive.
 - You're not dumbing it down — you're making it accessible. The listener
   is smart, they just don't speak Wall Street fluently.
 - Still sharp, still opinionated, still moves with purpose. This is NOT
@@ -2713,8 +2706,7 @@ SECTION 1: OPENING — HOOK + MARKET COLOR (50-80 words, ONE paragraph)
 SECTION 2: RAPID FIRE (80-140 words total for all 3 stories)
 - Use the 3 macro_selections from the analyst brief
 - One tight beat per story: what happened + why it matters
-- CONVERSATIONAL MODE ONLY: After stories with plain_english_bridge,
-  add the bridge as a natural one-liner. "In plain English — ..."
+- CONVERSATIONAL MODE ONLY: Add a plain English bridge for at most 1-2 stories — pick the 1-2 concepts that actually need translation. Do NOT add "In plain English" or "In simple terms" after every story. That sounds monotonous. Vary phrasing or skip to avoid repetition.
 - MUST use these transitions for info card sync:
   Story 1: "First up," or "First up —"
   Story 2: "Meanwhile," or "Next up,"
