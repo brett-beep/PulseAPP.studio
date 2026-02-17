@@ -413,12 +413,42 @@ export default function AudioPlayer({
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="absolute inset-0 flex flex-col items-center justify-center bg-white/5 backdrop-blur-sm rounded-[32px] md:rounded-[40px] z-30 gap-4 pointer-events-none"
+          className="absolute inset-0 flex flex-col items-center justify-center bg-white/5 backdrop-blur-sm rounded-[32px] md:rounded-[40px] z-30 gap-3 pointer-events-none"
         >
-          <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'hsl(25, 80%, 50%)' }} />
-          {statusLabel && (
-            <p className="text-slate-700 text-sm font-medium">{statusLabel}</p>
-          )}
+          {/* Waveform bars animation */}
+          <div className="flex items-end gap-[3px] h-8">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <motion.div
+                key={i}
+                className="w-[3px] rounded-full"
+                style={{ backgroundColor: 'hsl(25, 80%, 50%)' }}
+                animate={{
+                  height: ["8px", `${18 + i * 4}px`, "10px", `${22 - i * 2}px`, "8px"],
+                }}
+                transition={{
+                  duration: 1.2,
+                  repeat: Infinity,
+                  delay: i * 0.15,
+                  ease: "easeInOut",
+                }}
+              />
+            ))}
+          </div>
+          <AnimatePresence mode="wait">
+            {statusLabel && (
+              <motion.p
+                key={statusLabel}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.3 }}
+                className="text-slate-700 text-sm font-medium"
+              >
+                {statusLabel}
+              </motion.p>
+            )}
+          </AnimatePresence>
+          <p className="text-slate-400 text-[11px]">Usually takes 60–90 seconds</p>
         </motion.div>
       )}
 
@@ -870,7 +900,7 @@ export default function AudioPlayer({
               exit={{ opacity: 0, y: -10 }}
               className="text-center mt-6 md:mt-8"
             >
-              <p className="text-slate-500 text-xs">Please wait while your briefing is being created...</p>
+              <p className="text-slate-500 text-xs">Your briefing is being created — usually takes 60–90 seconds.</p>
             </motion.div>
           ) : (
             <motion.div

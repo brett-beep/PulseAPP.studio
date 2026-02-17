@@ -945,23 +945,35 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
   const portfolioStories = (portfolioNews?.stories ?? []).slice(0, 5);
   const hasAnyNews = marketStories.length > 0 || portfolioStories.length > 0;
 
-  // Show proper status based on briefing state
+  // Elapsed seconds since generation started (drives progressive messaging)
+  const [elapsedSecs, setElapsedSecs] = useState(0);
+  useEffect(() => {
+    if (!isGenerating || !generationStartedAt) {
+      setElapsedSecs(0);
+      return;
+    }
+    const tick = setInterval(() => {
+      setElapsedSecs(Math.floor((Date.now() - generationStartedAt.getTime()) / 1000));
+    }, 1000);
+    return () => clearInterval(tick);
+  }, [isGenerating, generationStartedAt]);
+
+  // Show proper status based on briefing state — progressive during generation
   const getStatusLabel = () => {
     if (briefingLoading && !isGenerating) return "Loading briefing...";
 
-    // During generation, keep progress messaging active even before the new
-    // DailyBriefing row becomes the "most recent" record in query results.
     if (isGenerating) {
-      switch (status) {
-        case "writing_script":
-          return "✍️ Writing your briefing script...";
-        case "generating_audio":
-          return "🎵 Generating audio...";
-        case "uploading":
-          return "📤 Almost ready...";
-        default:
-          return "✍️ Writing your briefing script...";
-      }
+      // Real backend statuses take priority when they arrive
+      if (status === "generating_audio") return "🎵 Generating audio...";
+      if (status === "uploading") return "📤 Almost ready...";
+
+      // Progressive messages while writing_script or before first poll
+      if (elapsedSecs < 8) return "📡 Gathering market data...";
+      if (elapsedSecs < 18) return "📰 Analyzing your portfolio news...";
+      if (elapsedSecs < 35) return "🧠 Your analyst is selecting stories...";
+      if (elapsedSecs < 55) return "✍️ Writing your personalized script...";
+      if (elapsedSecs < 75) return "🎵 Generating audio...";
+      return "⏳ Almost there — wrapping up...";
     }
 
     switch (status) {

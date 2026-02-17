@@ -3497,12 +3497,17 @@ Deno.serve(async (req) => {
     const pipelineStartMs = Date.now();
 
     // =========================================================
-    // STAGE 1A: Fetch per-ticker market data for all holdings
-    // This runs in parallel and logs structured quote data.
-    // TODO: Remove test log once pipeline integration is complete.
+    // STAGE 1A + 1B: Run in PARALLEL (independent data sources)
+    // 1A: Finnhub per-ticker market data
+    // 1B: Finlight macro/market news candidates
     // =========================================================
-    const tickerMarketMap = await fetchAllTickerMarketData(briefingTickers);
-    console.log(`\n🧪 [Stage 1A TEST] Full market data for ${briefingTickers.length} holdings:`);
+    console.log(`\n⚡ [Stage 1A+1B] Fetching market data and macro news in parallel...`);
+    const [tickerMarketMap, macroCandidates] = await Promise.all([
+      fetchAllTickerMarketData(briefingTickers),
+      fetchMacroCandidates(userInterests),
+    ]);
+
+    console.log(`\n🧪 [Stage 1A] Full market data for ${briefingTickers.length} holdings:`);
     for (const [sym, data] of Object.entries(tickerMarketMap)) {
       const q = data.quote;
       console.log(
@@ -3516,14 +3521,7 @@ Deno.serve(async (req) => {
     }
     console.log(""); // blank line separator
 
-    // =========================================================
-    // STAGE 1B TEST: Fetch macro/market news candidates
-    // Runs 4 Finlight queries in parallel (5 on weekends),
-    // with MarketAux + NewsAPI fallbacks if < 5 usable stories.
-    // TODO: Remove test log once pipeline integration is complete.
-    // =========================================================
-    const macroCandidates = await fetchMacroCandidates(userInterests);
-    console.log(`\n🧪 [Stage 1B TEST] ${macroCandidates.length} macro candidates:`);
+    console.log(`\n🧪 [Stage 1B] ${macroCandidates.length} macro candidates:`);
     macroCandidates.slice(0, 8).forEach((c, i) => {
       console.log(
         `   ${i + 1}. [${c.source_query}] [${c.age_hours}h] [${c.category}] ` +
@@ -3597,6 +3595,10 @@ Deno.serve(async (req) => {
     // Runs SIDE-BY-SIDE with existing script generation for now.
     // Stage 3 will consume this output to replace the combined prompt.
     // =========================================================
+    // Pre-fetch market snapshot in parallel with Stage 2 (independent of analyst output)
+    const marketSnapshotPromise = fetchMarketSnapshot();
+    console.log(`📈 [Pre-fetch] Market snapshot request started (will overlap with Stage 2)`);
+
     let analyzedBrief: AnalyzedBrief | null = null;
     try {
       console.log(`\n🧠 [Stage 2] Analyst Desk: analyzing intelligence package...`);
@@ -3607,6 +3609,21 @@ Deno.serve(async (req) => {
       if (analystResult && analystResult.macro_selections) {
         analyzedBrief = analystResult as AnalyzedBrief;
         const analystMs = Date.now() - analystStartMs;
+
+        // Guard: LLM sometimes omits market_energy — infer from market snapshot
+        if (!analyzedBrief.market_energy) {
+          const snap = await marketSnapshotPromise;
+          const pcts = [snap.sp500_pct, snap.nasdaq_pct, snap.dow_pct].map(
+            (p) => parseFloat((p || "0").replace(/[^-0-9.]/g, "")) || 0
+          );
+          const avg = pcts.reduce((a, b) => a + b, 0) / pcts.length;
+          const maxAbsPct = Math.max(...pcts.map(Math.abs));
+          if (maxAbsPct > 1.5 && avg > 0) analyzedBrief.market_energy = "volatile_up";
+          else if (maxAbsPct > 1.5 && avg < 0) analyzedBrief.market_energy = "volatile_down";
+          else if (maxAbsPct > 0.8) analyzedBrief.market_energy = "mixed_calm";
+          else analyzedBrief.market_energy = "quiet";
+          console.log(`⚠️ [Stage 2] market_energy was missing — inferred as "${analyzedBrief.market_energy}" from index data`);
+        }
 
         console.log(`✅ [Stage 2] Analyst Desk complete (${analystMs}ms)`);
         console.log(`   market_energy: ${analyzedBrief.market_energy}`);
@@ -3652,9 +3669,9 @@ Deno.serve(async (req) => {
       console.log(`\n✍️ [Stage 3] The Anchor Desk: generating script from Analyzed Brief...`);
       const stage3StartMs = Date.now();
 
-      // ── Market Snapshot (Finnhub — 0 credits) ──
-      console.log("📈 [Stage 3] Fetching market snapshot from Finnhub...");
-      const rawMarketSnapshot3 = await fetchMarketSnapshot();
+      // ── Market Snapshot (pre-fetched during Stage 2 — zero extra wait) ──
+      console.log("📈 [Stage 3] Awaiting pre-fetched market snapshot...");
+      const rawMarketSnapshot3 = await marketSnapshotPromise;
       function humanizePct3(pct: string): string {
         const num = parseFloat(pct.replace(/[^-0-9.]/g, "")) || 0;
         if (Math.abs(num) < 0.05) return "flat";
