@@ -305,6 +305,7 @@ export default function Home() {
   const [timeUntilNextBriefing, setTimeUntilNextBriefing] = useState(null);
   const [canGenerateNew, setCanGenerateNew] = useState(true);
   const [generationStartedAt, setGenerationStartedAt] = useState(null); // Track when generation started
+  const [elapsedSecs, setElapsedSecs] = useState(0); // Elapsed seconds since generation started
 
   // Fetch current user
   const { data: user, isLoading: userLoading } = useQuery({
@@ -536,6 +537,18 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
     const interval = setInterval(checkEligibility, 1000);
     return () => clearInterval(interval);
   }, [briefings, isPremium, isAdmin]);
+
+  // Elapsed seconds effect (drives progressive messaging during generation)
+  useEffect(() => {
+    if (!isGenerating || !generationStartedAt) {
+      setElapsedSecs(0);
+      return;
+    }
+    const tick = setInterval(() => {
+      setElapsedSecs(Math.floor((Date.now() - generationStartedAt.getTime()) / 1000));
+    }, 1000);
+    return () => clearInterval(tick);
+  }, [isGenerating, generationStartedAt]);
 
   // Briefing count for UI (DELIVERED only)
   const getBriefingCount = () => {
@@ -944,19 +957,6 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
   // Always show top 5 only for Your Portfolio.
   const portfolioStories = (portfolioNews?.stories ?? []).slice(0, 5);
   const hasAnyNews = marketStories.length > 0 || portfolioStories.length > 0;
-
-  // Elapsed seconds since generation started (drives progressive messaging)
-  const [elapsedSecs, setElapsedSecs] = useState(0);
-  useEffect(() => {
-    if (!isGenerating || !generationStartedAt) {
-      setElapsedSecs(0);
-      return;
-    }
-    const tick = setInterval(() => {
-      setElapsedSecs(Math.floor((Date.now() - generationStartedAt.getTime()) / 1000));
-    }, 1000);
-    return () => clearInterval(tick);
-  }, [isGenerating, generationStartedAt]);
 
   // Show proper status based on briefing state — progressive during generation
   const getStatusLabel = () => {
