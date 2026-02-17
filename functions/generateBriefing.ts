@@ -1301,6 +1301,13 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const preferences = body?.preferences ?? {};
+
+    // DEBUG: Inspect incoming payload to diagnose empty holdings
+    console.log("🔍 [DEBUG] Request body keys:", Object.keys(body || {}));
+    console.log("🔍 [DEBUG] preferences keys:", Object.keys(preferences || {}));
+    console.log("🔍 [DEBUG] portfolio_holdings:", JSON.stringify(preferences?.portfolio_holdings));
+    console.log("🔍 [DEBUG] holdings:", JSON.stringify(preferences?.holdings));
+
     const rawTz = safeText(body?.timeZone || body?.time_zone || body?.timezone, "UTC");
     const timeZone = isValidTimeZone(rawTz) ? rawTz : "UTC";
 
@@ -1392,6 +1399,7 @@ Deno.serve(async (req) => {
       interests: preferences?.interests ?? preferences?.investment_interests ?? null,
       constraints: preferences?.constraints ?? null,
     };
+    console.log("🔍 [DEBUG] prefProfile.holdings:", JSON.stringify(prefProfile?.holdings));
 
     // =========================================================
     // STEP 1: READ FROM NEWSCACHE (0 extra API calls)
