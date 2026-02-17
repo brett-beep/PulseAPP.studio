@@ -114,6 +114,63 @@ const TICKER_TO_COMPANY: Record<string, string> = {
   DIS: "Disney",
 };
 
+// Runtime cache for dynamically resolved company names.
+// Persists as long as the Deno isolate stays warm, so repeat
+// briefings (same or different users) benefit from prior lookups.
+const companyNameCache: Map<string, string> = new Map();
+
+// Resolve a human-readable company name for any ticker.
+// Lookup order: hardcoded map → runtime cache → Finnhub /stock/profile2.
+// The profile2 result is cached so each unknown ticker costs only one API call ever
+// (per warm isolate). Falls back to raw ticker symbol on any failure.
+async function resolveCompanyName(ticker: string): Promise<string> {
+  // 1. Check hardcoded map (instant, zero cost)
+  if (TICKER_TO_COMPANY[ticker]) return TICKER_TO_COMPANY[ticker];
+
+  // 2. Check runtime cache (previously resolved in this isolate)
+  if (companyNameCache.has(ticker)) return companyNameCache.get(ticker)!;
+
+  // 3. Fetch from Finnhub /stock/profile2 (one-time cost per unknown ticker)
+  const finnhubKey = Deno.env.get("FINNHUB_API_KEY") || FINNHUB_FALLBACK_KEY;
+  try {
+    const url = `https://finnhub.io/api/v1/stock/profile2?symbol=${encodeURIComponent(ticker)}&token=${finnhubKey}`;
+    const response = await fetch(url);
+
+    if (response.status === 429) {
+      console.warn(`⚠️ [resolveCompanyName] Rate limit for ${ticker}, using raw symbol`);
+      return ticker;
+    }
+
+    if (!response.ok) {
+      console.warn(`⚠️ [resolveCompanyName] Finnhub profile2 error for ${ticker}: ${response.status}`);
+      return ticker;
+    }
+
+    const profile = await response.json();
+
+    // Finnhub profile2 returns { name, ticker, country, currency, ... }
+    const name = profile?.name;
+    if (name && typeof name === "string" && name.trim().length > 0) {
+      // Clean up corporate suffixes for a more natural spoken name
+      const cleaned = name
+        .replace(/\s*(,?\s*Inc\.?|,?\s*Corp\.?|,?\s*Ltd\.?|,?\s*LLC|,?\s*PLC|,?\s*N\.?V\.?|,?\s*S\.?A\.?|,?\s*AG|,?\s*Co\.?|,?\s*& Co\.?|,?\s*Group|,?\s*Holdings?|,?\s*International|,?\s*Enterprises?)$/i, "")
+        .trim();
+
+      const finalName = cleaned || name.trim();
+      companyNameCache.set(ticker, finalName);
+      console.log(`✅ [resolveCompanyName] ${ticker} → "${finalName}" (cached)`);
+      return finalName;
+    }
+
+    console.warn(`⚠️ [resolveCompanyName] No name in profile2 for ${ticker}`);
+    companyNameCache.set(ticker, ticker); // cache the miss too so we don't retry
+    return ticker;
+  } catch (err: any) {
+    console.error(`❌ [resolveCompanyName] Failed for ${ticker}: ${err.message}`);
+    return ticker;
+  }
+}
+
 function replaceTickersWithCompanyNames(text: string, userHoldings: any[] = []): string {
   if (!text) return "";
   let out = text;
@@ -1128,6 +1185,114 @@ async function fetchMarketSnapshot() {
   }
 }
 
+// =========================================================
+// STAGE 1A: Per-ticker market data (Finnhub /quote)
+// Returns a structured quote object for a single ticker.
+// This is the foundation for the per-ticker data packages
+// defined in the pipeline architecture spec (Section 1C).
+// Only pulls /quote for now; fundamentals + earnings will
+// be added in Step 1C once the Data Depth Calendar exists.
+// =========================================================
+
+interface TickerQuote {
+  current_price: number | null;
+  change_pct: number;
+  change_dollar: number;
+  daily_high: number | null;
+  daily_low: number | null;
+  open: number | null;
+  previous_close: number | null;
+}
+
+interface TickerMarketData {
+  ticker: string;
+  company_name: string;
+  quote: TickerQuote;
+  provider: "finnhub" | "none";
+}
+
+async function fetchTickerMarketData(ticker: string): Promise<TickerMarketData> {
+  const finnhubKey = Deno.env.get("FINNHUB_API_KEY") || FINNHUB_FALLBACK_KEY;
+  const companyName = await resolveCompanyName(ticker);
+
+  const emptyQuote: TickerQuote = {
+    current_price: null,
+    change_pct: 0,
+    change_dollar: 0,
+    daily_high: null,
+    daily_low: null,
+    open: null,
+    previous_close: null,
+  };
+
+  try {
+    const url = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(ticker)}&token=${finnhubKey}`;
+    const response = await fetch(url);
+
+    if (response.status === 429) {
+      console.warn(`⚠️ [fetchTickerMarketData] Finnhub rate limit (429) for ${ticker}`);
+      return { ticker, company_name: companyName, quote: emptyQuote, provider: "none" };
+    }
+
+    if (!response.ok) {
+      console.error(`❌ [fetchTickerMarketData] Finnhub error for ${ticker}: ${response.status}`);
+      return { ticker, company_name: companyName, quote: emptyQuote, provider: "none" };
+    }
+
+    const data = await response.json();
+
+    // Finnhub /quote response fields:
+    //   c = current price, d = dollar change, dp = percent change,
+    //   h = daily high, l = daily low, o = open, pc = previous close, t = timestamp
+    if (data.c == null || data.c === 0) {
+      console.warn(`⚠️ [fetchTickerMarketData] No price data for ${ticker} (c=${data.c})`);
+      return { ticker, company_name: companyName, quote: emptyQuote, provider: "none" };
+    }
+
+    const quote: TickerQuote = {
+      current_price: Number(data.c),
+      change_pct: Number(data.dp ?? 0),
+      change_dollar: Number(data.d ?? 0),
+      daily_high: data.h != null ? Number(data.h) : null,
+      daily_low: data.l != null ? Number(data.l) : null,
+      open: data.o != null ? Number(data.o) : null,
+      previous_close: data.pc != null ? Number(data.pc) : null,
+    };
+
+    console.log(
+      `✅ [fetchTickerMarketData] ${ticker}: $${quote.current_price?.toFixed(2)} ` +
+      `(${quote.change_pct >= 0 ? "+" : ""}${quote.change_pct.toFixed(2)}%)`
+    );
+
+    return { ticker, company_name: companyName, quote, provider: "finnhub" };
+  } catch (err: any) {
+    console.error(`❌ [fetchTickerMarketData] Fetch failed for ${ticker}: ${err.message}`);
+    return { ticker, company_name: companyName, quote: emptyQuote, provider: "none" };
+  }
+}
+
+// Fetch market data for ALL user holdings in parallel.
+// Returns a map keyed by ticker for easy lookup.
+async function fetchAllTickerMarketData(
+  tickers: string[]
+): Promise<Record<string, TickerMarketData>> {
+  if (!tickers || tickers.length === 0) return {};
+
+  console.log(`\n📊 [Stage 1A] Fetching market data for ${tickers.length} holdings: ${tickers.join(", ")}`);
+
+  const results = await Promise.all(tickers.map((t) => fetchTickerMarketData(t)));
+
+  const map: Record<string, TickerMarketData> = {};
+  for (const r of results) {
+    map[r.ticker] = r;
+  }
+
+  const withPrice = results.filter((r) => r.quote.current_price != null).length;
+  console.log(`📊 [Stage 1A] Got real price data for ${withPrice}/${tickers.length} tickers\n`);
+
+  return map;
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -1402,6 +1567,27 @@ Deno.serve(async (req) => {
     const briefingTickers = userHoldings
       .map((h: any) => (typeof h === "string" ? h : h?.symbol || h?.ticker || "").toUpperCase().trim())
       .filter(Boolean);
+
+    // =========================================================
+    // STAGE 1A TEST: Fetch per-ticker market data for all holdings
+    // This runs in parallel and logs structured quote data.
+    // Check logs for [Stage 1A] entries to verify correctness.
+    // TODO: Remove test log once pipeline integration is complete.
+    // =========================================================
+    const tickerMarketMap = await fetchAllTickerMarketData(briefingTickers);
+    console.log(`\n🧪 [Stage 1A TEST] Full market data for ${briefingTickers.length} holdings:`);
+    for (const [sym, data] of Object.entries(tickerMarketMap)) {
+      const q = data.quote;
+      console.log(
+        `   ${sym} (${data.company_name}): ` +
+        `price=${q.current_price != null ? `$${q.current_price.toFixed(2)}` : "N/A"}, ` +
+        `change=${q.change_pct >= 0 ? "+" : ""}${q.change_pct.toFixed(2)}% ($${q.change_dollar.toFixed(2)}), ` +
+        `high=$${q.daily_high?.toFixed(2) ?? "N/A"}, low=$${q.daily_low?.toFixed(2) ?? "N/A"}, ` +
+        `open=$${q.open?.toFixed(2) ?? "N/A"}, prev_close=$${q.previous_close?.toFixed(2) ?? "N/A"}, ` +
+        `provider=${data.provider}`
+      );
+    }
+    console.log(""); // blank line separator
 
     // --- ALWAYS fetch fresh portfolio news from Finlight ---
     console.log(`\n🔄 [Pre-briefing refresh] Fetching fresh ticker news for: ${briefingTickers.join(", ") || "none"}`);
