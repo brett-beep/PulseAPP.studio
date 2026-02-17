@@ -98,7 +98,7 @@ export function Hero({ onSignIn, onJoinWaitlist }) {
                 }}
                 className="group flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-primary to-accent px-8 py-4 text-base font-semibold text-primary-foreground shadow-xl glow-primary transition-all hover:shadow-2xl hover:scale-[1.02] sm:w-auto whitespace-nowrap"
               >
-                Start Listening (Beta)
+                Get Started (Beta)
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </button>
               <span className="text-sm text-muted-foreground whitespace-nowrap">
