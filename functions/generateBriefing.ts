@@ -1293,6 +1293,426 @@ async function fetchAllTickerMarketData(
   return map;
 }
 
+// =========================================================
+// STAGE 1B: Macro/Market News Candidates
+// Runs 4 Finlight queries (5 on weekends) to build a pool
+// of 15-20 macro/market news candidates for Stage 2 to
+// select the best 3 Rapid Fire stories from.
+// Falls back to MarketAux + NewsAPI if < 5 usable stories.
+// =========================================================
+
+const SECTOR_QUERY_MAP: Record<string, string> = {
+  "Technology":        '"tech" OR "AI" OR "software" OR "semiconductor" OR "cloud computing"',
+  "Healthcare":        '"healthcare" OR "pharma" OR "biotech" OR "FDA" OR "drug approval"',
+  "Real Estate":       '"real estate" OR "housing market" OR "REIT" OR "mortgage rates" OR "home sales"',
+  "Crypto":            '"bitcoin" OR "ethereum" OR "crypto" OR "blockchain" OR "SEC crypto"',
+  "Energy":            '"oil price" OR "natural gas" OR "OPEC" OR "renewable energy" OR "solar"',
+  "Finance":           '"banking" OR "financial sector" OR "JPMorgan" OR "Goldman Sachs" OR "fintech"',
+  "Consumer Goods":    '"retail sales" OR "consumer spending" OR "CPG" OR "e-commerce"',
+  "Commodities":       '"gold price" OR "copper" OR "commodities" OR "futures" OR "agriculture"',
+  "ESG/Sustainable":   '"ESG" OR "sustainable investing" OR "green bonds" OR "climate regulation"',
+  "Emerging Markets":  '"emerging markets" OR "China economy" OR "India GDP" OR "Brazil economy" OR "BRICS"',
+  "Dividends":         '"dividend" OR "dividend yield" OR "dividend aristocrat" OR "income investing"',
+  "ETFs":              '"ETF" OR "index fund" OR "Vanguard" OR "BlackRock" OR "fund flows"',
+};
+
+function buildSectorQuery(userInterests: string[]): string {
+  const topTwo = (userInterests || []).slice(0, 2);
+  const parts = topTwo
+    .map((s) => SECTOR_QUERY_MAP[s])
+    .filter(Boolean);
+  return parts.length > 0 ? parts.join(" OR ") : "";
+}
+
+interface MacroCandidate {
+  id: string;
+  title: string;
+  summary: string;
+  source: string;
+  source_query: "editorial_net" | "targeted_macro" | "market_movers" | "sector_interest" | "weekend_outlook" | "fallback_marketaux" | "fallback_newsapi";
+  published_at: string;
+  age_hours: number;
+  sentiment: string;
+  sentiment_confidence: number;
+  category: string;
+  entities: string[];
+  matches_user_sector: boolean;
+  matched_sectors: string[];
+  href: string;
+  imageUrl: string;
+}
+
+// Single Finlight POST query — returns raw articles array
+async function finlightQuery(
+  apiKey: string,
+  params: {
+    query?: string;
+    sources?: string[];
+    from: string;
+    pageSize: number;
+  }
+): Promise<any[]> {
+  const body: any = {
+    language: "en",
+    order: "DESC",
+    includeEntities: true,
+    from: params.from,
+    pageSize: params.pageSize,
+  };
+  if (params.query) body.query = params.query;
+  if (params.sources && params.sources.length > 0) body.sources = params.sources;
+
+  const response = await fetch(`${FINLIGHT_NEWS_API}/v2/articles`, {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      "Content-Type": "application/json",
+      "X-API-KEY": apiKey,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    console.warn(`⚠️ [Finlight Query] Failed (${response.status}): ${errText.slice(0, 200)}`);
+    return [];
+  }
+
+  const data = await response.json();
+  return data.articles || [];
+}
+
+// Transform a raw Finlight article into a MacroCandidate
+function toMacroCandidate(
+  article: any,
+  sourceQuery: MacroCandidate["source_query"],
+  userInterests: string[],
+  nowMs: number
+): MacroCandidate {
+  const title = (article.title || "").trim();
+  const summary = (article.summary || article.description || "").trim();
+  const publishedAt = article.publishDate
+    ? new Date(article.publishDate).toISOString()
+    : new Date().toISOString();
+  const ageHours = (nowMs - new Date(publishedAt).getTime()) / (1000 * 60 * 60);
+
+  const entities: string[] = (article.companies || [])
+    .map((c: any) => c.name || c.ticker || "")
+    .filter(Boolean);
+
+  const textLower = `${title} ${summary}`.toLowerCase();
+  const matchedSectors: string[] = [];
+  for (const interest of userInterests) {
+    const terms = SECTOR_QUERY_MAP[interest];
+    if (!terms) continue;
+    const keywords = terms
+      .replace(/"/g, "")
+      .split(" OR ")
+      .map((k) => k.trim().toLowerCase());
+    if (keywords.some((kw) => textLower.includes(kw))) {
+      matchedSectors.push(interest);
+    }
+  }
+
+  return {
+    id: `macro_${simpleHash(article.link || title)}`,
+    title,
+    summary,
+    source: article.source || "Unknown",
+    source_query: sourceQuery,
+    published_at: publishedAt,
+    age_hours: Math.round(ageHours * 10) / 10,
+    sentiment: article.sentiment || "neutral",
+    sentiment_confidence: article.confidence ?? 0,
+    category: categorizeByKw(title, summary),
+    entities,
+    matches_user_sector: matchedSectors.length > 0,
+    matched_sectors: matchedSectors,
+    href: article.link || "#",
+    imageUrl:
+      article.images && article.images.length > 0
+        ? article.images[0]
+        : categoryImageUrl(categorizeByKw(title, summary)),
+  };
+}
+
+// Deduplicate candidates by title similarity (reuses existing isSimilarTitle)
+function deduplicateCandidates(candidates: MacroCandidate[]): MacroCandidate[] {
+  const deduped: MacroCandidate[] = [];
+  for (const c of candidates) {
+    if (!deduped.some((existing) => isSimilarTitle(existing.title, c.title))) {
+      deduped.push(c);
+    }
+  }
+  return deduped;
+}
+
+// Filter out junk and roundup articles
+function filterJunk(candidates: MacroCandidate[]): MacroCandidate[] {
+  return candidates.filter((c) => {
+    const textLower = `${c.title} ${c.summary}`.toLowerCase();
+    if (/thank\s+you\s+for\s+(your\s+)?subscription/i.test(textLower)) return false;
+    if (/blogspot|wordpress\.com|tumblr\.com/i.test(c.href)) return false;
+    if (c.summary.length < 30 && c.title.length < 20) return false;
+    if (ROUNDUP_TITLE_PATTERNS_BRIEFING.some((p) => c.title.toLowerCase().includes(p))) return false;
+    return true;
+  });
+}
+
+// MarketAux fallback for macro news (broad market terms, not ticker-specific)
+async function fetchMarketauxMacroFallback(hoursAgo: number): Promise<MacroCandidate[]> {
+  const marketauxKey = Deno.env.get("MARKETAUX_API_KEY") || Deno.env.get("MARKETAUX_KEY") || "";
+  if (!marketauxKey) {
+    console.log("⚠️ [Stage 1B Fallback] No MARKETAUX_API_KEY available");
+    return [];
+  }
+
+  const MARKETAUX_API_BASE = "https://api.marketaux.com/v1/news/all";
+  const publishedAfter = new Date(Date.now() - hoursAgo * 60 * 60 * 1000)
+    .toISOString()
+    .replace(/\.\d{3}Z$/, "");
+
+  const url = new URL(MARKETAUX_API_BASE);
+  url.searchParams.set("language", "en");
+  url.searchParams.set("filter_entities", "true");
+  url.searchParams.set("limit", "10");
+  url.searchParams.set("published_after", publishedAfter);
+  url.searchParams.set("api_token", marketauxKey);
+
+  try {
+    const response = await fetch(url.toString(), { method: "GET" });
+    if (!response.ok) {
+      console.warn(`⚠️ [Stage 1B Fallback] Marketaux error: ${response.status}`);
+      return [];
+    }
+
+    const data = await response.json();
+    const rows = Array.isArray(data?.data) ? data.data : [];
+    const nowMs = Date.now();
+
+    return rows.map((row: any) => {
+      const publishedAt = row?.published_at || new Date().toISOString();
+      const ageHours = (nowMs - new Date(publishedAt).getTime()) / (1000 * 60 * 60);
+      return {
+        id: `macro_mx_${simpleHash(row?.url || row?.title || "")}`,
+        title: (row?.title || "").trim(),
+        summary: (row?.description || row?.snippet || "").trim(),
+        source: row?.source || "Marketaux",
+        source_query: "fallback_marketaux" as const,
+        published_at: publishedAt,
+        age_hours: Math.round(ageHours * 10) / 10,
+        sentiment: row?.sentiment || "neutral",
+        sentiment_confidence: 0,
+        category: categorizeByKw(row?.title || "", row?.description || ""),
+        entities: [],
+        matches_user_sector: false,
+        matched_sectors: [],
+        href: row?.url || "#",
+        imageUrl: row?.image_url || categoryImageUrl("markets"),
+      };
+    });
+  } catch (err: any) {
+    console.warn(`⚠️ [Stage 1B Fallback] Marketaux fetch failed: ${err.message}`);
+    return [];
+  }
+}
+
+// NewsAPI fallback for macro news (broad market terms)
+async function fetchNewsApiMacroFallback(hoursAgo: number): Promise<MacroCandidate[]> {
+  const newsApiKey = Deno.env.get("NEWSAPI_API_KEY") || Deno.env.get("NEWSAPI_KEY") || "";
+  if (!newsApiKey) {
+    console.log("⚠️ [Stage 1B Fallback] No NEWSAPI_API_KEY available");
+    return [];
+  }
+
+  const NEWSAPI_BASE = "https://newsapi.org/v2/everything";
+  const from = new Date(Date.now() - hoursAgo * 60 * 60 * 1000).toISOString();
+
+  const url = new URL(NEWSAPI_BASE);
+  url.searchParams.set("q", '"stock market" OR "Federal Reserve" OR "Wall Street" OR "S&P 500" OR "economy"');
+  url.searchParams.set("language", "en");
+  url.searchParams.set("sortBy", "publishedAt");
+  url.searchParams.set("pageSize", "10");
+  url.searchParams.set("from", from);
+  url.searchParams.set("apiKey", newsApiKey);
+
+  try {
+    const response = await fetch(url.toString(), { method: "GET" });
+    if (!response.ok) {
+      console.warn(`⚠️ [Stage 1B Fallback] NewsAPI error: ${response.status}`);
+      return [];
+    }
+
+    const data = await response.json();
+    const rows = Array.isArray(data?.articles) ? data.articles : [];
+    const nowMs = Date.now();
+
+    return rows.map((row: any) => {
+      const publishedAt = row?.publishedAt || new Date().toISOString();
+      const ageHours = (nowMs - new Date(publishedAt).getTime()) / (1000 * 60 * 60);
+      return {
+        id: `macro_na_${simpleHash(row?.url || row?.title || "")}`,
+        title: (row?.title || "").trim(),
+        summary: (row?.description || row?.content || "").trim(),
+        source: row?.source?.name || "NewsAPI",
+        source_query: "fallback_newsapi" as const,
+        published_at: publishedAt,
+        age_hours: Math.round(ageHours * 10) / 10,
+        sentiment: "neutral",
+        sentiment_confidence: 0,
+        category: categorizeByKw(row?.title || "", row?.description || ""),
+        entities: [],
+        matches_user_sector: false,
+        matched_sectors: [],
+        href: row?.url || "#",
+        imageUrl: row?.urlToImage || categoryImageUrl("markets"),
+      };
+    });
+  } catch (err: any) {
+    console.warn(`⚠️ [Stage 1B Fallback] NewsAPI fetch failed: ${err.message}`);
+    return [];
+  }
+}
+
+// Main Stage 1B entry point
+async function fetchMacroCandidates(
+  userInterests: string[]
+): Promise<MacroCandidate[]> {
+  const finlightKey = Deno.env.get("FINLIGHT_API_KEY");
+  if (!finlightKey) {
+    console.warn("⚠️ [Stage 1B] No FINLIGHT_API_KEY — skipping Finlight queries, going straight to fallbacks");
+    // Go directly to fallbacks
+    const fallbacks = [
+      ...(await fetchMarketauxMacroFallback(24)),
+      ...(await fetchNewsApiMacroFallback(24)),
+    ];
+    const filtered = filterJunk(deduplicateCandidates(fallbacks));
+    console.log(`📰 [Stage 1B] Fallbacks returned ${filtered.length} candidates (no Finlight key)`);
+    return filtered;
+  }
+
+  const nowMs = Date.now();
+  const dayOfWeek = new Date().getUTCDay();
+  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+  // Time windows: wider on weekends
+  const editorialFrom = new Date(nowMs - (isWeekend ? 5 * 24 : 6) * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const macroFrom = new Date(nowMs - (isWeekend ? 7 * 24 : 24) * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+  console.log(`\n📰 [Stage 1B] Fetching macro candidates (${isWeekend ? "weekend" : "weekday"} mode)...`);
+
+  // ── Query 1: Editorial Net (no keyword filter, premium sources only) ──
+  const q1Promise = finlightQuery(finlightKey, {
+    sources: [
+      "www.reuters.com", "www.bloomberg.com", "www.cnbc.com",
+      "www.wsj.com", "www.ft.com", "www.barrons.com",
+    ],
+    from: editorialFrom,
+    pageSize: isWeekend ? 20 : 15,
+  }).then((articles) => {
+    console.log(`   Q1 [editorial_net]: ${articles.length} articles`);
+    return articles.map((a) => toMacroCandidate(a, "editorial_net", userInterests, nowMs));
+  });
+
+  // ── Query 2: Targeted Macro (Fed, inflation, GDP, etc.) ──
+  const q2Promise = finlightQuery(finlightKey, {
+    query: '"Federal Reserve" OR "inflation" OR "jobs report" OR "GDP" OR "interest rate" OR "Treasury" OR "tariff" OR "trade war"',
+    from: macroFrom,
+    pageSize: 10,
+  }).then((articles) => {
+    console.log(`   Q2 [targeted_macro]: ${articles.length} articles`);
+    return articles.map((a) => toMacroCandidate(a, "targeted_macro", userInterests, nowMs));
+  });
+
+  // ── Query 3: Market Movers (rally, selloff, surge, etc.) ──
+  const q3Promise = finlightQuery(finlightKey, {
+    query: '"market" AND ("rally" OR "selloff" OR "surge" OR "crash" OR "record high" OR "sector rotation" OR "correction")',
+    from: macroFrom,
+    pageSize: 10,
+  }).then((articles) => {
+    console.log(`   Q3 [market_movers]: ${articles.length} articles`);
+    return articles.map((a) => toMacroCandidate(a, "market_movers", userInterests, nowMs));
+  });
+
+  // ── Query 4: Sector Interest (personalized to user's top 2 sectors) ──
+  const sectorQuery = buildSectorQuery(userInterests);
+  const q4Promise = sectorQuery
+    ? finlightQuery(finlightKey, {
+        query: sectorQuery,
+        from: macroFrom,
+        pageSize: 10,
+      }).then((articles) => {
+        console.log(`   Q4 [sector_interest]: ${articles.length} articles (query: ${sectorQuery.slice(0, 80)}...)`);
+        return articles.map((a) => toMacroCandidate(a, "sector_interest", userInterests, nowMs));
+      })
+    : Promise.resolve([] as MacroCandidate[]);
+
+  // ── Query 5 (weekends only): Forward-looking content ──
+  const q5Promise = isWeekend
+    ? finlightQuery(finlightKey, {
+        query: '"week ahead" OR "preview" OR "outlook" OR "earnings week" OR "what to watch"',
+        from: macroFrom,
+        pageSize: 10,
+      }).then((articles) => {
+        console.log(`   Q5 [weekend_outlook]: ${articles.length} articles`);
+        return articles.map((a) => toMacroCandidate(a, "weekend_outlook", userInterests, nowMs));
+      })
+    : Promise.resolve([] as MacroCandidate[]);
+
+  // Run all queries in parallel
+  const [q1, q2, q3, q4, q5] = await Promise.all([q1Promise, q2Promise, q3Promise, q4Promise, q5Promise]);
+  const allRaw = [...q1, ...q2, ...q3, ...q4, ...q5];
+
+  console.log(`   Total raw articles from Finlight: ${allRaw.length}`);
+
+  // Deduplicate, filter junk
+  let candidates = filterJunk(deduplicateCandidates(allRaw));
+  console.log(`   After dedup + junk filter: ${candidates.length} candidates`);
+
+  // ── Fallbacks if < 5 usable stories ──
+  if (candidates.length < 5) {
+    console.log(`⚠️ [Stage 1B] Only ${candidates.length} candidates — running fallbacks...`);
+
+    const marketauxFallback = await fetchMarketauxMacroFallback(isWeekend ? 48 : 24);
+    if (marketauxFallback.length > 0) {
+      console.log(`   MarketAux fallback: ${marketauxFallback.length} articles`);
+      candidates = deduplicateCandidates([...candidates, ...filterJunk(marketauxFallback)]);
+    }
+
+    if (candidates.length < 5) {
+      const newsApiFallback = await fetchNewsApiMacroFallback(isWeekend ? 48 : 24);
+      if (newsApiFallback.length > 0) {
+        console.log(`   NewsAPI fallback: ${newsApiFallback.length} articles`);
+        candidates = deduplicateCandidates([...candidates, ...filterJunk(newsApiFallback)]);
+      }
+    }
+  }
+
+  // Sort: premium source + recency + sector relevance
+  candidates.sort((a, b) => {
+    const premiumA = PREMIUM_SOURCES_BRIEFING.some((p) => a.source.toLowerCase().includes(p)) ? 20 : 0;
+    const premiumB = PREMIUM_SOURCES_BRIEFING.some((p) => b.source.toLowerCase().includes(p)) ? 20 : 0;
+    const sectorA = a.matches_user_sector ? 15 : 0;
+    const sectorB = b.matches_user_sector ? 15 : 0;
+    const recencyA = a.age_hours < 6 ? 10 : a.age_hours < 12 ? 5 : 0;
+    const recencyB = b.age_hours < 6 ? 10 : b.age_hours < 12 ? 5 : 0;
+    const scoreA = premiumA + sectorA + recencyA;
+    const scoreB = premiumB + sectorB + recencyB;
+    if (scoreB !== scoreA) return scoreB - scoreA;
+    return a.age_hours - b.age_hours;
+  });
+
+  console.log(`📰 [Stage 1B] Final: ${candidates.length} macro candidates ready for Stage 2`);
+  candidates.slice(0, 5).forEach((c, i) => {
+    console.log(
+      `   ${i + 1}. [${c.source_query}] [${c.age_hours}h] [${c.source}] ` +
+      `${c.matches_user_sector ? "⭐ " : ""}${c.title.slice(0, 60)}...`
+    );
+  });
+
+  return candidates;
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -1595,6 +2015,23 @@ Deno.serve(async (req) => {
         `provider=${data.provider}`
       );
     }
+    console.log(""); // blank line separator
+
+    // =========================================================
+    // STAGE 1B TEST: Fetch macro/market news candidates
+    // Runs 4 Finlight queries in parallel (5 on weekends),
+    // with MarketAux + NewsAPI fallbacks if < 5 usable stories.
+    // TODO: Remove test log once pipeline integration is complete.
+    // =========================================================
+    const macroCandidates = await fetchMacroCandidates(userInterests);
+    console.log(`\n🧪 [Stage 1B TEST] ${macroCandidates.length} macro candidates:`);
+    macroCandidates.slice(0, 8).forEach((c, i) => {
+      console.log(
+        `   ${i + 1}. [${c.source_query}] [${c.age_hours}h] [${c.category}] ` +
+        `[${c.source}] ${c.matches_user_sector ? "⭐sector " : ""}` +
+        `${c.title.slice(0, 70)}...`
+      );
+    });
     console.log(""); // blank line separator
 
     // --- ALWAYS fetch fresh portfolio news from Finlight ---
