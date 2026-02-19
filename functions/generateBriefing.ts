@@ -2372,6 +2372,7 @@ const ANALYST_OUTPUT_SCHEMA = {
 function buildAnalystPrompt(
   rawIntelligence: RawIntelligencePackage,
   isWeekend: boolean,
+  marketSnapshot?: { sp500_pct: string; nasdaq_pct: string; dow_pct: string } | null,
 ): string {
   const userCtx = rawIntelligence.user_context;
   const holdings = userCtx.holdings;
@@ -2517,6 +2518,20 @@ e) CONFIDENCE: "high" (strong source, specific data), "medium" (decent source,
 OUTPUT FORMAT: Return valid JSON only. No markdown, no commentary.
 
 ═══════════════════════════════════════
+MARKET ENERGY CLASSIFICATION — use the index data provided, not your judgment:
+═══════════════════════════════════════
+- volatile_up: ALL major indices UP by 1%+ → strong rally
+- volatile_down: ALL major indices DOWN by 1%+ → significant selloff
+- mixed_calm: Indices are split (some up, some down) OR all moves < 0.5%
+- quiet: All moves < 0.3% in either direction
+- breakout: Any single index moved 2%+ in either direction, OR a major unexpected event
+
+If ALL indices are DOWN (even modestly), market_energy CANNOT be "volatile_up".
+If ALL indices are UP (even modestly), market_energy CANNOT be "volatile_down".
+
+${!isWeekend && marketSnapshot ? `Today's data: S&P ${marketSnapshot.sp500_pct} | Nasdaq ${marketSnapshot.nasdaq_pct} | Dow ${marketSnapshot.dow_pct}\nBased on this data, classify market_energy accordingly.` : "Today's data: N/A (weekend or unavailable). Use market_energy: quiet or mixed_calm."}
+
+═══════════════════════════════════════
 RAW INTELLIGENCE PACKAGE
 ═══════════════════════════════════════
 
@@ -2564,10 +2579,12 @@ function buildScriptwriterPrompt(input: ScriptwriterInput): string {
     marketSnapshot, userVoicePreference, dayName, skipped_tickers = [],
   } = input;
 
+  console.log(`📝 [Stage 3] Voice mode block injected: ${userVoicePreference}`);
+
   // Watch item history — not yet implemented; will be wired in a future stage
   const watchItemHistory = {};
 
-  return `SYSTEM:
+  const prompt = `SYSTEM:
 
 You are the host of "Pulse" — a personalized financial audio briefing that
 feels like the listener's personal financial assistant. Think JARVIS from
@@ -2967,7 +2984,18 @@ ${JSON.stringify(watchItemHistory)}
 </watch_history>
 
 Voice mode: ${userVoicePreference}
+
+REQUIRED OUTPUT FIELDS — do not omit any of these:
+- voice_mode_applied: must be "${userVoicePreference}" (not "unknown")
+- sign_off_style: must be one of "good_day", "volatile_day", "before_catalyst", "quiet_day", "friday", "monday" (not "unknown")
+- watch_items_mentioned: array of events mentioned in the What to Watch section
+
+These fields are required. Do not return "unknown" for any of them.
+
 Write the audio script and metadata (summary, key_highlights, market_sentiment) now. Follow the METADATA section above — summary and key_highlights must be specific and actionable, not generic. Return valid JSON only.`;
+
+  console.log(`📝 [Stage 3] Prompt length: ${prompt.length} chars`);
+  return prompt;
 }
 
 const SCRIPTWRITER_OUTPUT_SCHEMA = {
@@ -3769,15 +3797,16 @@ Deno.serve(async (req) => {
     // Runs SIDE-BY-SIDE with existing script generation for now.
     // Stage 3 will consume this output to replace the combined prompt.
     // =========================================================
-    // Pre-fetch market snapshot in parallel with Stage 2 (independent of analyst output)
-    const marketSnapshotPromise = fetchMarketSnapshot();
-    console.log(`📈 [Pre-fetch] Market snapshot request started (will overlap with Stage 2)`);
+    // Await market snapshot before Stage 2 so we can inject today's index data into the analyst prompt (correct market_energy).
+    console.log(`📈 [Stage 2] Fetching market snapshot for analyst prompt...`);
+    const marketSnapshotForAnalyst = await fetchMarketSnapshot();
+    const marketSnapshotPromise = Promise.resolve(marketSnapshotForAnalyst);
 
     let analyzedBrief: AnalyzedBrief | null = null;
     try {
       console.log(`\n🧠 [Stage 2] Analyst Desk: analyzing intelligence package...`);
       const analystStartMs = Date.now();
-      const analystPrompt = buildAnalystPrompt(rawIntelligence, isWeekendDay);
+      const analystPrompt = buildAnalystPrompt(rawIntelligence, isWeekendDay, marketSnapshotForAnalyst);
       const analystResult = await invokeLLM(base44, analystPrompt, false, ANALYST_OUTPUT_SCHEMA);
 
       if (analystResult && analystResult.macro_selections) {
@@ -3918,6 +3947,17 @@ Deno.serve(async (req) => {
 
       // ── LLM Call ──
       const scriptwriterResult = await invokeLLM(base44, scriptwriterPrompt, false, SCRIPTWRITER_OUTPUT_SCHEMA);
+
+      // ── Fix 3 Step C: validate required output fields; fallback if LLM returned "unknown"
+      if (scriptwriterResult) {
+        if (scriptwriterResult.voice_mode_applied === "unknown" || !scriptwriterResult.voice_mode_applied) {
+          console.warn("⚠️ [Stage 3] voice_mode_applied came back as unknown — prompt injection may have failed");
+          scriptwriterResult.voice_mode_applied = userVoicePreference3;
+        }
+        if (scriptwriterResult.sign_off_style === "unknown" || !scriptwriterResult.sign_off_style) {
+          console.warn("⚠️ [Stage 3] sign_off_style came back as unknown");
+        }
+      }
 
       // ── Post-process script ──
       let script3 = sanitizeForAudio(scriptwriterResult?.script || "");
