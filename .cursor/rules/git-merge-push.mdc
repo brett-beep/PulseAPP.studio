@@ -1,0 +1,20 @@
+---
+description: When the user asks to merge and push (or pull and push), use full permissions and explicit merge strategy so it works reliably.
+alwaysApply: true
+---
+
+# Git merge and push
+
+When the user asks to **merge and push**, **pull and push**, **sync with remote**, or similar:
+
+1. **Use full permissions**  
+   Run the command with `required_permissions: ["all"]` so credential helpers (e.g. macOS Keychain for HTTPS) can run.
+
+2. **Use an explicit merge strategy**  
+   Divergent branches require a strategy. Use merge (not rebase) so the operation is non-interactive:
+
+   ```bash
+   git pull --no-rebase --no-edit && git push
+   ```
+
+Do not use a bare `git pull` (it may prompt for merge vs rebase). Do not assume sandbox + network is enough for git push (HTTPS often needs full permissions for credentials).
