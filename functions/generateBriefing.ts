@@ -1207,6 +1207,8 @@ interface TickerMarketData {
   company_name: string;
   quote: TickerQuote;
   provider: "finnhub" | "none";
+  /** True when Finnhub returns 403 (e.g. unsupported exchange like GC.NE). */
+  ticker_unsupported?: boolean;
 }
 
 async function fetchTickerMarketData(ticker: string): Promise<TickerMarketData> {
@@ -1230,6 +1232,11 @@ async function fetchTickerMarketData(ticker: string): Promise<TickerMarketData> 
     if (response.status === 429) {
       console.warn(`⚠️ [fetchTickerMarketData] Finnhub rate limit (429) for ${ticker}`);
       return { ticker, company_name: companyName, quote: emptyQuote, provider: "none" };
+    }
+
+    if (response.status === 403) {
+      console.warn(`⚠️ [fetchTickerMarketData] Finnhub 403 for ${ticker} (unsupported ticker/exchange)`);
+      return { ticker, company_name: companyName, quote: emptyQuote, provider: "none", ticker_unsupported: true };
     }
 
     if (!response.ok) {
@@ -2039,6 +2046,8 @@ interface TickerPackage {
   news_articles: TickerNewsArticle[];
   news_coverage: "strong" | "moderate" | "thin" | "none";
   fallback_sources_used: string[];
+  /** True when Finnhub returned 403 for this ticker (unsupported exchange). */
+  ticker_unsupported?: boolean;
 }
 
 // =========================================================
@@ -2326,6 +2335,12 @@ HARD RULE — macro_selections must be TRUE MACRO news, NOT portfolio-company st
   Examples of WRONG macro picks: "Amazon rebounds", "Nvidia-Meta deal", "Boeing job shift".
   Those belong in portfolio_selections. Keep macro and portfolio strictly separated.
 
+DEDUPLICATION RULE: Before finalizing your 3 macro selections, check if any two stories
+cover the same underlying event (e.g., two articles about Fed minutes, two articles about
+the same earnings report). If so, MERGE them into one selection — combine the best facts
+from both sources. Then pick a genuinely different story for the remaining slot. Selecting
+two stories about the same event is a critical failure.
+
 Story 1: ALWAYS the biggest market-moving headline of the day — Fed, inflation, indices, regulatory.
 Prefer "editorial_net" or "targeted_macro". Must NOT be about a portfolio holding.
 
@@ -2381,6 +2396,22 @@ SELECTION CRITERIA:
 - If articles are flagged is_sector_level: true, frame the insight at the sector
   level and connect it to the specific holding — don't pretend it's company-specific news.
 - NEVER fabricate news. If there's nothing, say so.
+
+FACTS INTEGRITY RULE: Every item in the "facts" array MUST be a specific, verifiable data
+point that comes directly from the source articles or market data provided. Examples of valid facts:
+- "Current price: $48.35, up 3.64% today"
+- "Q1 revenue of $21.8 million vs $18.55 million expected"
+- "Stock hit daily high of $48.57"
+- "Macy's announcing 65 store closures over the next 18 months"
+
+Examples of INVALID facts (never include these):
+- "Investors are watching for potential entry points" ← speculation
+- "The sector is showing growth momentum" ← vague commentary
+- "Technical setups suggest opportunity" ← not from any source
+- "Market conditions are favorable" ← filler
+
+If you cannot find 2-3 specific facts from the provided articles and market data for a holding,
+include only the facts you can verify and set confidence to "low". Do NOT pad with generated commentary.
 
 ═══════════════════════════════════════
 DATA DEPTH RULES
@@ -2454,13 +2485,15 @@ interface ScriptwriterInput {
   marketSnapshot: { sp500_pct: string; nasdaq_pct: string; dow_pct: string; sector_hint?: string };
   userVoicePreference: string;
   dayName: string;
+  /** Tickers excluded from briefing (unsupported + no coverage). Script says one neutral line. */
+  skipped_tickers?: string[];
 }
 
 function buildScriptwriterPrompt(input: ScriptwriterInput): string {
   const {
     analyzedBrief, name, naturalDate, timeGreeting, holidayGreeting,
     isWeekend, isMonday, isFriday, userHoldingsStr, userSectorInterests,
-    marketSnapshot, userVoicePreference, dayName,
+    marketSnapshot, userVoicePreference, dayName, skipped_tickers = [],
   } = input;
 
   // Watch item history — not yet implemented; will be wired in a future stage
@@ -2755,6 +2788,12 @@ personality. Don't make every holding sound the same:
   Story 1: already has the portfolio intro
   Story 2+: Vary between "Looking at your [company]," / "Shifting to [company],"
   / "Now, [company] —" / "Your [company] position —"
+${skipped_tickers.length > 0 ? `
+SKIPPED TICKERS (unsupported / no coverage): ${skipped_tickers.join(", ")}
+- Add exactly ONE brief, neutral sentence at the end of the portfolio section.
+- Example: "I don't have coverage for ${skipped_tickers[0]} through my sources right now — I'll let you know if that changes."
+- Do NOT speculate or imply anything negative. One sentence, then move on.
+` : ""}
 
 SECTION 4: WHAT TO WATCH (40-70 words)
 
@@ -2911,14 +2950,15 @@ const SCRIPTWRITER_OUTPUT_SCHEMA = {
 };
 
 // ── MULTI-STEP FINLIGHT QUERY CASCADE (per ticker) ──
-// Step 1: Direct ticker search (24h)
-// Step 2: Company name + high-signal terms (48h)
-// Step 3: Aliases / key people / products (48h)
+// Step 1 (PRIMARY): Company name text search (resolveCompanyName — cached).
+// Step 2: Company name + high-signal financial terms.
+// Step 3 (supplement): ticker: field search. Results deduped across all steps.
 async function fetchTickerNewsCascade(
   apiKey: string,
   ticker: string,
   nowMs: number
 ): Promise<{ articles: TickerNewsArticle[]; fallbacksUsed: string[] }> {
+  const companyName = await resolveCompanyName(ticker);
   const aliasInfo = getCompanyAliases(ticker);
   const articles: TickerNewsArticle[] = [];
   const seenTitles: string[] = [];
@@ -2951,56 +2991,70 @@ async function fetchTickerNewsCascade(
     return true;
   };
 
-  // Step 1: Direct ticker search (48h, wider than before)
+  const from24h = new Date(nowMs - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const from48h = new Date(nowMs - 48 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+  // Step 1 (PRIMARY): Company name text search — works for single-letter and mid-caps
   try {
     const step1 = await finlightQuery(apiKey, {
-      query: `ticker:${ticker}`,
-      from: new Date(nowMs - 48 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      query: `"${companyName}"`,
+      from: from24h,
       pageSize: 10,
     });
     step1.forEach((a) => addArticle(a, false));
-    if (step1.length > 0) console.log(`   [${ticker}] Step 1 (ticker search): ${step1.length} articles`);
+    if (step1.length > 0) console.log(`   [${ticker}] Step 1 (company name): ${step1.length} articles`);
   } catch (e: any) {
     console.warn(`   [${ticker}] Step 1 failed: ${e.message}`);
   }
 
   // Step 2: Company name + high-signal financial terms (48h)
-  // Always run unless we already hit the target
-  if (articles.length < MIN_ARTICLES_TARGET && aliasInfo.name !== ticker) {
+  if (articles.length < MIN_ARTICLES_TARGET) {
     try {
-      const nameQuery = `"${aliasInfo.name}" AND ("earnings" OR "analyst" OR "upgrade" OR "downgrade" OR "price target" OR "revenue" OR "guidance")`;
+      const nameQuery = `"${companyName}" AND ("earnings" OR "analyst" OR "upgrade" OR "downgrade" OR "price target" OR "revenue" OR "guidance")`;
       const step2 = await finlightQuery(apiKey, {
         query: nameQuery,
-        from: new Date(nowMs - 48 * 60 * 60 * 1000).toISOString().slice(0, 10),
+        from: from48h,
         pageSize: 10,
       });
       step2.forEach((a) => addArticle(a, false));
-      if (step2.length > 0) console.log(`   [${ticker}] Step 2 (company name): ${step2.length} articles`);
+      if (step2.length > 0) console.log(`   [${ticker}] Step 2 (company + terms): ${step2.length} articles`);
     } catch (e: any) {
       console.warn(`   [${ticker}] Step 2 failed: ${e.message}`);
     }
   }
 
-  // Step 3: Aliases — key people, products, brand names (48h)
-  // Always run unless we already hit the target
+  // Step 3 (supplement): ticker-field search — catches articles tagged with symbol (e.g. mega-caps)
+  try {
+    const step3 = await finlightQuery(apiKey, {
+      query: `ticker:${ticker}`,
+      from: from48h,
+      pageSize: 5,
+    });
+    step3.forEach((a) => addArticle(a, false));
+    if (step3.length > 0) console.log(`   [${ticker}] Step 3 (ticker field): ${step3.length} articles`);
+  } catch (e: any) {
+    console.warn(`   [${ticker}] Step 3 failed: ${e.message}`);
+  }
+
+  // Step 4 (optional): Aliases — key people, products (only if still below target)
   if (articles.length < MIN_ARTICLES_TARGET && aliasInfo.aliases.length > 1) {
     try {
       const aliasQuery = aliasInfo.aliases
-        .filter((a) => a !== aliasInfo.name)
+        .filter((a) => a !== aliasInfo.name && a !== companyName)
         .slice(0, 4)
         .map((a) => `"${a}"`)
         .join(" OR ");
       if (aliasQuery) {
-        const step3 = await finlightQuery(apiKey, {
+        const step4 = await finlightQuery(apiKey, {
           query: aliasQuery,
-          from: new Date(nowMs - 48 * 60 * 60 * 1000).toISOString().slice(0, 10),
+          from: from48h,
           pageSize: 5,
         });
-        step3.forEach((a) => addArticle(a, false));
-        if (step3.length > 0) console.log(`   [${ticker}] Step 3 (aliases): ${step3.length} articles`);
+        step4.forEach((a) => addArticle(a, false));
+        if (step4.length > 0) console.log(`   [${ticker}] Step 4 (aliases): ${step4.length} articles`);
       }
     } catch (e: any) {
-      console.warn(`   [${ticker}] Step 3 failed: ${e.message}`);
+      console.warn(`   [${ticker}] Step 4 failed: ${e.message}`);
     }
   }
 
@@ -3195,6 +3249,7 @@ async function fetchTickerPackage(
     news_articles: newsResult.articles,
     news_coverage: coverage,
     fallback_sources_used: newsResult.fallbacksUsed,
+    ticker_unsupported: marketData.ticker_unsupported,
   };
 }
 
@@ -3442,17 +3497,35 @@ Deno.serve(async (req) => {
       .map((h: any) => (typeof h === "string" ? h : h?.symbol || h?.ticker || "").toUpperCase().trim())
       .filter(Boolean);
     const earlyTickerNames: string[] = [];
+    const singleLetterTickers = new Set(earlyTickers.filter((t: string) => t.length === 1));
     for (const t of earlyTickers) {
       earlyTickerNames.push(t.toLowerCase());
       const names = TICKER_TO_NAMES_BRIEFING[t] || [];
       for (const n of names) earlyTickerNames.push(n);
     }
 
-    /** Returns true if the story is about one of the user's portfolio companies. */
+    /** Returns true if the story is about one of the user's portfolio companies.
+     * Single-letter tickers (e.g. B, M) match only on full company name in text
+     * OR on structured ticker/company fields (e.g. story.entities from Finlight).
+     * Multi-letter tickers use normal ticker/company name matching in title/summary. */
     function isAboutPortfolioCompany(story: any): boolean {
       if (earlyTickers.length === 0) return false;
-      const text = `${story.title || ""} ${story.what_happened || ""}`.toLowerCase();
-      return earlyTickerNames.some(name => text.includes(name));
+      const text = `${story.title || ""} ${story.summary || ""} ${story.what_happened || ""}`.toLowerCase();
+      const entitiesLower: string[] = (story.entities || []).map((e: string) => String(e).toLowerCase());
+      for (const t of earlyTickers) {
+        const tickerLower = t.toLowerCase();
+        const fullNames = TICKER_TO_NAMES_BRIEFING[t] || [];
+        if (singleLetterTickers.has(t)) {
+          const fullNameInText = fullNames.some((n) => text.includes(n.toLowerCase()));
+          const inStructured = entitiesLower.some(
+            (e) => e === tickerLower || e.includes(tickerLower) || fullNames.some((n) => e.includes(n.toLowerCase()))
+          );
+          if (fullNameInText || inStructured) return true;
+        } else {
+          if (text.includes(tickerLower) || fullNames.some((n) => text.includes(n.toLowerCase()))) return true;
+        }
+      }
+      return false;
     }
 
     const rapidFireCandidates = [...scoredStories]
@@ -3560,7 +3633,16 @@ Deno.serve(async (req) => {
     // This replaces the old single-query portfolio refresh.
     // TODO: Remove test log once pipeline integration is complete.
     // =========================================================
-    const tickerPackages = await fetchAllTickerPackages(briefingTickers, tickerMarketMap);
+    const tickerPackagesRaw = await fetchAllTickerPackages(briefingTickers, tickerMarketMap);
+    const skippedTickers = tickerPackagesRaw
+      .filter((p) => p.ticker_unsupported && p.news_coverage === "none")
+      .map((p) => p.ticker);
+    const tickerPackages = tickerPackagesRaw.filter(
+      (p) => !(p.ticker_unsupported && p.news_coverage === "none")
+    );
+    if (skippedTickers.length > 0) {
+      console.log(`📋 [Stage 1D] Excluding unsupported tickers with no coverage: ${skippedTickers.join(", ")}`);
+    }
     console.log(`\n🧪 [Stage 1C TEST] ${tickerPackages.length} ticker packages:`);
     for (const pkg of tickerPackages) {
       const directCount = pkg.news_articles.filter((a) => a.relevance_type === "direct").length;
@@ -3758,6 +3840,7 @@ Deno.serve(async (req) => {
         marketSnapshot: marketSnapshot3,
         userVoicePreference: userVoicePreference3,
         dayName: dayName3,
+        skipped_tickers: skippedTickers,
       });
 
       console.log(`📝 [Stage 3] Scriptwriter prompt built (voice=${userVoicePreference3}, weekend=${isWeekend3})`);
