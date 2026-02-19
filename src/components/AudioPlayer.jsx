@@ -198,15 +198,28 @@ export default function AudioPlayer({
       return count;
     };
 
-    if (sorted.length === 0) {
+    // Coalesce: skip boundaries that are too close (e.g. "Now let's talk about your portfolio" + "your Amazon position" in same breath).
+    // Keep exactly needBoundaries by taking first position, then only positions ≥ MIN_WORDS after the previous kept one.
+    const MIN_WORDS = 18;
+    const coalesced = [];
+    for (const charPos of sorted) {
+      const wi = charToWordIndex(charPos);
+      if (coalesced.length === 0) {
+        coalesced.push(charPos);
+      } else {
+        const lastWi = charToWordIndex(coalesced[coalesced.length - 1]);
+        if (wi - lastWi >= MIN_WORDS) coalesced.push(charPos);
+      }
+      if (coalesced.length >= needBoundaries) break;
+    }
+
+    if (coalesced.length === 0) {
       return Array.from(
         { length: needBoundaries },
         (_, i) => Math.max(0, ((i + 1) / (needBoundaries + 1)) * totalDuration - earlySec)
       );
     }
-    const take = Math.min(needBoundaries, sorted.length);
-    const selected = sorted
-      .slice(0, take)
+    const selected = coalesced
       .map((p) => Math.max(0, (charToWordIndex(p) / totalWords) * totalDuration - earlySec));
     return selected.sort((a, b) => a - b);
   }, [transcript, rawSectionCount, totalDuration]);
