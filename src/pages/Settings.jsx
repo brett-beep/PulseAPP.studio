@@ -412,7 +412,7 @@ export default function Settings() {
                                 {[
                                     { value: 'professional', label: 'Professional' },
                                     { value: 'conversational', label: 'Conversational' },
-                                    { value: 'energetic', label: 'Energetic' },
+                                    { value: 'hybrid', label: 'Hybrid' },
                                 ].map(opt => (
                                     <button
                                         key={opt.value}

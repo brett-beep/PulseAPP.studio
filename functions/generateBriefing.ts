@@ -3921,8 +3921,12 @@ Deno.serve(async (req) => {
       const dayNames3 = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
       const dayName3 = dayNames3[dayOfWeek3];
 
-      // ── Voice preference (from user preferences) ──
-      const userVoicePreference3 = safeText(preferences?.preferred_voice, "professional");
+      // ── Voice preference (from user preferences); normalize legacy "energetic" → "hybrid" ──
+      let userVoicePreference3 = safeText(preferences?.preferred_voice, "professional");
+      if (userVoicePreference3 === "energetic") {
+        userVoicePreference3 = "hybrid";
+      }
+      console.log(`🎤 [Voice] User preference: "${preferences?.preferred_voice ?? ""}" → normalized: "${userVoicePreference3}"`);
 
       // ── Build Scriptwriter Prompt ──
       const scriptwriterPrompt = buildScriptwriterPrompt({
