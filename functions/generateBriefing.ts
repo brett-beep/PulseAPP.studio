@@ -3782,6 +3782,7 @@ Deno.serve(async (req) => {
 
       if (analystResult && analystResult.macro_selections) {
         analyzedBrief = analystResult as AnalyzedBrief;
+        analyzedBrief.watch_items = analyzedBrief.watch_items ?? { primary: null, secondary: null };
         const analystMs = Date.now() - analystStartMs;
 
         // Guard: LLM sometimes omits market_energy — infer from market snapshot
@@ -3815,10 +3816,10 @@ Deno.serve(async (req) => {
           console.log(`         so_what: ${s.so_what.slice(0, 80)}...`);
           if (s.data_gap_note) console.log(`         ⚠️ gap: ${s.data_gap_note}`);
         });
-        if (analyzedBrief.watch_items.primary) {
+        if (analyzedBrief?.watch_items?.primary) {
           console.log(`   watch_primary: ${analyzedBrief.watch_items.primary.event} (${analyzedBrief.watch_items.primary.date})`);
         }
-        if (analyzedBrief.watch_items.secondary) {
+        if (analyzedBrief?.watch_items?.secondary) {
           console.log(`   watch_secondary: ${analyzedBrief.watch_items.secondary.event} (${analyzedBrief.watch_items.secondary.date})`);
         }
         if (analyzedBrief.data_quality_flags.length > 0) {
