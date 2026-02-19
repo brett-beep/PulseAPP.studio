@@ -1056,7 +1056,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
             onComplete={() => console.log('Audio completed')}
             greeting={greeting()}
             userName={firstName}
-            currentDate={format(new Date(), "MM/dd, EEE")}
+            currentDate={format(new Date(), "MM/dd, EEE") + " · live"}
             onGenerate={generateFullBriefing}
             isGenerating={isGenerating}
             status={status}
