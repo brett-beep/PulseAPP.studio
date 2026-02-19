@@ -916,7 +916,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
     const hour = new Date().getHours();
     if (hour < 12) return "Good morning";
     if (hour < 17) return "Good afternoon";
-    return "Good (testing) evening";
+    return "Good evening";
   };
 
   // Loading state
