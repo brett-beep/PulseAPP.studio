@@ -2570,6 +2570,8 @@ interface ScriptwriterInput {
   dayName: string;
   /** Tickers excluded from briefing (unsupported + no coverage). Script says one neutral line. */
   skipped_tickers?: string[];
+  /** User's briefing length preference (~5 min, ~8 min, ~12 min). Drives word target in prompt. */
+  briefingLength?: string;
 }
 
 function buildScriptwriterPrompt(input: ScriptwriterInput): string {
@@ -2577,7 +2579,17 @@ function buildScriptwriterPrompt(input: ScriptwriterInput): string {
     analyzedBrief, name, naturalDate, timeGreeting, holidayGreeting,
     isWeekend, isMonday, isFriday, userHoldingsStr, userSectorInterests,
     marketSnapshot, userVoicePreference, dayName, skipped_tickers = [],
+    briefingLength = "",
   } = input;
+
+  let wordTarget: string;
+  if (briefingLength === "~8 min") {
+    wordTarget = "800-1000 words (~6-7 minutes)";
+  } else if (briefingLength === "~12 min") {
+    wordTarget = "1200-1500 words (~10-11 minutes)";
+  } else {
+    wordTarget = "450-600 words (~3-4 minutes)";
+  }
 
   console.log(`📝 [Stage 3] Voice mode block injected: ${userVoicePreference}`);
 
@@ -2944,7 +2956,7 @@ KILL RULES
 ═══════════════════════════════════════
 TARGET LENGTH
 ═══════════════════════════════════════
-Total script: 450-600 words (~3-4 minutes of audio)
+Total script: ${wordTarget}
 Keep it tight. Every sentence earns its place. But don't sacrifice personality
 for brevity — a 500-word script that's fun to listen to beats a 430-word
 script that sounds like a spreadsheet.
@@ -3491,6 +3503,20 @@ Deno.serve(async (req) => {
       interests: preferences?.interests ?? preferences?.investment_interests ?? null,
       constraints: preferences?.constraints ?? null,
     };
+
+    let voicePreferenceForLog = safeText(preferences?.preferred_voice, "professional");
+    if (voicePreferenceForLog === "energetic") voicePreferenceForLog = "hybrid";
+    console.log(`══════════════════════════════════════`);
+    console.log(`🧑 [Personalization] Pipeline check:`);
+    console.log(`   name: "${name}"`);
+    console.log(`   holdings: ${JSON.stringify(prefProfile?.holdings ?? preferences?.portfolio_holdings)}`);
+    console.log(`   interests: ${JSON.stringify(prefProfile?.interests ?? preferences?.investment_interests)}`);
+    console.log(`   voice: "${preferences?.preferred_voice ?? ""}" → normalized: "${voicePreferenceForLog}"`);
+    console.log(`   briefing_length: "${preferences?.briefing_length ?? ""}"`);
+    console.log(`   risk_tolerance: "${preferences?.risk_tolerance ?? ""}"`);
+    console.log(`   investment_goals: "${preferences?.investment_goals ?? prefProfile?.goals ?? ""}"`);
+    console.log(`══════════════════════════════════════`);
+
     console.log("🔍 [DEBUG] prefProfile.holdings:", JSON.stringify(prefProfile?.holdings));
 
     // =========================================================
@@ -3944,6 +3970,7 @@ Deno.serve(async (req) => {
         userVoicePreference: userVoicePreference3,
         dayName: dayName3,
         skipped_tickers: skippedTickers,
+        briefingLength: preferences?.briefing_length ?? "",
       });
 
       console.log(`📝 [Stage 3] Scriptwriter prompt built (voice=${userVoicePreference3}, weekend=${isWeekend3})`);
