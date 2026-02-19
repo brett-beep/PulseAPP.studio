@@ -2,6 +2,7 @@
 // Uses secrets: FINNHUB_API_KEY, FINLIGHT_API_KEY. If missing after GitHub deploy → Base44: edit this file (e.g. add newline), Save & Deploy (see DEPLOY.md).
 // Adding this line V3 ________________ to manually redeploy on Base44
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
+import { en as numToWords } from "npm:n2words@3.1.0";
 
 function safeISODate(input) {
   if (typeof input === "string" && input.trim()) return input.trim();
@@ -70,6 +71,73 @@ function getStoryWhenPhrase(storyDatetimeIso, timeZone, ageHours) {
 
 function wordCount(text) {
   return String(text || "").split(/\s+/).filter(Boolean).length;
+}
+
+/**
+ * Converts numbers and currency in script text to natural spoken form for TTS only.
+ * Transcript/DB keeps original numbers; call this only on the copy sent to ElevenLabs.
+ * Uses n2words for "two hundred and five", "zero point one seven", etc.
+ */
+function numbersToSpokenForm(script: string): string {
+  if (!script || typeof script !== "string") return script;
+  const replacements: { start: number; end: number; text: string }[] = [];
+
+  // Currency: $205.14, $717 billion, $713.2 billion, $1.5 million
+  const currencyRe = /\$\s*(\d{1,3}(?:,\d{3})*|\d+)(?:\.(\d+))?\s*(billion|million|trillion)?/gi;
+  let m;
+  while ((m = currencyRe.exec(script)) !== null) {
+    const full = m[0];
+    const intPart = (m[1] || "").replace(/,/g, "");
+    const decPart = m[2];
+    const scale = (m[3] || "").toLowerCase();
+    let spoken = "";
+    try {
+      if (scale) {
+        const n = parseInt(intPart, 10);
+        if (Number.isFinite(n)) {
+          spoken = `${numToWords(n)} ${scale} dollars`;
+        }
+      } else if (decPart !== undefined && decPart !== "") {
+        const dollars = parseInt(intPart, 10);
+        const centsStr = decPart.length >= 2 ? decPart.slice(0, 2) : decPart.padEnd(2, "0");
+        const cents = parseInt(centsStr, 10);
+        if (Number.isFinite(dollars) && Number.isFinite(cents)) {
+          const d = numToWords(dollars);
+          const c = numToWords(cents);
+          spoken = cents === 0 ? `${d} dollars` : `${d} dollars and ${c} cents`;
+        }
+      } else {
+        const n = parseInt(intPart, 10);
+        if (Number.isFinite(n)) {
+          spoken = `${numToWords(n)} dollars`;
+        }
+      }
+      if (spoken) replacements.push({ start: m.index, end: m.index + full.length, text: spoken });
+    } catch (_) {
+      // leave original if conversion fails
+    }
+  }
+
+  // Percentages: 0.17%, 1.55%, 3.64%
+  const percentRe = /(-?\d+(?:\.\d+)?)\s*%/g;
+  while ((m = percentRe.exec(script)) !== null) {
+    const full = m[0];
+    const n = parseFloat(m[1] || "0");
+    if (!Number.isFinite(n)) continue;
+    try {
+      const spoken = `${numToWords(n)} percent`;
+      replacements.push({ start: m.index, end: m.index + full.length, text: spoken });
+    } catch (_) {}
+  }
+
+  if (replacements.length === 0) return script;
+  // Apply from end to start so indices stay valid
+  replacements.sort((a, b) => b.start - a.start);
+  let out = script;
+  for (const r of replacements) {
+    out = out.slice(0, r.start) + r.text + out.slice(r.end);
+  }
+  return out;
 }
 
 function sanitizeForAudio(s) {
@@ -3350,7 +3418,8 @@ Deno.serve(async (req) => {
         status: "generating_audio",
       });
 
-      const audioFile = await generateAudioFile(script, date, elevenLabsApiKey);
+      const scriptForTTS = numbersToSpokenForm(script);
+      const audioFile = await generateAudioFile(scriptForTTS, date, elevenLabsApiKey);
 
       const { file_uri } = await base44.asServiceRole.integrations.Core.UploadPrivateFile({
         file: audioFile,
@@ -4750,7 +4819,9 @@ async function generateAudioAsync(base44Client, briefingId, script, date, eleven
     });
     console.log("✅ [Status] Updated to generating_audio");
 
-    const audioFile = await generateAudioFile(script, date, elevenLabsApiKey);
+    // Convert numbers/currency to spoken form for TTS only; transcript (script in DB) stays numeric
+    const scriptForTTS = numbersToSpokenForm(script);
+    const audioFile = await generateAudioFile(scriptForTTS, date, elevenLabsApiKey);
     console.log(`✅ [Async Audio] Audio file generated`);
 
     await base44Client.asServiceRole.entities.DailyBriefing.update(briefingId, {

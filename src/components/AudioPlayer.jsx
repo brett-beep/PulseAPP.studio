@@ -158,43 +158,27 @@ export default function AudioPlayer({
     const totalWords = words.length;
     if (totalWords === 0) return [];
 
-    const transitionPhrases = [
-      // Rapid fire transitions (synced with generateBriefing.ts prompt)
-      "first up",
-      "next up",
-      "also today",
-      "meanwhile",
-      // Portfolio section transitions
-      "now shifting to your portfolio",
-      "now turning to your portfolio",
-      "shifting to your holdings",
-      "turning to your portfolio",
-      "now for your",
-      "for your holdings",
-      "looking at your",
-      "shifting gears to",
-      "next up for your holdings",
-      // Generic fallbacks (catch natural LLM phrasing)
-      "up next",
-      "also worth noting",
-      "in other news",
-      "on the flip side",
-      "looking ahead",
-      "and another",
-      "one more",
-      "shifting to",
-      "turning to",
-      "and finally",
-      "last up",
+    // Regex families: one pattern per transition type so we pick up natural variations without hardcoding every phrase.
+    // Covers all prompt-suggested transitions (generateBriefing.ts) + legacy literals. Order doesn't matter; we sort by position.
+    const transitionPatterns = [
+      /\bfirst\s+up[\s,—:-]*/gi,
+      /\b(next\s+up|meanwhile|also\s+today)[\s,—:-]*/gi,
+      /\b(and\s+finally|last\s+up)[\s,—:-]*/gi,
+      /\b(up\s+next|also\s+worth\s+noting|in\s+other\s+news|on\s+the\s+flip\s+side|looking\s+ahead|and\s+another|one\s+more)\b/gi,
+      /\b(now\s+let's\s+talk\s+about\s+your\s+portfolio|now\s+(?:shifting|turning)\s+to\s+your\s+portfolio|shifting\s+to\s+your\s+holdings|turning\s+to\s+your\s+portfolio|now\s+for\s+your\s+holdings?|for\s+your\s+holdings|your\s+portfolio\s*[—:-]|alright,?\s+your\s+holdings\s*[—:-])/gi,
+      /\blooking\s+at\s+your\s+\w+/gi,
+      /\b(now,?\s+your\s+\w+|your\s+\w+\s+position\b|shifting\s+to\s+\w+|turning\s+to\s+\w+)/gi,
+      /\bstarting\s+with\s+\w+/gi,
+      /\bshifting\s+gears\s+to\b/gi,
+      /\bnext\s+up\s+for\s+your\s+holdings\b/gi,
+      /\b(shifting|turning)\s+to\b/gi,
     ];
     const positions = [];
-    for (const phrase of transitionPhrases) {
-      let idx = 0;
-      while (idx < text.length) {
-        const found = text.indexOf(phrase, idx);
-        if (found === -1) break;
-        positions.push(found);
-        idx = found + 1;
+    for (const regex of transitionPatterns) {
+      let match;
+      const re = new RegExp(regex.source, regex.flags);
+      while ((match = re.exec(text)) !== null) {
+        positions.push(match.index);
       }
     }
     const sorted = [...new Set(positions)].sort((a, b) => a - b);
