@@ -878,7 +878,10 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
 
       if (response?.data?.error) {
         console.error("❌ Briefing generation error:", response.data.error);
-        alert("Failed to generate briefing: " + response.data.error);
+        const url = response?.request?.responseURL || response?.config?.url || "generateBriefing";
+        const status = response?.status ?? response?.statusCode ?? response?.data?.status;
+        const details = [url, status != null ? `HTTP ${status}` : null, response.data.error].filter(Boolean).join(" — ");
+        alert("Failed to generate briefing.\n\n" + details);
         setIsGenerating(false);
         setGenerationStartedAt(null);
       } else {
@@ -894,7 +897,12 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
       }
     } catch (error) {
       console.error("❌ Error generating briefing:", error);
-      alert("Failed to generate briefing. Please try again.");
+      const url = error?.config?.url ?? error?.request?.responseURL ?? "generateBriefing";
+      const status = error?.response?.status ?? error?.status ?? error?.statusCode;
+      const bodyMessage = error?.response?.data?.error ?? error?.response?.data?.message ?? error?.data?.error ?? error?.data?.message;
+      const message = error?.message ?? bodyMessage ?? String(error);
+      const details = [url, status != null ? `HTTP ${status}` : null, message].filter(Boolean).join(" — ");
+      alert("Failed to generate briefing.\n\n" + details);
       setIsGenerating(false);
       setGenerationStartedAt(null);
     }
