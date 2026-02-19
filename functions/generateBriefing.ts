@@ -762,7 +762,12 @@ const TICKER_TO_NAMES_BRIEFING: Record<string, string[]> = {
   GS: ["goldman sachs"],
   V: ["visa"],
   MA: ["mastercard"],
+  BA: ["boeing"],
 };
+
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 const TICKER_CATEGORY_KW: Record<string, string[]> = {
   markets: ["stock", "market", "trading", "wall street", "nasdaq", "dow", "s&p", "equity", "index"],
@@ -2482,6 +2487,16 @@ Examples of INVALID facts (never include these):
 If you cannot find 2-3 specific facts from the provided articles and market data for a holding,
 include only the facts you can verify and set confidence to "low". Do NOT pad with generated commentary.
 
+CROSS-REFERENCE RULE: For each portfolio holding, you are given MULTIPLE articles. Before writing
+the "facts" array, read ALL articles for that holding and combine the most specific data points
+from across them. For example, if Article A says "Amazon overtook Walmart by revenue" and Article B
+says "Amazon reported $717 billion in global sales" — combine both: the narrative from A and the
+specific number from B. If multiple articles cite DIFFERENT numbers for the same metric, use the
+number from the most authoritative source (Reuters/Bloomberg over a blog) or the most recent article.
+Flag the discrepancy in data_gap_note. If NO article provides a specific figure for a claim, simply
+drop that data point from the facts array entirely. Do not mention the absence. Do not estimate or
+invent numbers from your own knowledge. Only include numbers that appear in the provided source articles.
+
 ═══════════════════════════════════════
 DATA DEPTH RULES
 ═══════════════════════════════════════
@@ -3620,35 +3635,58 @@ Deno.serve(async (req) => {
       .map((h: any) => (typeof h === "string" ? h : h?.symbol || h?.ticker || "").toUpperCase().trim())
       .filter(Boolean);
     const earlyTickerNames: string[] = [];
-    const singleLetterTickers = new Set(earlyTickers.filter((t: string) => t.length === 1));
     for (const t of earlyTickers) {
       earlyTickerNames.push(t.toLowerCase());
       const names = TICKER_TO_NAMES_BRIEFING[t] || [];
       for (const n of names) earlyTickerNames.push(n);
     }
 
-    /** Returns true if the story is about one of the user's portfolio companies.
-     * Single-letter tickers (e.g. B, M) match only on full company name in text
-     * OR on structured ticker/company fields (e.g. story.entities from Finlight).
-     * Multi-letter tickers use normal ticker/company name matching in title/summary. */
-    function isAboutPortfolioCompany(story: any): boolean {
-      if (earlyTickers.length === 0) return false;
-      const text = `${story.title || ""} ${story.summary || ""} ${story.what_happened || ""}`.toLowerCase();
-      const entitiesLower: string[] = (story.entities || []).map((e: string) => String(e).toLowerCase());
+    /** Returns { isAbout, matchedTerm } if the story is about one of the user's portfolio companies.
+     * Uses word-boundary matching to avoid false positives (e.g. "BA" in "global", "Obama").
+     * Short tickers (≤3 chars) match only company name in free text; longer tickers match ticker or company name.
+     * Finlight structured story.companies is checked first when present. */
+    function isAboutPortfolioCompany(story: any): { isAbout: boolean; matchedTerm?: string } {
+      if (earlyTickers.length === 0) return { isAbout: false };
+      const title = (story.title || "").trim();
+      const summary = (story.summary || story.what_happened || "").trim();
+      const text = `${title} ${summary}`;
+      const textLower = text.toLowerCase();
+
+      // Structured company data from Finlight — most reliable
+      if (story.companies && Array.isArray(story.companies)) {
+        const articleTickers = story.companies
+          .map((c: any) => (c.ticker || c.symbol || "").toUpperCase().trim())
+          .filter(Boolean);
+        for (const t of earlyTickers) {
+          if (articleTickers.includes(t.toUpperCase())) return { isAbout: true, matchedTerm: `ticker ${t} (structured)` };
+        }
+      }
+
       for (const t of earlyTickers) {
         const tickerLower = t.toLowerCase();
         const fullNames = TICKER_TO_NAMES_BRIEFING[t] || [];
-        if (singleLetterTickers.has(t)) {
-          const fullNameInText = fullNames.some((n) => text.includes(n.toLowerCase()));
-          const inStructured = entitiesLower.some(
-            (e) => e === tickerLower || e.includes(tickerLower) || fullNames.some((n) => e.includes(n.toLowerCase()))
-          );
-          if (fullNameInText || inStructured) return true;
+        if (t.length <= 3) {
+          // Short ticker: match only company name in free text (avoid "BA" in "global", "Obama")
+          for (const name of fullNames) {
+            const nameRegex = new RegExp(`\\b${escapeRegex(name)}\\b`, "i");
+            if (nameRegex.test(title) || nameRegex.test(summary)) return { isAbout: true, matchedTerm: name };
+          }
+          // Also check entities for short tickers (structured)
+          const entitiesLower: string[] = (story.entities || []).map((e: string) => String(e).toLowerCase());
+          if (entitiesLower.some((e) => e === tickerLower || fullNames.some((n) => e.includes(n.toLowerCase())))) {
+            return { isAbout: true, matchedTerm: `${t} (entities)` };
+          }
         } else {
-          if (text.includes(tickerLower) || fullNames.some((n) => text.includes(n.toLowerCase()))) return true;
+          // Longer ticker: word-boundary match on ticker or company name
+          const tickerRegex = new RegExp(`\\b${escapeRegex(t)}\\b`, "i");
+          if (tickerRegex.test(title) || tickerRegex.test(summary)) return { isAbout: true, matchedTerm: t };
+          for (const name of fullNames) {
+            const nameRegex = new RegExp(`\\b${escapeRegex(name)}\\b`, "i");
+            if (nameRegex.test(title) || nameRegex.test(summary)) return { isAbout: true, matchedTerm: name };
+          }
         }
       }
-      return false;
+      return { isAbout: false };
     }
 
     const rapidFireCandidates = [...scoredStories]
@@ -3659,12 +3697,13 @@ Deno.serve(async (req) => {
       .filter((s) => hasFinancialRelevance(s))
       .filter((s) => {
         // Exclude portfolio company stories UNLESS they're truly headline-breaking
-        if (isAboutPortfolioCompany(s)) {
+        const { isAbout, matchedTerm } = isAboutPortfolioCompany(s);
+        if (isAbout) {
           if (s.breakingScore >= BREAKING_NEWS_OVERRIDE_THRESHOLD) {
             console.log(`   🔥 Portfolio company in rapid fire (override — score ${s.breakingScore}): "${(s.title || "").slice(0, 50)}"`);
             return true; // Genuinely major breaking news about a holding
           }
-          console.log(`   ⛔ Filtered from rapid fire (portfolio overlap): "${(s.title || "").slice(0, 50)}"`);
+          console.log(`   ⛔ Filtered from rapid fire (portfolio overlap: matched "${matchedTerm ?? "portfolio"}" in "${(s.title || "").slice(0, 50)}")`);
           return false;
         }
         return true;
@@ -3681,7 +3720,7 @@ Deno.serve(async (req) => {
           return b.breakingScore - a.breakingScore;
         })
         .filter((s: any) => !existingIds.has(s.id))
-        .filter((s: any) => !isAboutPortfolioCompany(s)) // Don't backfill with portfolio stories either
+        .filter((s: any) => !isAboutPortfolioCompany(s).isAbout) // Don't backfill with portfolio stories either
         .slice(0, Math.min(6 - rapidFireCandidatesFinal.length, 3));
       rapidFireCandidatesFinal = [...rapidFireCandidatesFinal, ...backfill];
     }
