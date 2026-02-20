@@ -1,33 +1,13 @@
 import React from "react";
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { Home, Settings } from "lucide-react";
-import { createPageUrl } from "@/utils";
+import { Home, Newspaper, Settings } from "lucide-react";
 
 const tabs = [
-  { to: createPageUrl("Home"), label: "Home", icon: Home },
-  { to: createPageUrl("Settings"), label: "Settings", icon: Settings },
+  { id: "home", label: "Home", icon: Home },
+  { id: "news", label: "News", icon: Newspaper },
+  { id: "settings", label: "Settings", icon: Settings },
 ];
 
-export default function MobileTabBar() {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const path = location?.pathname || "/";
-
-  // Keep the mobile shell minimal-risk: show tabs only on primary app pages.
-  const showTabs = path === "/" || path === "/Home" || path === "/Settings";
-  if (!showTabs) return null;
-
-  const handleTabClick = (e, tabPath) => {
-    // If clicking the already active tab, reset to root of that route
-    const isActive = path === tabPath || (path === "/" && tabPath === "/Home");
-    if (isActive) {
-      e.preventDefault();
-      // Force navigation to reset scroll and state
-      navigate(tabPath, { replace: true });
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
-
+export default function MobileTabBar({ activeTab = "home", onTabChange, newsCount = 0 }) {
   return (
     <nav
       className="mobile-tabbar md:hidden"
@@ -36,19 +16,21 @@ export default function MobileTabBar() {
     >
       {tabs.map((tab) => {
         const Icon = tab.icon;
+        const isActive = activeTab === tab.id;
         return (
-          <NavLink
-            key={tab.to}
-            to={tab.to}
-            onClick={(e) => handleTabClick(e, tab.to)}
-            className={({ isActive }) =>
-              `mobile-tabbar-item ${isActive ? "is-active" : ""}`
-            }
-            end={tab.to === "/" || tab.to === "/Home"}
+          <button
+            key={tab.id}
+            onClick={() => onTabChange?.(tab.id)}
+            className={`mobile-tabbar-item ${isActive ? "is-active" : ""}`}
           >
-            <Icon className="h-5 w-5" />
+            <div className="relative">
+              <Icon className="h-5 w-5" />
+              {tab.id === "news" && newsCount > 0 && (
+                <span className="absolute -top-1 -right-1.5 w-2 h-2 bg-orange-500 rounded-full" />
+              )}
+            </div>
             <span>{tab.label}</span>
-          </NavLink>
+          </button>
         );
       })}
     </nav>

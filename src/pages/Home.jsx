@@ -11,6 +11,9 @@ import KeyHighlights from "@/components/KeyHighlights";
 import OnboardingWizard from "@/components/OnboardingWizard";
 import AmbientAurora from "@/components/ui/ambient-aurora";
 import UpgradeModal from "@/components/UpgradeModal";
+import MobileTabBar from "@/components/MobileTabBar";
+import SettingsPage from "@/pages/Settings";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 import { Settings, Headphones, Loader2, RefreshCw, Crown, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -284,6 +287,8 @@ function PortfolioSection({ portfolioSectionOpen, setPortfolioSectionOpen, setLa
 
 export default function Home() {
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
+  const [mobileTab, setMobileTab] = useState("home");
   const [isGenerating, setIsGenerating] = useState(false);
   const [marketNews, setMarketNews] = useState(null); // { summary, stories, updated_at }
   const [portfolioNews, setPortfolioNews] = useState(null); // { summary, stories, updated_at }
@@ -804,7 +809,12 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
       zone.removeEventListener("touchend", onTouchEnd);
       zone.removeEventListener("touchcancel", onTouchEnd);
     };
-  }, [refreshNewsCards, isLoadingNews, isPullRefreshing]);
+  }, [refreshNewsCards, isLoadingNews, isPullRefreshing, mobileTab]);
+
+  const handleMobileTabChange = useCallback((tab) => {
+    setMobileTab(tab);
+    window.scrollTo(0, 0);
+  }, []);
 
   // Save preferences mutation
   const savePreferencesMutation = useMutation({
@@ -1000,197 +1010,244 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
     }
   };
 
+  /* ──────────────────────────────────────────────
+     Shared JSX fragments used in both layouts
+     ────────────────────────────────────────────── */
+  const audioPlayerBlock = (
+    <motion.section
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.1 }}
+      className="mb-10"
+    >
+      <AudioPlayer
+        audioUrl={audioUrl}
+        duration={todayBriefing?.duration_minutes || 8}
+        onComplete={() => console.log('Audio completed')}
+        greeting={greeting()}
+        userName={firstName}
+        currentDate={format(new Date(), "MM/dd, EEE")}
+        onGenerate={generateFullBriefing}
+        isGenerating={isGenerating}
+        status={status}
+        statusLabel={getStatusLabel()}
+        canGenerateNew={canGenerateNew}
+        timeUntilNextBriefing={timeUntilNextBriefing}
+        briefingCount={getBriefingCount()}
+        isPremium={isPremium}
+        transcript={todayBriefing?.script ?? ""}
+        sectionStories={(briefingStories || []).slice(0, 6)}
+      />
+      <div className="mt-6">
+        <RealTimeMarketTicker watchlist={userWatchlist} />
+      </div>
+    </motion.section>
+  );
+
+  const summaryBlock = (todayBriefing?.summary || highlights.length > 0) ? (
+    <motion.section
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.2 }}
+      className="mb-12"
+    >
+      {todayBriefing?.summary ? (
+        <div className="bg-white dark:bg-card rounded-2xl p-6 border border-slate-100 dark:border-border mb-6">
+          <FormattedSummary text={todayBriefing.summary} />
+        </div>
+      ) : null}
+      {highlights.length > 0 ? <KeyHighlights highlights={highlights} /> : null}
+    </motion.section>
+  ) : null;
+
+  const newsBlock = (
+    <motion.section
+      ref={pullZoneRef}
+      data-pull-refresh-zone="true"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.3 }}
+      className="space-y-6"
+      style={{
+        transform: pullDistance > 0 ? `translateY(${Math.min(56, pullDistance)}px)` : "translateY(0px)",
+        transition: isPullingRef.current ? "none" : "transform 180ms ease",
+      }}
+    >
+      <div className="md:hidden -mt-1 mb-1 h-8 flex items-center justify-center text-sm text-slate-500">
+        {isPullRefreshing ? (
+          <span className="inline-flex items-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Refreshing
+          </span>
+        ) : pullDistance > 0 ? (
+          <span className="inline-flex items-center gap-2">
+            <RefreshCw className="w-4 h-4" />
+            {pullDistance >= 72 ? "Release to refresh" : "Pull to refresh"}
+          </span>
+        ) : null}
+      </div>
+
+      <div className="flex items-center justify-between flex-wrap gap-y-1">
+        <h2 className="text-lg md:text-xl font-semibold text-slate-900 shrink-0">News for You</h2>
+        <div className="flex flex-col items-end gap-0.5">
+          <div className="flex items-center gap-2 md:gap-4">
+            <button
+              onClick={refreshNewsCards}
+              disabled={isLoadingNews}
+              title="Fetch latest news"
+              className="min-h-11 px-2 rounded-md text-sm text-amber-600 hover:text-amber-700 transition-colors disabled:opacity-50 flex items-center gap-1 shrink-0 select-none"
+            >
+              {isLoadingNews ? <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 md:w-4 md:h-4" />}
+              Refresh
+            </button>
+            <span className="text-sm text-slate-400 shrink-0">
+              {marketStories.length + portfolioStories.length} stories
+            </span>
+          </div>
+          {lastRefreshTime && !isNaN(new Date(lastRefreshTime).getTime()) && (
+            <span className="text-sm text-slate-400">
+              Updated {formatDistanceToNow(lastRefreshTime, { addSuffix: true })}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {isLoadingNews ? (
+        <div className="space-y-4">
+          <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid var(--section-border)", background: "var(--empty-card-bg)" }}>
+            <div className="p-4" style={{ borderBottom: "1px solid var(--section-border)" }}>
+              <Skeleton className="h-5 w-40" />
+            </div>
+            <div className="p-6 grid gap-4 md:grid-cols-2">
+              {[1, 2, 3, 4].map((i) => (
+                <Skeleton key={i} className="h-24 rounded-xl" />
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : !hasAnyNews ? (
+        <div className="rounded-2xl p-8 text-center" style={{ border: "1px solid var(--section-border)", background: "var(--empty-card-bg)" }}>
+          <p className="text-slate-600">
+            No news available yet. Check back in a few minutes or try refreshing.
+          </p>
+          <p className="text-sm text-slate-400 mt-2">
+            News is loaded automatically based on your interests and portfolio—no need to generate a briefing.
+          </p>
+        </div>
+      ) : (
+        <motion.div layout className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <MarketSection
+            marketSectionOpen={marketSectionOpen}
+            setMarketSectionOpen={setMarketSectionOpen}
+            setLastExpandedSection={setLastExpandedSection}
+            marketStories={marketStories}
+            isSecond={portfolioSectionOpen}
+            gridOrder={!portfolioSectionOpen ? 1 : 2}
+          />
+          <PortfolioSection
+            portfolioSectionOpen={portfolioSectionOpen}
+            setPortfolioSectionOpen={setPortfolioSectionOpen}
+            setLastExpandedSection={setLastExpandedSection}
+            portfolioStories={portfolioStories}
+            isSecond={marketSectionOpen}
+            gridOrder={portfolioSectionOpen ? 1 : 2}
+          />
+        </motion.div>
+      )}
+    </motion.section>
+  );
+
+  /* ──────────────────────────────────────────────
+     RENDER
+     ────────────────────────────────────────────── */
   return (
     <div
       className="min-h-screen relative app-theme-surface"
-      style={{
-        backgroundColor: "hsl(var(--background))",
-      }}
+      style={{ backgroundColor: "hsl(var(--background))" }}
     >
-      {/* Animated Aurora Background */}
       <AmbientAurora />
-      {/* Header */}
-      <header className="mobile-safe-sticky backdrop-blur-sm" style={{ background: "var(--header-bg)", borderBottom: "1px solid var(--header-border)", paddingTop: "env(safe-area-inset-top, 0px)" }}>
-        <div className="max-w-4xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between gap-3 min-w-0">
-          <div className="flex items-center gap-3 min-w-0 flex-shrink">
-            <div className="h-12 w-12 flex items-center justify-center overflow-hidden flex-shrink-0">
-              <img
-                src="/pulse-logo.svg"
-                alt="PulseApp"
-                className="h-full w-full object-contain"
-              />
-            </div>
-            <span className="font-semibold text-slate-900 tracking-tight truncate">PulseApp</span>
-          </div>
 
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {!isPremium && (
-              <Button
-                onClick={() => setShowUpgradeModal(true)}
-                className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white gap-2"
-              >
-                <Crown className="h-4 w-4" />
-                Upgrade
-              </Button>
-            )}
-            <Link to={createPageUrl("Settings")}>
-              <Button variant="ghost" size="icon" className="text-slate-400 hover:text-slate-600">
-                <Settings className="h-5 w-5" />
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-4xl mx-auto px-4 md:px-6 py-8 md:py-12 pb-safe relative z-10" style={{ overscrollBehavior: "none" }}>
-        {/* AUDIO PLAYER */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="mb-10"
-        >
-          <AudioPlayer
-            audioUrl={audioUrl}
-            duration={todayBriefing?.duration_minutes || 8}
-            onComplete={() => console.log('Audio completed')}
-            greeting={greeting()}
-            userName={firstName}
-            currentDate={format(new Date(), "MM/dd, EEE")}
-            onGenerate={generateFullBriefing}
-            isGenerating={isGenerating}
-            status={status}
-            statusLabel={getStatusLabel()}
-            canGenerateNew={canGenerateNew}
-            timeUntilNextBriefing={timeUntilNextBriefing}
-            briefingCount={getBriefingCount()}
-            isPremium={isPremium}
-            transcript={todayBriefing?.script ?? ""}
-            sectionStories={(briefingStories || []).slice(0, 6)}
-            />
-
-          <div className="mt-6">
-            <RealTimeMarketTicker watchlist={userWatchlist} />
-          </div>
-        </motion.section>
-
-        {/* Summary & Highlights */}
-        {(todayBriefing?.summary || highlights.length > 0) && (
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="mb-12"
-          >
-            {todayBriefing?.summary ? (
-              <div className="bg-white dark:bg-card rounded-2xl p-6 border border-slate-100 dark:border-border mb-6">
-                <FormattedSummary text={todayBriefing.summary} />
-              </div>
-            ) : null}
-
-            {highlights.length > 0 ? <KeyHighlights highlights={highlights} /> : null}
-          </motion.section>
-        )}
-
-        {/* UPGRADE MODAL */}
-        <UpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
-
-        {/* NEWS CARDS – Market News + Your Portfolio */}
-        <motion.section
-          ref={pullZoneRef}
-          data-pull-refresh-zone="true"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="space-y-6"
-          style={{
-            transform: pullDistance > 0 ? `translateY(${Math.min(56, pullDistance)}px)` : "translateY(0px)",
-            transition: isPullingRef.current ? "none" : "transform 180ms ease",
-          }}
-        >
-          <div className="md:hidden -mt-1 mb-1 h-8 flex items-center justify-center text-sm text-slate-500">
-            {isPullRefreshing ? (
-              <span className="inline-flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Refreshing
-              </span>
-            ) : pullDistance > 0 ? (
-              <span className="inline-flex items-center gap-2">
-                <RefreshCw className="w-4 h-4" />
-                {pullDistance >= 72 ? "Release to refresh" : "Pull to refresh"}
-              </span>
-            ) : null}
-          </div>
-
-          <div className="flex items-center justify-between flex-wrap gap-y-1">
-            <h2 className="text-lg md:text-xl font-semibold text-slate-900 shrink-0">News for You</h2>
-            <div className="flex flex-col items-end gap-0.5">
-              <div className="flex items-center gap-2 md:gap-4">
-                <button
-                  onClick={refreshNewsCards}
-                  disabled={isLoadingNews}
-                  title="Fetch latest news"
-                  className="min-h-11 px-2 rounded-md text-sm text-amber-600 hover:text-amber-700 transition-colors disabled:opacity-50 flex items-center gap-1 shrink-0 select-none"
-                >
-                  {isLoadingNews ? <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 md:w-4 md:h-4" />}
-                  Refresh
-                </button>
-                <span className="text-sm text-slate-400 shrink-0">
-                  {marketStories.length + portfolioStories.length} stories
-                </span>
-              </div>
-              {lastRefreshTime && !isNaN(new Date(lastRefreshTime).getTime()) && (
-                <span className="text-sm text-slate-400">
-                  Updated {formatDistanceToNow(lastRefreshTime, { addSuffix: true })}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {isLoadingNews ? (
-            <div className="space-y-4">
-              <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid var(--section-border)", background: "var(--empty-card-bg)" }}>
-                <div className="p-4" style={{ borderBottom: "1px solid var(--section-border)" }}>
-                  <Skeleton className="h-5 w-40" />
-                </div>
-                <div className="p-6 grid gap-4 md:grid-cols-2">
-                  {[1, 2, 3, 4].map((i) => (
-                    <Skeleton key={i} className="h-24 rounded-xl" />
-                  ))}
-                </div>
-              </div>
-            </div>
-          ) : !hasAnyNews ? (
-            <div className="rounded-2xl p-8 text-center" style={{ border: "1px solid var(--section-border)", background: "var(--empty-card-bg)" }}>
-              <p className="text-slate-600">
-                No news available yet. Check back in a few minutes or try refreshing.
-              </p>
-              <p className="text-sm text-slate-400 mt-2">
-                News is loaded automatically based on your interests and portfolio—no need to generate a briefing.
-              </p>
-            </div>
-          ) : (
-            <motion.div layout className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <MarketSection
-                marketSectionOpen={marketSectionOpen}
-                setMarketSectionOpen={setMarketSectionOpen}
-                setLastExpandedSection={setLastExpandedSection}
-                marketStories={marketStories}
-                isSecond={portfolioSectionOpen}
-                gridOrder={!portfolioSectionOpen ? 1 : 2}
-              />
-              <PortfolioSection
-                portfolioSectionOpen={portfolioSectionOpen}
-                setPortfolioSectionOpen={setPortfolioSectionOpen}
-                setLastExpandedSection={setLastExpandedSection}
-                portfolioStories={portfolioStories}
-                isSecond={marketSectionOpen}
-                gridOrder={portfolioSectionOpen ? 1 : 2}
-              />
-            </motion.div>
+      {isMobile ? (
+        /* ═══════ MOBILE: 3-tab layout ═══════ */
+        <>
+          {mobileTab === "home" && (
+            <main
+              className="px-4 relative z-10"
+              style={{
+                paddingTop: "calc(12px + env(safe-area-inset-top, 0px))",
+                paddingBottom: "calc(84px + env(safe-area-inset-bottom, 0px))",
+                overscrollBehavior: "none",
+              }}
+            >
+              {audioPlayerBlock}
+              {summaryBlock}
+            </main>
           )}
-        </motion.section>
-      </main>
+
+          {mobileTab === "news" && (
+            <main
+              className="px-4 relative z-10"
+              style={{
+                paddingTop: "calc(12px + env(safe-area-inset-top, 0px))",
+                paddingBottom: "calc(84px + env(safe-area-inset-bottom, 0px))",
+                overscrollBehavior: "none",
+              }}
+            >
+              {newsBlock}
+            </main>
+          )}
+
+          {mobileTab === "settings" && (
+            <div style={{ paddingBottom: "calc(84px + env(safe-area-inset-bottom, 0px))" }}>
+              <SettingsPage />
+            </div>
+          )}
+
+          <MobileTabBar
+            activeTab={mobileTab}
+            onTabChange={handleMobileTabChange}
+            newsCount={marketStories.length + portfolioStories.length}
+          />
+        </>
+      ) : (
+        /* ═══════ DESKTOP: unchanged single-page layout ═══════ */
+        <>
+          <header className="mobile-safe-sticky backdrop-blur-sm" style={{ background: "var(--header-bg)", borderBottom: "1px solid var(--header-border)", paddingTop: "env(safe-area-inset-top, 0px)" }}>
+            <div className="max-w-4xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between gap-3 min-w-0">
+              <div className="flex items-center gap-3 min-w-0 flex-shrink">
+                <div className="h-12 w-12 flex items-center justify-center overflow-hidden flex-shrink-0">
+                  <img src="/pulse-logo.svg" alt="PulseApp" className="h-full w-full object-contain" />
+                </div>
+                <span className="font-semibold text-slate-900 tracking-tight truncate">PulseApp</span>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {!isPremium && (
+                  <Button
+                    onClick={() => setShowUpgradeModal(true)}
+                    className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white gap-2"
+                  >
+                    <Crown className="h-4 w-4" />
+                    Upgrade
+                  </Button>
+                )}
+                <Link to={createPageUrl("Settings")}>
+                  <Button variant="ghost" size="icon" className="text-slate-400 hover:text-slate-600">
+                    <Settings className="h-5 w-5" />
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </header>
+
+          <main className="max-w-4xl mx-auto px-4 md:px-6 py-8 md:py-12 pb-safe relative z-10" style={{ overscrollBehavior: "none" }}>
+            {audioPlayerBlock}
+            {summaryBlock}
+            {newsBlock}
+          </main>
+        </>
+      )}
+
+      <UpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
     </div>
   );
 }
