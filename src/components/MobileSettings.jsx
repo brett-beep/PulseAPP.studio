@@ -28,7 +28,6 @@ const themeOptions = [
   "Crypto", "ETFs", "Dividends", "ESG/Sustainable",
   "Emerging Markets", "Commodities", "IPOs & SPACs", "Small Cap",
 ];
-const toneOptions = ["Analytical", "Optimistic", "Neutral", "Action-Oriented"];
 
 function SubPageShell({ isOpen, onClose, title, onSave, saving, children }) {
   return (
@@ -125,7 +124,7 @@ function ChoiceCard({ label, subtitle, active, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex-1 py-3.5 px-3 rounded-[14px] text-center transition-all active:scale-[0.97]"
+      className="w-full py-3.5 px-4 rounded-[14px] text-left transition-all active:scale-[0.97]"
       style={{
         border: active ? `1.5px solid ${ACCENT}` : "1.5px solid rgba(0,0,0,0.06)",
         background: active ? "rgba(224,112,40,0.08)" : CARD_BG,
@@ -513,7 +512,7 @@ export default function MobileSettings({ isPremium = false, onUpgrade }) {
         <div className="space-y-7">
           <div>
             <SectionLabel>Briefing Length</SectionLabel>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="flex flex-col gap-2">
               {[
                 { value: "short", label: "~5 min", sub: "Quick catch-up" },
                 { value: "medium", label: "~8 min", sub: "Standard" },
@@ -532,7 +531,7 @@ export default function MobileSettings({ isPremium = false, onUpgrade }) {
 
           <div>
             <SectionLabel>Voice Style</SectionLabel>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="flex flex-col gap-2">
               {[
                 { value: "professional", label: "Professional", sub: "CNBC anchor" },
                 { value: "conversational", label: "Conversational", sub: "Casual & warm" },
@@ -544,27 +543,6 @@ export default function MobileSettings({ isPremium = false, onUpgrade }) {
                   subtitle={opt.sub}
                   active={draft.preferred_voice === opt.value}
                   onClick={() => setDraft((d) => ({ ...d, preferred_voice: opt.value }))}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <SectionLabel>Briefing Tone</SectionLabel>
-            <div className="flex flex-wrap gap-2">
-              {toneOptions.map((t) => (
-                <Chip
-                  key={t}
-                  label={t}
-                  active={draft.briefing_tone?.includes(t)}
-                  onToggle={() =>
-                    setDraft((d) => ({
-                      ...d,
-                      briefing_tone: d.briefing_tone?.includes(t)
-                        ? d.briefing_tone.filter((x) => x !== t)
-                        : [...(d.briefing_tone || []), t],
-                    }))
-                  }
                 />
               ))}
             </div>
