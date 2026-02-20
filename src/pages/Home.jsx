@@ -27,6 +27,60 @@ const SMOOTH_DURATION = 0.4;
 
 const LAYOUT_TRANSITION = { layout: { duration: 0.32, ease: [0.25, 0.46, 0.45, 0.94] } };
 
+/** Mobile-only full-screen generating animation (Prompt B §1) */
+function GeneratingAnimation({ statusLabel }) {
+  return (
+    <div className="flex flex-col items-center justify-center">
+      <div
+        className="relative flex items-center justify-center"
+        style={{
+          width: 140,
+          height: 140,
+          borderRadius: "50%",
+          border: "2px solid rgba(224, 112, 40, 0.35)",
+        }}
+      >
+        <div className="gen-ring-pulse" />
+        <div className="gen-ring-pulse gen-ring-pulse-2" />
+        <div className="flex items-end gap-1 h-9">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <motion.div
+              key={i}
+              className="w-1.5 rounded-full"
+              style={{ backgroundColor: "#e07028" }}
+              animate={{ height: ["8px", "32px", "8px"] }}
+              transition={{ duration: 1, repeat: Infinity, delay: i * 0.12, ease: "easeInOut" }}
+            />
+          ))}
+        </div>
+      </div>
+      <p
+        className="text-center mt-6"
+        style={{
+          fontFamily: "'Playfair Display', Georgia, serif",
+          fontSize: 22,
+          fontWeight: 500,
+          color: "#1a1a1a",
+        }}
+      >
+        Crafting your briefing...
+      </p>
+      <p
+        className="text-center mt-2"
+        style={{ fontSize: 14, color: "#999" }}
+      >
+        {statusLabel || "Gathering market data & portfolio news"}
+      </p>
+      <p
+        className="text-center mt-1"
+        style={{ fontSize: 12, color: "#bbb" }}
+      >
+        Usually takes 60–90 seconds
+      </p>
+    </div>
+  );
+}
+
 // Base44 timestamps can come without timezone suffix; treat them as UTC to avoid
 // mis-ordering records and false "generation complete" transitions.
 function parseBase44Timestamp(value) {
@@ -1081,9 +1135,9 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
         transcript={todayBriefing?.script ?? ""}
         sectionStories={(briefingStories || []).slice(0, 6)}
       />
-      {/* On mobile, only show market ticker after briefing is generated */}
+      {/* On mobile, only show market ticker after briefing is generated; §5 spacing: 32px above ticker on mobile */}
       {(!isMobile || audioUrl || isGenerating) && (
-        <div className="mt-6">
+        <div className={isMobile ? "mt-8 md:mt-6" : "mt-6"}>
           <RealTimeMarketTicker watchlist={userWatchlist} />
         </div>
       )}
@@ -1095,10 +1149,10 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
       initial={isMobile ? {} : { opacity: 0, y: 20 }}
       animate={isMobile ? {} : { opacity: 1, y: 0 }}
       transition={{ delay: 0.2 }}
-      className={isMobile ? "mb-12 fade-in-up" : "mb-12"}
+      className={isMobile ? "mb-12 mt-6 fade-in-up" : "mb-12"}
     >
       {todayBriefing?.summary ? (
-        <div className="bg-white dark:bg-card rounded-2xl p-6 border border-slate-100 dark:border-border mb-6">
+        <div className={`bg-white dark:bg-card border border-slate-100 dark:border-border mb-6 ${isMobile ? "rounded-[20px] p-6" : "rounded-2xl p-6"}`}>
           <FormattedSummary text={todayBriefing.summary} />
         </div>
       ) : null}
@@ -1225,19 +1279,70 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
           <div className="flex flex-col flex-1 min-h-0 overflow-hidden relative z-[2]">
             {mobileTab === "home" && (() => {
               const isPreGenHome = !audioUrl && !isGenerating;
+              /* §1: When generating, show ONLY the generating animation full-screen */
+              if (isGenerating) {
+                return (
+                  <main
+                    key="tab-home"
+                    className="tab-content-area tab-content-area-no-scroll px-6 relative z-10 mobile-tab-content"
+                    style={{
+                      paddingTop: "calc(12px + env(safe-area-inset-top, 0px))",
+                      paddingBottom: "calc(84px + env(safe-area-inset-bottom, 0px))",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <GeneratingAnimation statusLabel={getStatusLabel()} />
+                  </main>
+                );
+              }
+              /* §2: Pre-gen — true dead center with perceptual nudge */
+              if (isPreGenHome) {
+                return (
+                  <main
+                    key="tab-home"
+                    className="tab-content-area tab-content-area-no-scroll px-6 relative z-10 mobile-tab-content"
+                    style={{
+                      paddingTop: "env(safe-area-inset-top, 0px)",
+                      paddingBottom: "calc(84px + env(safe-area-inset-bottom, 0px))",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        width: "100%",
+                        padding: "0 24px",
+                        marginTop: "-20px",
+                      }}
+                    >
+                      {audioPlayerBlock}
+                    </div>
+                  </main>
+                );
+              }
+              /* Post-gen: normal scrollable content */
               return (
-              <main
-                key="tab-home"
-                className={`tab-content-area px-6 relative z-10 mobile-tab-content ${isPreGenHome ? "tab-content-area-no-scroll" : "scrollable-tab-content"}`}
-                style={{
-                  paddingTop: "calc(12px + env(safe-area-inset-top, 0px))",
-                  paddingBottom: "calc(84px + env(safe-area-inset-bottom, 0px))",
-                  ...(isPreGenHome ? { display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" } : {}),
-                }}
-              >
-                {audioPlayerBlock}
-                {summaryBlock}
-              </main>
+                <main
+                  key="tab-home"
+                  className="tab-content-area scrollable-tab-content px-6 relative z-10 mobile-tab-content"
+                  style={{
+                    paddingTop: "calc(12px + env(safe-area-inset-top, 0px))",
+                    paddingBottom: "calc(84px + env(safe-area-inset-bottom, 0px))",
+                  }}
+                >
+                  {audioPlayerBlock}
+                  {summaryBlock}
+                </main>
               );
             })()}
 

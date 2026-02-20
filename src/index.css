@@ -634,6 +634,27 @@ textarea,
     pointer-events: none;
   }
 
+  /* §3: Generate button — slow breathing glow (mobile only) */
+  .mobile-gen-btn {
+    animation: btnBreathe 3s ease-in-out infinite;
+  }
+  .mobile-gen-btn:disabled {
+    animation: none;
+  }
+  @keyframes btnBreathe {
+    0%, 100% {
+      box-shadow:
+        0 8px 32px rgba(224, 112, 40, 0.3),
+        0 2px 8px rgba(224, 112, 40, 0.15);
+    }
+    50% {
+      box-shadow:
+        0 12px 48px rgba(224, 112, 40, 0.45),
+        0 4px 16px rgba(224, 112, 40, 0.25),
+        0 0 60px rgba(224, 112, 40, 0.12);
+    }
+  }
+
   /* Mobile generating: pulsing ring animation */
   .gen-ring-pulse {
     position: absolute;
@@ -742,33 +763,50 @@ textarea,
   @keyframes orbDrift2 { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(15px, -18px) scale(1.05); } }
   @keyframes orbDrift3 { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(-12px, 12px) scale(1.1); } }
 
-  /* Mobile-only thin timeline slider */
+  /* §4a: Mobile thin timeline slider — 3px track, thumb hidden until touch */
   .mobile-slim-slider [data-radix-slider-track],
-  .mobile-slim-slider [role="slider"] {
+  .mobile-slim-slider .slider-track,
+  .mobile-slim-slider [class*="SliderTrack"] {
+    height: 3px !important;
+    border-radius: 999px !important;
+    background: rgba(0, 0, 0, 0.08) !important;
     transition: all 0.15s ease;
   }
-  .mobile-slim-slider [data-radix-slider-track] {
-    height: 3px !important;
-    background: rgba(0, 0, 0, 0.06) !important;
-  }
-  .mobile-slim-slider [data-radix-slider-range] {
+  .mobile-slim-slider [data-radix-slider-range],
+  .mobile-slim-slider .slider-range,
+  .mobile-slim-slider [class*="SliderRange"] {
     background: #e07028 !important;
+    border-radius: 999px !important;
   }
-  .mobile-slim-slider [role="slider"] {
+  .mobile-slim-slider [role="slider"],
+  .mobile-slim-slider [class*="SliderThumb"] {
     width: 0 !important;
     height: 0 !important;
-    opacity: 0;
+    opacity: 0 !important;
     border: none !important;
     box-shadow: none !important;
+    transition: all 0.15s ease;
   }
   .mobile-slim-slider:active [role="slider"],
-  .mobile-slim-slider[data-dragging] [role="slider"] {
+  .mobile-slim-slider:active [class*="SliderThumb"],
+  .mobile-slim-slider[data-dragging] [role="slider"],
+  .mobile-slim-slider[data-dragging] [class*="SliderThumb"] {
     width: 14px !important;
     height: 14px !important;
-    opacity: 1;
-    background: #e07028 !important;
-    border: 2px solid #fff !important;
-    box-shadow: 0 2px 8px rgba(224, 112, 40, 0.3) !important;
+    opacity: 1 !important;
+    background: white !important;
+    border: 2px solid #e07028 !important;
+    box-shadow: 0 2px 8px rgba(224, 112, 40, 0.25) !important;
+  }
+
+  /* §4b: Time labels — match countdown font */
+  .mobile-time-labels {
+    font-family: 'DM Sans', -apple-system, sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    color: #a0a0a0;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
   }
 }
 
