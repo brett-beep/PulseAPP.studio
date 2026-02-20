@@ -670,10 +670,12 @@ export default function AudioPlayer({
                 return (
                   <motion.div
                     key={i}
-                    className="w-1 md:w-1.5 h-5 md:h-[26px] rounded-full flex-shrink-0 origin-center"
+                    className={`rounded-full flex-shrink-0 origin-center ${isMobileView ? "w-[3px] h-[18px]" : "w-1.5 h-[26px]"}`}
                     style={{
-                      background: "linear-gradient(180deg, rgba(255,200,140,0.95) 0%, rgba(230,115,26,0.85) 35%, rgba(219,114,67,0.7) 100%)",
-                      boxShadow: "0 0 12px rgba(230,115,26,0.5)",
+                      background: isMobileView
+                        ? "linear-gradient(to top, rgba(224,112,40,0.55), rgba(240,170,90,0.35))"
+                        : "linear-gradient(180deg, rgba(255,200,140,0.95) 0%, rgba(230,115,26,0.85) 35%, rgba(219,114,67,0.7) 100%)",
+                      boxShadow: isMobileView ? "none" : "0 0 12px rgba(230,115,26,0.5)",
                       scaleY: level,
                     }}
                     transition={{ type: "spring", stiffness: 100, damping: 14, mass: 0.4 }}
@@ -744,7 +746,7 @@ export default function AudioPlayer({
           )}
         </div>
 
-        <div className="mb-6 md:mb-10 px-1">
+        <div className={`mb-6 md:mb-10 px-1 ${isMobileView ? "mobile-slim-slider" : ""}`}>
           <Slider
             value={[currentTime]}
             max={totalDuration || 100}
@@ -752,7 +754,7 @@ export default function AudioPlayer({
             onValueChange={handleSeek}
             className="cursor-pointer"
           />
-          <div className="flex justify-between mt-2 md:mt-3 text-slate-600/70 text-xs md:text-sm font-mono tracking-tight">
+          <div className={`flex justify-between mt-2 md:mt-3 font-mono tracking-tight ${isMobileView ? "text-[11px] font-medium text-slate-500/80" : "text-slate-600/70 text-sm"}`}>
             <span>{formatTime(currentTime)}</span>
             <span>-{formatTime(Math.max(0, totalDuration - currentTime))}</span>
           </div>
@@ -927,29 +929,50 @@ export default function AudioPlayer({
           </div>
         </div>
 
-        {/* MOBILE CONTROLS: Plain play button (no motion animations to prevent layout jump) */}
-        <div className="flex flex-col items-center gap-4 md:hidden">
+        {/* MOBILE CONTROLS: Skip-back + glass play button + skip-forward (matching reference) */}
+        <div className="flex items-center justify-center gap-8 md:hidden">
+          <button
+            type="button"
+            onClick={() => skip(-15)}
+            className="w-11 h-11 rounded-full flex items-center justify-center active:scale-90 transition-transform"
+            style={{ background: "none", border: "none", color: "#6b6b6b" }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="22" height="22">
+              <path d="M1 4v6h6" /><path d="M3.51 15a9 9 0 105.64-8.37L1 10" />
+              <text x="12" y="16" textAnchor="middle" fill="currentColor" stroke="none" fontSize="7" fontWeight="700">15</text>
+            </svg>
+          </button>
+
           <button
             type="button"
             onClick={togglePlay}
             disabled={!audioUrl}
-            className="w-20 h-20 rounded-full flex items-center justify-center disabled:opacity-50 active:brightness-90 transition-[filter]"
+            className="w-[68px] h-[68px] rounded-full flex items-center justify-center disabled:opacity-50 active:scale-[0.93] transition-transform"
             style={{
-              background: "linear-gradient(135deg, rgba(230, 115, 26, 0.95) 0%, rgba(219, 114, 67, 1) 100%)",
-              border: "1px solid rgba(255, 255, 255, 0.5)",
-              boxShadow: `
-                0 12px 32px rgba(230, 115, 26, 0.4),
-                0 4px 12px rgba(230, 115, 26, 0.25),
-                inset 0 2px 2px rgba(255, 255, 255, 0.4),
-                inset 0 -2px 3px rgba(0, 0, 0, 0.15)
-              `,
+              background: "rgba(224, 112, 40, 0.1)",
+              backdropFilter: "blur(20px)",
+              WebkitBackdropFilter: "blur(20px)",
+              border: "1px solid rgba(224, 112, 40, 0.12)",
+              boxShadow: "0 4px 24px rgba(224, 112, 40, 0.1)",
             }}
           >
             {isPlaying ? (
-              <Pause className="h-8 w-8 text-white" fill="currentColor" />
+              <Pause className="h-7 w-7" style={{ color: "#e07028" }} fill="currentColor" />
             ) : (
-              <Play className="h-8 w-8 text-white ml-0.5" fill="currentColor" />
+              <Play className="h-7 w-7 ml-0.5" style={{ color: "#e07028" }} fill="currentColor" />
             )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => skip(30)}
+            className="w-11 h-11 rounded-full flex items-center justify-center active:scale-90 transition-transform"
+            style={{ background: "none", border: "none", color: "#6b6b6b" }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="22" height="22">
+              <path d="M23 4v6h-6" /><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
+              <text x="12" y="16" textAnchor="middle" fill="currentColor" stroke="none" fontSize="7" fontWeight="700">30</text>
+            </svg>
           </button>
         </div>
 

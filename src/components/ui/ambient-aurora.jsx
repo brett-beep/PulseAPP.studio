@@ -1,7 +1,20 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export default function AmbientAurora() {
+  const isMobile = useIsMobile();
+
+  if (isMobile) {
+    return (
+      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+        <div className="amb-orb amb-orb-a" />
+        <div className="amb-orb amb-orb-b" />
+        <div className="amb-orb amb-orb-c" />
+      </div>
+    );
+  }
+
   return (
     <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
       <motion.div

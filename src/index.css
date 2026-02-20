@@ -537,6 +537,64 @@ textarea,
     -webkit-backdrop-filter: blur(24px);
     border-top-color: rgba(0, 0, 0, 0.06);
   }
+
+  /* Mobile ambient orbs (reference: 3 soft peach/orange blurred orbs) */
+  .amb-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    will-change: transform;
+  }
+  .amb-orb-a {
+    width: 380px; height: 380px;
+    top: -8%; right: -15%;
+    background: radial-gradient(circle, rgba(255, 190, 120, 0.35), transparent 80%);
+    animation: amb-o1 18s ease-in-out infinite;
+  }
+  .amb-orb-b {
+    width: 300px; height: 300px;
+    top: 25%; left: -20%;
+    background: radial-gradient(circle, rgba(255, 160, 80, 0.2), transparent 70%);
+    animation: amb-o2 22s ease-in-out infinite;
+  }
+  .amb-orb-c {
+    width: 250px; height: 250px;
+    bottom: 15%; right: -10%;
+    background: radial-gradient(circle, rgba(240, 200, 140, 0.18), transparent 70%);
+    animation: amb-o3 20s ease-in-out infinite;
+  }
+  @keyframes amb-o1 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(-25px, 20px) scale(1.08); } }
+  @keyframes amb-o2 { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(15px, -18px) scale(1.05); } }
+  @keyframes amb-o3 { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(-12px, 12px) scale(1.1); } }
+
+  /* Mobile-only thin timeline slider */
+  .mobile-slim-slider [data-radix-slider-track],
+  .mobile-slim-slider [role="slider"] {
+    transition: all 0.15s ease;
+  }
+  .mobile-slim-slider [data-radix-slider-track] {
+    height: 3px !important;
+    background: rgba(0, 0, 0, 0.06) !important;
+  }
+  .mobile-slim-slider [data-radix-slider-range] {
+    background: #e07028 !important;
+  }
+  .mobile-slim-slider [role="slider"] {
+    width: 0 !important;
+    height: 0 !important;
+    opacity: 0;
+    border: none !important;
+    box-shadow: none !important;
+  }
+  .mobile-slim-slider:active [role="slider"],
+  .mobile-slim-slider[data-dragging] [role="slider"] {
+    width: 14px !important;
+    height: 14px !important;
+    opacity: 1;
+    background: #e07028 !important;
+    border: 2px solid #fff !important;
+    box-shadow: 0 2px 8px rgba(224, 112, 40, 0.3) !important;
+  }
 }
 
 .dark .app-theme-surface .text-slate-900 {
