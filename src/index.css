@@ -661,12 +661,10 @@ textarea,
     to { opacity: 1; }
   }
 
-  /* Section 3a: GPU compositing */
+  /* Section 3a: GPU compositing — tab bar only; NOT inside .tab-content-area to avoid iOS scroll stuck */
   .mobile-tabbar *,
   .mobile-tab-bar *,
-  nav[class*="tab"] *,
-  [class*="motion"] *,
-  [class*="animate"] {
+  nav[class*="tab"] * {
     -webkit-transform: translateZ(0);
     transform: translateZ(0);
     -webkit-backface-visibility: hidden;
