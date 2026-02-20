@@ -415,46 +415,72 @@ export default function AudioPlayer({
       />
       )}
 
-      {isGenerating && (
+      {isGenerating && !isMobileView && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="absolute inset-0 flex flex-col items-center justify-center bg-white/5 backdrop-blur-sm rounded-[32px] md:rounded-[40px] z-30 gap-3 pointer-events-none"
+          className="absolute inset-0 flex flex-col items-center justify-center bg-white/5 backdrop-blur-sm rounded-[40px] z-30 gap-3 pointer-events-none"
         >
-          {/* Waveform bars animation */}
           <div className="flex items-end gap-[3px] h-8">
             {[0, 1, 2, 3, 4].map((i) => (
               <motion.div
                 key={i}
                 className="w-[3px] rounded-full"
                 style={{ backgroundColor: 'hsl(25, 80%, 50%)' }}
-                animate={{
-                  height: ["8px", `${18 + i * 4}px`, "10px", `${22 - i * 2}px`, "8px"],
-                }}
-                transition={{
-                  duration: 1.2,
-                  repeat: Infinity,
-                  delay: i * 0.15,
-                  ease: "easeInOut",
-                }}
+                animate={{ height: ["8px", `${18 + i * 4}px`, "10px", `${22 - i * 2}px`, "8px"] }}
+                transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.15, ease: "easeInOut" }}
               />
             ))}
           </div>
           <AnimatePresence mode="wait">
             {statusLabel && (
-              <motion.p
-                key={statusLabel}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                transition={{ duration: 0.3 }}
-                className="text-slate-700 text-sm font-medium"
-              >
+              <motion.p key={statusLabel} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.3 }} className="text-slate-700 text-sm font-medium">
                 {statusLabel}
               </motion.p>
             )}
           </AnimatePresence>
           <p className="text-slate-400 text-[11px]">Usually takes 60–90 seconds</p>
+        </motion.div>
+      )}
+
+      {/* Mobile generating: centered pulsing rings + mini waveform */}
+      {isGenerating && isMobileView && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="absolute inset-0 z-30 flex flex-col items-center justify-center pointer-events-none"
+        >
+          {/* Pulsing ring */}
+          <div className="gen-ring relative w-[120px] h-[120px] flex items-center justify-center mb-8">
+            <div className="gen-ring-pulse" />
+            <div className="gen-ring-pulse gen-ring-pulse-2" />
+            <div className="flex items-end gap-1 h-9">
+              {[0, 1, 2, 3, 4].map((i) => (
+                <motion.div
+                  key={i}
+                  className="w-1 rounded-full"
+                  style={{ backgroundColor: "#e07028" }}
+                  animate={{ height: ["8px", "32px", "8px"] }}
+                  transition={{ duration: 1, repeat: Infinity, delay: i * 0.12, ease: "easeInOut" }}
+                />
+              ))}
+            </div>
+          </div>
+          <p className="text-[22px] font-medium text-slate-900 mb-2" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>
+            Crafting your briefing...
+          </p>
+          <AnimatePresence mode="wait">
+            {statusLabel ? (
+              <motion.p key={statusLabel} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.3 }} className="text-[14px] mb-1" style={{ color: "#a0a0a0" }}>
+                {statusLabel}
+              </motion.p>
+            ) : (
+              <motion.p key="default-sub" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-[14px] mb-1" style={{ color: "#a0a0a0" }}>
+                Gathering market data & portfolio news
+              </motion.p>
+            )}
+          </AnimatePresence>
+          <p className="text-[12px]" style={{ color: "#c0c0c0" }}>Usually takes 60–90 seconds</p>
         </motion.div>
       )}
 

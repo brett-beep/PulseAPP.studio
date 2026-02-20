@@ -1039,9 +1039,12 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
         transcript={todayBriefing?.script ?? ""}
         sectionStories={(briefingStories || []).slice(0, 6)}
       />
-      <div className="mt-6">
-        <RealTimeMarketTicker watchlist={userWatchlist} />
-      </div>
+      {/* On mobile, only show market ticker after briefing is generated */}
+      {(!isMobile || audioUrl || isGenerating) && (
+        <div className="mt-6">
+          <RealTimeMarketTicker watchlist={userWatchlist} />
+        </div>
+      )}
     </motion.section>
   );
 

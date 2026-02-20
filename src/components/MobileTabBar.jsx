@@ -12,7 +12,7 @@ export default function MobileTabBar({ activeTab = "home", onTabChange, newsCoun
     <nav
       className="mobile-tabbar md:hidden"
       aria-label="Mobile bottom navigation"
-      style={{ paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom, 0px))", userSelect: "none" }}
+      style={{ userSelect: "none" }}
     >
       {tabs.map((tab) => {
         const Icon = tab.icon;
