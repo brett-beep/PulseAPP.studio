@@ -1087,7 +1087,8 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
         ) : null}
       </div>
 
-      <div className="flex items-center justify-between flex-wrap gap-y-1">
+      {/* On mobile News tab, the header is rendered outside newsBlock; show only on desktop */}
+      <div className="hidden md:flex items-center justify-between flex-wrap gap-y-1">
         <h2 className="text-lg md:text-xl font-semibold text-slate-900 shrink-0">News for You</h2>
         <div className="flex flex-col items-end gap-0.5">
           <div className="flex items-center gap-2 md:gap-4">
@@ -1097,7 +1098,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
               title="Fetch latest news"
               className="min-h-11 px-2 rounded-md text-sm text-amber-600 hover:text-amber-700 transition-colors disabled:opacity-50 flex items-center gap-1 shrink-0 select-none"
             >
-              {isLoadingNews ? <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 md:w-4 md:h-4" />}
+              {isLoadingNews ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
               Refresh
             </button>
             <span className="text-sm text-slate-400 shrink-0">
@@ -1190,11 +1191,35 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
             <main
               className="px-4 relative z-10"
               style={{
-                paddingTop: "calc(12px + env(safe-area-inset-top, 0px))",
+                paddingTop: "calc(24px + env(safe-area-inset-top, 0px))",
                 paddingBottom: "calc(84px + env(safe-area-inset-bottom, 0px))",
                 overscrollBehavior: "none",
               }}
             >
+              {/* Mobile News header */}
+              <div className="flex items-center justify-between mb-4">
+                <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 28, fontWeight: 500 }} className="text-slate-900">
+                  News
+                </h1>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={refreshNewsCards}
+                    disabled={isLoadingNews}
+                    className="min-h-11 px-2 rounded-md text-sm text-amber-600 hover:text-amber-700 transition-colors disabled:opacity-50 flex items-center gap-1 shrink-0 select-none"
+                  >
+                    {isLoadingNews ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                    Refresh
+                  </button>
+                  <span className="text-xs text-slate-400">
+                    {marketStories.length + portfolioStories.length} stories
+                  </span>
+                </div>
+              </div>
+              {lastRefreshTime && !isNaN(new Date(lastRefreshTime).getTime()) && (
+                <p className="text-xs text-slate-400 -mt-3 mb-4">
+                  Updated {formatDistanceToNow(lastRefreshTime, { addSuffix: true })}
+                </p>
+              )}
               {newsBlock}
             </main>
           )}
