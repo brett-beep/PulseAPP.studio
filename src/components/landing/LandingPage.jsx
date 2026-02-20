@@ -1,4 +1,4 @@
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Hero } from "./Hero"
 import { ValueProps } from "./ValueProps"
 import { HowItWorks } from "./HowItWorks"
@@ -20,7 +20,23 @@ export function LandingPage({ onSignIn }) {
   const openWaitlist = (location = 'Unknown') => {
     setIsWaitlistOpen(true)
   }
-  
+
+  // Open waitlist modal when user lands via share link: /#waitlist or ?waitlist=1
+  useEffect(() => {
+    const hash = window.location.hash?.toLowerCase().replace(/^#/, "")
+    const params = new URLSearchParams(window.location.search)
+    const fromQuery = params.get("waitlist") === "1" || params.get("open") === "waitlist"
+    if (hash === "waitlist" || fromQuery) {
+      setIsWaitlistOpen(true)
+      if (fromQuery) {
+        params.delete("waitlist")
+        params.delete("open")
+        const clean = params.toString() ? `?${params.toString()}` : window.location.pathname || ""
+        window.history.replaceState(null, "", clean + (window.location.hash || ""))
+      }
+    }
+  }, [])
+
   const closeWaitlist = () => {
     setIsWaitlistOpen(false)
   }
