@@ -34,6 +34,16 @@ const AuthenticatedApp = () => {
     };
 
     const onTouchMove = (event) => {
+      /* Option A: Do not interfere when the touch is inside the tab content area (Home 3-tab layout).
+         There the scroll container is .tab-content-area, not document; preventDefault() here would
+         block that scroll and cause stuck/ disconnected scroll. */
+      if (
+        event.target instanceof Element &&
+        event.target.closest(".tab-content-area")
+      ) {
+        return;
+      }
+
       const inPullRefreshZone =
         event.target instanceof Element &&
         !!event.target.closest('[data-pull-refresh-zone="true"]');
