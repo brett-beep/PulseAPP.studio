@@ -122,10 +122,10 @@ function FormattedSummary({ text }) {
   );
 }
 
-function MarketSection({ marketSectionOpen, setMarketSectionOpen, setLastExpandedSection, marketStories, isSecond, gridOrder }) {
+function MarketSection({ marketSectionOpen, setMarketSectionOpen, setLastExpandedSection, marketStories, isSecond, gridOrder, isMobile }) {
   return (
     <motion.div
-      layout
+      layout={!isMobile}
       transition={LAYOUT_TRANSITION}
       className={`rounded-3xl overflow-hidden ${marketSectionOpen || isSecond ? "lg:col-span-2" : ""}`}
       style={{
@@ -178,36 +178,51 @@ function MarketSection({ marketSectionOpen, setMarketSectionOpen, setLastExpande
           )}
         </button>
       </motion.div>
-      {marketSectionOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.22, ease: SMOOTH_EASE }}
-          className="overflow-hidden"
+      {isMobile ? (
+        <div
+          className={`news-section-content ${marketSectionOpen ? "expanded" : ""}`}
           style={{ borderTop: "1px solid var(--section-divider)" }}
         >
-          <motion.div
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.22, ease: SMOOTH_EASE }}
-            className="px-4 md:px-6 pb-4 md:pb-6 pt-3 md:pt-4"
-          >
+          <div className="px-4 md:px-6 pb-4 md:pb-6 pt-3 md:pt-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
               {marketStories.map((story, index) => (
                 <NewsCard key={`market-${index}`} story={story} index={index} />
               ))}
             </div>
+          </div>
+        </div>
+      ) : (
+        marketSectionOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.22, ease: SMOOTH_EASE }}
+            className="overflow-hidden"
+            style={{ borderTop: "1px solid var(--section-divider)" }}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.22, ease: SMOOTH_EASE }}
+              className="px-4 md:px-6 pb-4 md:pb-6 pt-3 md:pt-4"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+                {marketStories.map((story, index) => (
+                  <NewsCard key={`market-${index}`} story={story} index={index} />
+                ))}
+              </div>
+            </motion.div>
           </motion.div>
-        </motion.div>
+        )
       )}
     </motion.div>
   );
 }
 
-function PortfolioSection({ portfolioSectionOpen, setPortfolioSectionOpen, setLastExpandedSection, portfolioStories, isSecond, gridOrder }) {
+function PortfolioSection({ portfolioSectionOpen, setPortfolioSectionOpen, setLastExpandedSection, portfolioStories, isSecond, gridOrder, isMobile }) {
   return (
     <motion.div
-      layout
+      layout={!isMobile}
       transition={LAYOUT_TRANSITION}
       className={`rounded-3xl overflow-hidden ${portfolioSectionOpen || isSecond ? "lg:col-span-2" : ""}`}
       style={{
@@ -260,27 +275,42 @@ function PortfolioSection({ portfolioSectionOpen, setPortfolioSectionOpen, setLa
           )}
         </button>
       </motion.div>
-      {portfolioSectionOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.22, ease: SMOOTH_EASE }}
-          className="overflow-hidden"
+      {isMobile ? (
+        <div
+          className={`news-section-content ${portfolioSectionOpen ? "expanded" : ""}`}
           style={{ borderTop: "1px solid var(--section-divider)" }}
         >
-          <motion.div
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.22, ease: SMOOTH_EASE }}
-            className="px-4 md:px-6 pb-4 md:pb-6 pt-3 md:pt-4"
-          >
+          <div className="px-4 md:px-6 pb-4 md:pb-6 pt-3 md:pt-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
               {portfolioStories.map((story, index) => (
                 <NewsCard key={`portfolio-${index}`} story={story} index={index} />
               ))}
             </div>
+          </div>
+        </div>
+      ) : (
+        portfolioSectionOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.22, ease: SMOOTH_EASE }}
+            className="overflow-hidden"
+            style={{ borderTop: "1px solid var(--section-divider)" }}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.22, ease: SMOOTH_EASE }}
+              className="px-4 md:px-6 pb-4 md:pb-6 pt-3 md:pt-4"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+                {portfolioStories.map((story, index) => (
+                  <NewsCard key={`portfolio-${index}`} story={story} index={index} />
+                ))}
+              </div>
+            </motion.div>
           </motion.div>
-        </motion.div>
+        )
       )}
     </motion.div>
   );
@@ -1016,10 +1046,10 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
      ────────────────────────────────────────────── */
   const audioPlayerBlock = (
     <motion.section
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={isMobile ? {} : { opacity: 0, y: 20 }}
+      animate={isMobile ? {} : { opacity: 1, y: 0 }}
       transition={{ delay: 0.1 }}
-      className="mb-10"
+      className={isMobile ? "mb-10 fade-in-up" : "mb-10"}
     >
       <AudioPlayer
         audioUrl={audioUrl}
@@ -1050,10 +1080,10 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
 
   const summaryBlock = (todayBriefing?.summary || highlights.length > 0) ? (
     <motion.section
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={isMobile ? {} : { opacity: 0, y: 20 }}
+      animate={isMobile ? {} : { opacity: 1, y: 0 }}
       transition={{ delay: 0.2 }}
-      className="mb-12"
+      className={isMobile ? "mb-12 fade-in-up" : "mb-12"}
     >
       {todayBriefing?.summary ? (
         <div className="bg-white dark:bg-card rounded-2xl p-6 border border-slate-100 dark:border-border mb-6">
@@ -1068,10 +1098,10 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
     <motion.section
       ref={pullZoneRef}
       data-pull-refresh-zone="true"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={isMobile ? {} : { opacity: 0, y: 20 }}
+      animate={isMobile ? {} : { opacity: 1, y: 0 }}
       transition={{ delay: 0.3 }}
-      className="space-y-6"
+      className={isMobile ? "space-y-6 fade-in-up" : "space-y-6"}
       style={{
         transform: pullDistance > 0 ? `translateY(${Math.min(56, pullDistance)}px)` : "translateY(0px)",
         transition: isPullingRef.current ? "none" : "transform 180ms ease",
@@ -1140,7 +1170,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
           </p>
         </div>
       ) : (
-        <motion.div layout className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <motion.div layout={!isMobile} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <MarketSection
             marketSectionOpen={marketSectionOpen}
             setMarketSectionOpen={setMarketSectionOpen}
@@ -1148,6 +1178,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
             marketStories={marketStories}
             isSecond={portfolioSectionOpen}
             gridOrder={!portfolioSectionOpen ? 1 : 2}
+            isMobile={isMobile}
           />
           <PortfolioSection
             portfolioSectionOpen={portfolioSectionOpen}
@@ -1156,6 +1187,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
             portfolioStories={portfolioStories}
             isSecond={marketSectionOpen}
             gridOrder={portfolioSectionOpen ? 1 : 2}
+            isMobile={isMobile}
           />
         </motion.div>
       )}
@@ -1167,9 +1199,9 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
      ────────────────────────────────────────────── */
   return (
     <div
-      className={`min-h-screen relative app-theme-surface ${isMobile ? "mobile-warm-bg" : ""}`}
+      className={`min-h-screen relative app-theme-surface ${isMobile ? "mobile-warm-bg mobile-root-transparent flex flex-col flex-1 min-h-0 overflow-hidden" : ""}`}
       style={{
-        backgroundColor: isMobile ? "#faf7f2" : "hsl(var(--background))",
+        backgroundColor: isMobile ? "transparent" : "hsl(var(--background))",
       }}
     >
       <AmbientAurora />
@@ -1177,33 +1209,32 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
       {isMobile ? (
         /* ═══════ MOBILE: 3-tab layout ═══════ */
         <>
-          {mobileTab === "home" && (() => {
-            const isPreGenHome = !audioUrl && !isGenerating;
-            return (
-            <main
-              key="tab-home"
-              className="px-6 relative z-10 mobile-tab-content"
-              style={{
-                paddingTop: "calc(12px + env(safe-area-inset-top, 0px))",
-                paddingBottom: "calc(84px + env(safe-area-inset-bottom, 0px))",
-                overscrollBehavior: "none",
-                ...(isPreGenHome ? { overflow: "hidden", height: "100dvh", maxHeight: "100dvh" } : {}),
-              }}
-            >
-              {audioPlayerBlock}
-              {summaryBlock}
-            </main>
-            );
-          })()}
+          <div className="flex flex-col flex-1 min-h-0 overflow-hidden relative z-[2]">
+            {mobileTab === "home" && (() => {
+              const isPreGenHome = !audioUrl && !isGenerating;
+              return (
+              <main
+                key="tab-home"
+                className={`tab-content-area px-6 relative z-10 mobile-tab-content ${isPreGenHome ? "tab-content-area-no-scroll" : "scrollable-tab-content"}`}
+                style={{
+                  paddingTop: "calc(12px + env(safe-area-inset-top, 0px))",
+                  paddingBottom: "calc(84px + env(safe-area-inset-bottom, 0px))",
+                  ...(isPreGenHome ? { overflow: "hidden", height: "100%", display: "flex", flexDirection: "column", justifyContent: "center" } : {}),
+                }}
+              >
+                {audioPlayerBlock}
+                {summaryBlock}
+              </main>
+              );
+            })()}
 
-          {mobileTab === "news" && (
+            {mobileTab === "news" && (
             <main
               key="tab-news"
-              className="px-6 relative z-10 mobile-tab-content"
+              className="tab-content-area scrollable-tab-content px-6 relative z-10 mobile-tab-content"
               style={{
                 paddingTop: "calc(24px + env(safe-area-inset-top, 0px))",
                 paddingBottom: "calc(84px + env(safe-area-inset-bottom, 0px))",
-                overscrollBehavior: "none",
               }}
             >
               {/* Mobile News header */}
@@ -1232,16 +1263,17 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
               )}
               {newsBlock}
             </main>
-          )}
+            )}
 
-          {mobileTab === "settings" && (
-            <div key="tab-settings" className="mobile-tab-content">
-              <MobileSettings
-                isPremium={isPremium}
-                onUpgrade={() => setShowUpgradeModal(true)}
-              />
-            </div>
-          )}
+            {mobileTab === "settings" && (
+              <div key="tab-settings" className="tab-content-area scrollable-tab-content mobile-tab-content flex-1 min-h-0 flex flex-col relative z-[2]">
+                <MobileSettings
+                  isPremium={isPremium}
+                  onUpgrade={() => setShowUpgradeModal(true)}
+                />
+              </div>
+            )}
+          </div>
 
           <MobileTabBar
             activeTab={mobileTab}

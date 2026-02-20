@@ -452,21 +452,62 @@ textarea,
 }
 
 @media (max-width: 767px) and (pointer: coarse) {
-  html,
-  body,
-  #root {
-    min-height: 100dvh;
-    overflow-x: hidden !important;
-    overscroll-behavior-y: none;
-    overscroll-behavior-x: none;
-    max-width: 100vw;
+  /* Section 1: Kill rubber-band scrolling & white space bounce */
+  html {
+    overflow: hidden;
+    height: 100%;
+    position: fixed;
+    width: 100%;
   }
 
   body {
+    overflow: hidden;
+    height: 100%;
+    position: fixed;
+    width: 100%;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: auto;
     touch-action: pan-y;
     -webkit-user-select: none;
     user-select: none;
     -webkit-touch-callout: none;
+    background: #faf7f2;
+  }
+
+  #root {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+    max-width: 100vw;
+  }
+
+  /* Section 1: Only tab content area scrolls */
+  .tab-content-area {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+  .tab-content-area-no-scroll {
+    overflow: hidden !important;
+  }
+
+  /* Section 1: Horizontal scrolling impossible everywhere */
+  * {
+    max-width: 100vw;
+  }
+  #root,
+  #root > *,
+  .tab-content-area {
+    overflow-x: hidden !important;
   }
 
   .mobile-app-shell {
@@ -487,42 +528,64 @@ textarea,
     -webkit-touch-callout: default;
   }
 
-  .mobile-tabbar {
+  /* Section 2: Tab bar — highlight not clipping, edge-to-edge */
+  .mobile-tabbar,
+  .mobile-tab-bar,
+  nav[class*="tab"] {
     position: fixed;
+    bottom: 0;
     left: 0;
     right: 0;
-    bottom: 0;
-    z-index: 80;
+    z-index: 100;
     display: flex;
-    align-items: center;
     justify-content: space-around;
-    gap: 0;
-    padding: 0.5rem 0 calc(0.5rem + env(safe-area-inset-bottom, 0px));
+    align-items: center;
+    padding: 6px 0;
+    padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
     background: rgba(250, 247, 242, 0.88);
     backdrop-filter: blur(24px) saturate(1.5);
     -webkit-backdrop-filter: blur(24px) saturate(1.5);
     border-top: 1px solid rgba(0, 0, 0, 0.04);
+    overflow: visible;
   }
 
-  .mobile-tabbar-item {
-    flex: 1;
-    min-height: 44px;
-    display: inline-flex;
+  .mobile-tabbar-item,
+  .tab-item,
+  [class*="tab-item"] {
+    display: flex;
     flex-direction: column;
     align-items: center;
+    gap: 3px;
+    padding: 8px 20px;
+    border-radius: 14px;
+    transition: background-color 0.2s ease, color 0.2s ease;
+    position: relative;
+    flex: 1;
+    min-height: 44px;
     justify-content: center;
-    gap: 0.125rem;
-    color: #a0a0a0;
-    border-radius: 12px;
     font-size: 10px;
     font-weight: 600;
     letter-spacing: 0.01em;
-    transition: all 0.2s ease;
   }
 
-  .mobile-tabbar-item.is-active {
-    color: #e07028;
+  .mobile-tabbar-item.is-active,
+  .tab-item.active,
+  [class*="tab-item"].active {
     background: rgba(224, 112, 40, 0.08);
+  }
+
+  .mobile-tabbar-item.is-active svg,
+  .mobile-tabbar-item.is-active span,
+  .tab-item.active svg,
+  .tab-item.active span {
+    color: #e07028;
+  }
+
+  .mobile-tabbar-item:not(.is-active) svg,
+  .mobile-tabbar-item:not(.is-active) span,
+  .tab-item:not(.active) svg,
+  .tab-item:not(.active) span {
+    color: #a0a0a0;
   }
 
   /* Warm landing-style mobile: glass Now Playing card */
@@ -561,43 +624,98 @@ textarea,
     100% { transform: scale(1.8); opacity: 0; }
   }
 
-  /* Mobile tab content fade-in */
-  .mobile-tab-content {
-    animation: mobileTabFade 200ms ease both;
+  /* Section 3b: Tab switching — 150ms opacity fade only */
+  .mobile-tab-content,
+  .tab-content-entering {
+    animation: tabFadeIn 150ms ease-out forwards;
   }
-  @keyframes mobileTabFade {
+  @keyframes tabFadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
   }
 
-  /* Mobile ambient orbs (reference: 3 soft peach/orange blurred orbs) */
+  /* Section 3a: GPU compositing */
+  .mobile-tabbar *,
+  .mobile-tab-bar *,
+  nav[class*="tab"] *,
+  [class*="motion"] *,
+  [class*="animate"] {
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+  }
+
+  /* Section 3c: News section expand/collapse — CSS only */
+  .news-section-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 300ms cubic-bezier(0.4, 0, 0.2, 1), opacity 200ms ease;
+    opacity: 0;
+  }
+  .news-section-content.expanded {
+    max-height: 2000px;
+    opacity: 1;
+  }
+
+  /* Section 3d: Fade-in-up for sections on mobile */
+  .fade-in-up {
+    animation: fadeInUp 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+  }
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(12px) translateZ(0); }
+    to { opacity: 1; transform: translateY(0) translateZ(0); }
+  }
+
+  /* Section 3e: Scroll smoothness */
+  .scrollable-tab-content {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    overscroll-behavior-y: contain;
+    will-change: scroll-position;
+  }
+
+  /* Section 3f: Disable hover artifacts on touch */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Mobile ambient orbs — exact values so orbs are VISIBLE (Section 0) */
   .amb-orb {
-    position: absolute;
+    position: fixed;
+    pointer-events: none;
+    z-index: 1;
     border-radius: 50%;
-    filter: blur(80px);
+    filter: blur(60px);
     will-change: transform;
   }
   .amb-orb-a {
-    width: 380px; height: 380px;
-    top: -8%; right: -15%;
-    background: radial-gradient(circle, rgba(255, 190, 120, 0.35), transparent 80%);
-    animation: amb-o1 18s ease-in-out infinite;
+    width: 340px;
+    height: 340px;
+    top: -5%;
+    right: -12%;
+    background: radial-gradient(circle, rgba(255, 180, 100, 0.4), transparent 75%);
+    animation: orbDrift1 18s ease-in-out infinite;
   }
   .amb-orb-b {
-    width: 300px; height: 300px;
-    top: 25%; left: -20%;
-    background: radial-gradient(circle, rgba(255, 160, 80, 0.2), transparent 70%);
-    animation: amb-o2 22s ease-in-out infinite;
+    width: 280px;
+    height: 280px;
+    top: 30%;
+    left: -15%;
+    background: radial-gradient(circle, rgba(255, 150, 70, 0.25), transparent 70%);
+    animation: orbDrift2 22s ease-in-out infinite;
   }
   .amb-orb-c {
-    width: 250px; height: 250px;
-    bottom: 15%; right: -10%;
-    background: radial-gradient(circle, rgba(240, 200, 140, 0.18), transparent 70%);
-    animation: amb-o3 20s ease-in-out infinite;
+    width: 220px;
+    height: 220px;
+    bottom: 18%;
+    right: -8%;
+    background: radial-gradient(circle, rgba(240, 190, 120, 0.22), transparent 70%);
+    animation: orbDrift3 20s ease-in-out infinite;
   }
-  @keyframes amb-o1 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(-25px, 20px) scale(1.08); } }
-  @keyframes amb-o2 { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(15px, -18px) scale(1.05); } }
-  @keyframes amb-o3 { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(-12px, 12px) scale(1.1); } }
+  @keyframes orbDrift1 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(-25px, 20px) scale(1.08); } }
+  @keyframes orbDrift2 { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(15px, -18px) scale(1.05); } }
+  @keyframes orbDrift3 { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(-12px, 12px) scale(1.1); } }
 
   /* Mobile-only thin timeline slider */
   .mobile-slim-slider [data-radix-slider-track],
