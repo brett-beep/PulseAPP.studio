@@ -374,8 +374,8 @@ export default function AudioPlayer({
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
       onPointerMove={onPointerMove}
-      className={`audio-player-controls relative overflow-visible md:overflow-hidden rounded-[32px] md:rounded-[40px] p-5 md:p-10 ${isMobileView && isPreGen ? "min-h-[calc(100dvh-180px)] flex flex-col" : ""}`}
-      style={{
+      className={`audio-player-controls relative overflow-visible md:overflow-hidden ${isMobileView ? "p-0" : "rounded-[40px] p-10"} ${isMobileView && isPreGen ? "min-h-[calc(100dvh-180px)] flex flex-col" : ""}`}
+      style={isMobileView ? {} : {
         background: "var(--player-bg)",
         backdropFilter: "blur(60px) saturate(1.5) url(#container-glass)",
         WebkitBackdropFilter: "blur(60px) saturate(1.5)",
@@ -383,24 +383,29 @@ export default function AudioPlayer({
         boxShadow: "var(--player-glow)",
       }}
     >
-      <GlassFilter />
+      {!isMobileView && <GlassFilter />}
 
+      {!isMobileView && (
       <div
-        className="pointer-events-none absolute inset-[0.5px] rounded-[31.5px] md:rounded-[39.5px]"
+        className="pointer-events-none absolute inset-[0.5px] rounded-[39.5px]"
         style={{
           background: "var(--player-highlight)",
         }}
       />
+      )}
+      {!isMobileView && (
       <div
-        className="pointer-events-none absolute inset-[1px] rounded-[31px] md:rounded-[39px]"
+        className="pointer-events-none absolute inset-[1px] rounded-[39px]"
         style={{
           border: `0.5px solid var(--player-inner-border-color)`,
           boxShadow: "var(--player-inner-shadow)",
         }}
       />
+      )}
 
+      {!isMobileView && (
       <motion.div
-        className="pointer-events-none absolute inset-0 rounded-[32px] md:rounded-[40px]"
+        className="pointer-events-none absolute inset-0 rounded-[40px]"
         style={{
           "--highlight-x": sx,
           "--highlight-y": sy,
@@ -408,6 +413,7 @@ export default function AudioPlayer({
           mixBlendMode: "overlay",
         }}
       />
+      )}
 
       {isGenerating && (
         <motion.div
@@ -452,6 +458,7 @@ export default function AudioPlayer({
         </motion.div>
       )}
 
+      {!isMobileView && (
       <motion.div
         className="pointer-events-none absolute -top-32 -right-32 h-80 w-80 rounded-full opacity-40"
         animate={{
@@ -465,6 +472,8 @@ export default function AudioPlayer({
           filter: "blur(28px)",
         }}
       />
+      )}
+      {!isMobileView && (
       <motion.div
         className="pointer-events-none absolute -bottom-32 -left-32 h-96 w-96 rounded-full opacity-35"
         animate={{
@@ -478,9 +487,10 @@ export default function AudioPlayer({
           filter: "blur(32px)",
         }}
       />
+      )}
 
       <div
-        className="pointer-events-none absolute inset-0 opacity-[0.035] mix-blend-overlay rounded-[32px] md:rounded-[40px]"
+        className={`pointer-events-none absolute inset-0 opacity-[0.035] mix-blend-overlay ${isMobileView ? "" : "rounded-[40px]"}`}
         style={{
           backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
         }}
