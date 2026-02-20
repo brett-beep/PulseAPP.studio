@@ -779,15 +779,17 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
   useEffect(() => {
     const zone = pullZoneRef.current;
     if (!zone) return;
+    if (mobileTab !== "news") return; /* Only pull-to-refresh on news tab */
     const isCoarseMobile = window.matchMedia("(max-width: 767px) and (pointer: coarse)").matches;
     if (!isCoarseMobile) return;
 
-    const THRESHOLD = 72;
+    const THRESHOLD = 100; /* Increased — requires more intentional pull */
     const MAX_PULL = 120;
 
     const onTouchStart = (event) => {
-      const scrollTop = document.scrollingElement?.scrollTop ?? window.scrollY;
-      if (scrollTop > 0 || isLoadingNews || isPullRefreshing) {
+      const scrollContainer = event.currentTarget.closest(".tab-content-area");
+      const scrollTop = scrollContainer ? scrollContainer.scrollTop : 0;
+      if (scrollTop > 5 || isLoadingNews || isPullRefreshing) {
         isPullingRef.current = false;
         return;
       }
@@ -797,18 +799,28 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
 
     const onTouchMove = (event) => {
       if (!isPullingRef.current) return;
-      const scrollTop = document.scrollingElement?.scrollTop ?? window.scrollY;
-      if (scrollTop > 0) return;
+
+      const scrollContainer = event.currentTarget.closest(".tab-content-area");
+      const scrollTop = scrollContainer ? scrollContainer.scrollTop : 0;
+      if (scrollTop > 5) return; /* Must be AT the very top (5px tolerance) */
 
       const currentY = event.touches?.[0]?.clientY ?? 0;
       const delta = currentY - pullStartYRef.current;
+
+      /* DEAD ZONE: Ignore pulls less than 15px — normal scroll attempts */
+      if (delta < 15) {
+        pullDistanceRef.current = 0;
+        setPullDistance(0);
+        return;
+      }
       if (delta <= 0) {
         pullDistanceRef.current = 0;
         setPullDistance(0);
         return;
       }
+
       event.preventDefault();
-      const nextPull = Math.min(MAX_PULL, delta * 0.55);
+      const nextPull = Math.min(MAX_PULL, (delta - 15) * 0.4); /* Subtract dead zone, slower multiplier */
       pullDistanceRef.current = nextPull;
       setPullDistance(nextPull);
     };
@@ -1104,7 +1116,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
       className={isMobile ? "space-y-6 fade-in-up" : "space-y-6"}
       style={{
         transform: pullDistance > 0 ? `translateY(${Math.min(56, pullDistance)}px)` : "translateY(0px)",
-        transition: isPullingRef.current ? "none" : "transform 180ms ease",
+        transition: isPullingRef.current ? "none" : "transform 350ms cubic-bezier(0.2, 0.9, 0.3, 1.2)",
       }}
     >
       <div className="md:hidden -mt-1 mb-1 h-8 flex items-center justify-center text-sm text-slate-500">
@@ -1116,7 +1128,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
         ) : pullDistance > 0 ? (
           <span className="inline-flex items-center gap-2">
             <RefreshCw className="w-4 h-4" />
-            {pullDistance >= 72 ? "Release to refresh" : "Pull to refresh"}
+            {pullDistance >= 100 ? "Release to refresh" : "Pull to refresh"}
           </span>
         ) : null}
       </div>
@@ -1220,7 +1232,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
                 style={{
                   paddingTop: "calc(12px + env(safe-area-inset-top, 0px))",
                   paddingBottom: "calc(84px + env(safe-area-inset-bottom, 0px))",
-                  ...(isPreGenHome ? { overflow: "hidden", height: "100%", display: "flex", flexDirection: "column", justifyContent: "center" } : {}),
+                  ...(isPreGenHome ? { display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" } : {}),
                 }}
               >
                 {audioPlayerBlock}

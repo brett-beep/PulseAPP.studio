@@ -494,11 +494,37 @@ textarea,
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
-    overscroll-behavior-y: contain;
+    overscroll-behavior-y: auto; /* Allow native iOS bounce */
   }
   .tab-content-area-no-scroll {
     overflow: hidden !important;
     overflow-y: hidden !important;
+    overscroll-behavior: none !important;
+    -webkit-overflow-scrolling: auto !important;
+    touch-action: none !important; /* Prevents ALL touch-based scrolling */
+  }
+
+  /* Hide scrollbar on all scrollable containers — native iOS feel */
+  .tab-content-area::-webkit-scrollbar {
+    display: none;
+  }
+  .tab-content-area {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollable-tab-content::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollable-tab-content {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  *::-webkit-scrollbar {
+    display: none;
+  }
+  * {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 
   /* Section 1: Horizontal scrolling impossible everywhere */
@@ -668,12 +694,10 @@ textarea,
     to { opacity: 1; transform: translateY(0) translateZ(0); }
   }
 
-  /* Section 3e: Scroll smoothness */
+  /* Scrollable tab content — native bounce, no smooth/will-change (interferes with native feel) */
   .scrollable-tab-content {
     -webkit-overflow-scrolling: touch;
-    scroll-behavior: smooth;
-    overscroll-behavior-y: contain;
-    will-change: scroll-position;
+    overscroll-behavior-y: auto; /* Allow native bounce */
   }
 
   /* Section 3f: Disable hover artifacts on touch */
