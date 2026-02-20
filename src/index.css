@@ -763,50 +763,111 @@ textarea,
   @keyframes orbDrift2 { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(15px, -18px) scale(1.05); } }
   @keyframes orbDrift3 { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(-12px, 12px) scale(1.1); } }
 
-  /* §4a: Mobile thin timeline slider — 3px track, thumb hidden until touch */
-  .mobile-slim-slider [data-radix-slider-track],
-  .mobile-slim-slider .slider-track,
-  .mobile-slim-slider [class*="SliderTrack"] {
-    height: 3px !important;
-    border-radius: 999px !important;
-    background: rgba(0, 0, 0, 0.08) !important;
-    transition: all 0.15s ease;
+  /* §1 (Prompt C): Audio timeline — thin 3px orange line, thumb hidden until touch */
+  .mobile-slim-slider,
+  .mobile-slim-slider * {
+    box-sizing: border-box;
   }
+
+  /* Track (background bar) only */
+  .mobile-slim-slider [data-radix-slider-track],
+  .mobile-slim-slider [class*="Track"],
+  .mobile-slim-slider [class*="track"] {
+    height: 3px !important;
+    min-height: 3px !important;
+    max-height: 3px !important;
+    border-radius: 999px !important;
+    background: rgba(0, 0, 0, 0.06) !important;
+  }
+
   .mobile-slim-slider [data-radix-slider-range],
-  .mobile-slim-slider .slider-range,
-  .mobile-slim-slider [class*="SliderRange"] {
+  .mobile-slim-slider [class*="Range"],
+  .mobile-slim-slider [class*="range"] {
+    height: 3px !important;
     background: #e07028 !important;
     border-radius: 999px !important;
   }
+
   .mobile-slim-slider [role="slider"],
-  .mobile-slim-slider [class*="SliderThumb"] {
-    width: 0 !important;
-    height: 0 !important;
+  .mobile-slim-slider [class*="Thumb"],
+  .mobile-slim-slider [class*="thumb"],
+  .mobile-slim-slider button[role="slider"] {
+    width: 0px !important;
+    height: 0px !important;
     opacity: 0 !important;
     border: none !important;
     box-shadow: none !important;
-    transition: all 0.15s ease;
-  }
-  .mobile-slim-slider:active [role="slider"],
-  .mobile-slim-slider:active [class*="SliderThumb"],
-  .mobile-slim-slider[data-dragging] [role="slider"],
-  .mobile-slim-slider[data-dragging] [class*="SliderThumb"] {
-    width: 14px !important;
-    height: 14px !important;
-    opacity: 1 !important;
-    background: white !important;
-    border: 2px solid #e07028 !important;
-    box-shadow: 0 2px 8px rgba(224, 112, 40, 0.25) !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    transition: all 0.15s ease !important;
   }
 
-  /* §4b: Time labels — match countdown font */
-  .mobile-time-labels {
-    font-family: 'DM Sans', -apple-system, sans-serif;
-    font-size: 12px;
-    font-weight: 500;
-    color: #a0a0a0;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: 0.02em;
+  .mobile-slim-slider:active [role="slider"],
+  .mobile-slim-slider:active [class*="Thumb"],
+  .mobile-slim-slider:active [class*="thumb"],
+  .mobile-slim-slider:active button[role="slider"],
+  .mobile-slim-slider [role="slider"]:focus,
+  .mobile-slim-slider [role="slider"]:active {
+    width: 16px !important;
+    height: 16px !important;
+    opacity: 1 !important;
+    background: white !important;
+    border: 2.5px solid #e07028 !important;
+    border-radius: 50% !important;
+    box-shadow: 0 2px 8px rgba(224, 112, 40, 0.3) !important;
+    margin-top: -6.5px !important;
+  }
+
+  .mobile-slim-slider + div,
+  .mobile-slim-slider ~ .flex,
+  .audio-time-labels {
+    font-family: 'DM Sans', -apple-system, sans-serif !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    color: #a0a0a0 !important;
+    font-variant-numeric: tabular-nums !important;
+    letter-spacing: 0.02em !important;
+  }
+
+  /* §2 (Prompt C): Timeline touch responsiveness — large touch target */
+  .mobile-slim-slider {
+    padding: 16px 0 !important;
+    margin: -16px 0 !important;
+    cursor: pointer;
+    touch-action: none;
+  }
+
+  .mobile-slim-slider [data-radix-slider-track]::before,
+  .mobile-slim-slider [class*="Track"]::before {
+    content: '';
+    position: absolute;
+    top: -12px;
+    bottom: -12px;
+    left: 0;
+    right: 0;
+  }
+
+  /* §3 (Prompt C): Player section — proportional spacing */
+  .audio-player-mobile {
+    padding-top: 24px;
+  }
+
+  .audio-player-greeting {
+    margin-bottom: 32px;
+  }
+
+  .audio-player-waveform {
+    margin-bottom: 24px;
+  }
+
+  .audio-player-mobile-controls {
+    margin-top: 24px;
+    margin-bottom: 24px;
+  }
+
+  .audio-player-gen-row {
+    margin-top: 12px;
+    margin-bottom: 16px;
   }
 }
 

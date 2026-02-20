@@ -492,7 +492,7 @@ export default function AudioPlayer({
         />
       ) : null}
 
-      <div className={`relative z-10 ${isMobileView && isPreGen ? "flex-1 flex flex-col" : ""}`}>
+      <div className={`relative z-10 ${isMobileView && isPreGen ? "flex-1 flex flex-col" : ""} ${isMobileView && !isPreGen ? "audio-player-mobile" : ""}`}>
         {/* ── MOBILE PRE-GEN: centered welcome screen ── */}
         {isMobileView && isPreGen ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center -mt-4">
@@ -541,7 +541,7 @@ export default function AudioPlayer({
           </div>
         ) : (
         /* ── NORMAL GREETING (desktop + mobile post-gen) ── */
-        <div className={`flex items-start md:items-center justify-between ${isMobileView ? "mb-6" : "mb-6 md:mb-8"} gap-3`}>
+        <div className={`flex items-start md:items-center justify-between ${isMobileView ? "mb-6 audio-player-greeting" : "mb-6 md:mb-8"} gap-3`}>
           <div className="flex-1 min-w-0">
             <p className="text-slate-500/80 text-[10px] md:text-xs font-medium tracking-wider uppercase mb-1">
               {currentDate}
@@ -647,7 +647,7 @@ export default function AudioPlayer({
         </AnimatePresence>
 
         {/* Waveform/Info Card - mobile ~35% bigger than previous, desktop unchanged */}
-        <div className={`rounded-xl md:rounded-2xl overflow-visible relative ${showWaveform ? "h-16 md:h-24" : "min-h-16 md:min-h-24"} ${showInfoCard ? "" : "mb-4 md:mb-8"}`}>
+        <div className={`rounded-xl md:rounded-2xl overflow-visible relative ${showWaveform ? "h-16 md:h-24" : "min-h-16 md:min-h-24"} ${showInfoCard ? "" : "mb-4 md:mb-8"} ${isMobileView ? "audio-player-waveform" : ""}`}>
           {showWaveform ? (
             <div className="absolute inset-0 rounded-xl md:rounded-2xl flex items-center justify-center gap-px md:gap-0.5 px-1 md:px-2">
               {bars.map(({ i }, idx) => {
@@ -733,20 +733,38 @@ export default function AudioPlayer({
           )}
         </div>
 
-        <div className={`mb-6 md:mb-10 px-1 ${isMobileView ? "mobile-slim-slider mt-5" : ""}`}>
-          <Slider
-            value={[currentTime]}
-            max={totalDuration || 100}
-            step={1}
-            onValueChange={handleSeek}
-            className="cursor-pointer"
-          />
-          <div
-            className={`flex justify-between mt-2 md:mt-3 ${isMobileView ? "mobile-time-labels" : "font-mono tracking-tight text-slate-600/70 text-sm"}`}
-          >
-            <span>{formatTime(currentTime)}</span>
-            <span>-{formatTime(Math.max(0, totalDuration - currentTime))}</span>
-          </div>
+        <div className={`mb-6 md:mb-10 px-1 mt-5`}>
+          {isMobileView ? (
+            <>
+              <div className="mobile-slim-slider">
+                <Slider
+                  value={[currentTime]}
+                  max={totalDuration || 100}
+                  step={1}
+                  onValueChange={handleSeek}
+                  className="cursor-pointer"
+                />
+              </div>
+              <div className="flex justify-between mt-2 md:mt-3 mobile-time-labels audio-time-labels">
+                <span>{formatTime(currentTime)}</span>
+                <span>-{formatTime(Math.max(0, totalDuration - currentTime))}</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <Slider
+                value={[currentTime]}
+                max={totalDuration || 100}
+                step={1}
+                onValueChange={handleSeek}
+                className="cursor-pointer"
+              />
+              <div className="flex justify-between mt-2 md:mt-3 font-mono tracking-tight text-slate-600/70 text-sm">
+                <span>{formatTime(currentTime)}</span>
+                <span>-{formatTime(Math.max(0, totalDuration - currentTime))}</span>
+              </div>
+            </>
+          )}
         </div>
 
         {/* DESKTOP CONTROLS: Original horizontal row (hidden on mobile) */}
@@ -919,7 +937,7 @@ export default function AudioPlayer({
         </div>
 
         {/* MOBILE CONTROLS: Skip-back + glass play button + skip-forward (matching reference) */}
-        <div className="flex items-center justify-center gap-8 mt-5 md:mt-0 md:hidden">
+        <div className="flex items-center justify-center gap-8 mt-5 md:mt-0 md:hidden audio-player-mobile-controls">
           <button
             type="button"
             onClick={() => skip(-15)}
@@ -972,7 +990,7 @@ export default function AudioPlayer({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="text-center mt-6 md:mt-8"
+              className="text-center mt-6 md:mt-8 audio-player-gen-row"
             >
               <p className="text-slate-500 text-xs">Your briefing is being created — usually takes 60–90 seconds.</p>
             </motion.div>
@@ -982,7 +1000,7 @@ export default function AudioPlayer({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="flex flex-col items-center mt-7 md:mt-8 gap-2"
+              className="flex flex-col items-center mt-7 md:mt-8 gap-2 audio-player-gen-row"
             >
               {/* Mobile: grid with fixed column widths so Generate and controls never overlap or jump */}
               <div className="w-full md:hidden grid items-center min-h-[44px]" style={{ gridTemplateColumns: "3rem 1fr 3rem" }}>

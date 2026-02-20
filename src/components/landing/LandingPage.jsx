@@ -5,6 +5,7 @@ import { HowItWorks } from "./HowItWorks"
 import { CTASection } from "./CTASection"
 import { Footer } from "./Footer"
 import { WaitlistModal } from "./WaitlistModal"
+import { isNativeApp } from "@/utils/isNativeApp"
 
 export function LandingPage({ onSignIn }) {
   const [isWaitlistOpen, setIsWaitlistOpen] = useState(false)
@@ -20,6 +21,13 @@ export function LandingPage({ onSignIn }) {
   const openWaitlist = (location = 'Unknown') => {
     setIsWaitlistOpen(true)
   }
+
+  // Skip landing page in native app (TestFlight/Capacitor) — go straight to login
+  useEffect(() => {
+    if (isNativeApp() && onSignIn) {
+      onSignIn()
+    }
+  }, [onSignIn])
 
   // Open waitlist modal when user lands via share link: /#waitlist or ?waitlist=1
   useEffect(() => {
