@@ -1174,25 +1174,29 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
       {isMobile ? (
         /* ═══════ MOBILE: 3-tab layout ═══════ */
         <>
-          {mobileTab === "home" && (
+          {mobileTab === "home" && (() => {
+            const isPreGenHome = !audioUrl && !isGenerating;
+            return (
             <main
               key="tab-home"
-              className="px-4 relative z-10 mobile-tab-content"
+              className="px-6 relative z-10 mobile-tab-content"
               style={{
                 paddingTop: "calc(12px + env(safe-area-inset-top, 0px))",
                 paddingBottom: "calc(84px + env(safe-area-inset-bottom, 0px))",
                 overscrollBehavior: "none",
+                ...(isPreGenHome ? { overflow: "hidden", height: "100dvh", maxHeight: "100dvh" } : {}),
               }}
             >
               {audioPlayerBlock}
               {summaryBlock}
             </main>
-          )}
+            );
+          })()}
 
           {mobileTab === "news" && (
             <main
               key="tab-news"
-              className="px-4 relative z-10 mobile-tab-content"
+              className="px-6 relative z-10 mobile-tab-content"
               style={{
                 paddingTop: "calc(24px + env(safe-area-inset-top, 0px))",
                 paddingBottom: "calc(84px + env(safe-area-inset-bottom, 0px))",

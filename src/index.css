@@ -456,8 +456,10 @@ textarea,
   body,
   #root {
     min-height: 100dvh;
+    overflow-x: hidden !important;
     overscroll-behavior-y: none;
     overscroll-behavior-x: none;
+    max-width: 100vw;
   }
 
   body {
@@ -530,6 +532,16 @@ textarea,
   .mobile-warm-bg .news-content {
     backdrop-filter: blur(24px) saturate(1.2);
     -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  }
+
+  /* Glowy generate button inner shine */
+  .mobile-gen-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 999px;
+    background: linear-gradient(135deg, rgba(255,255,255,0.18), transparent 50%);
+    pointer-events: none;
   }
 
   /* Mobile tab content fade-in */

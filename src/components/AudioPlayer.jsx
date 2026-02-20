@@ -526,16 +526,16 @@ export default function AudioPlayer({
                 type="button"
                 onClick={canGenerateNew ? onGenerate : undefined}
                 disabled={isButtonDisabled}
-                className={`w-full py-4 text-base font-semibold ${isButtonDisabled ? "cursor-not-allowed" : "cursor-pointer"}`}
+                className={`mobile-gen-btn w-full max-w-[320px] mx-auto py-[18px] px-8 text-[16px] font-semibold relative overflow-hidden ${isButtonDisabled ? "cursor-not-allowed" : "cursor-pointer active:scale-[0.97]"} transition-transform`}
                 style={{
                   borderRadius: "999px",
                   background: isButtonDisabled
-                    ? "linear-gradient(135deg, rgba(180, 180, 180, 0.6) 0%, rgba(150, 150, 150, 0.7) 100%)"
-                    : "linear-gradient(135deg, rgba(230, 115, 26, 0.95) 0%, rgba(219, 114, 67, 1) 100%)",
-                  border: "1px solid rgba(255, 255, 255, 0.5)",
+                    ? "linear-gradient(135deg, rgba(180, 180, 180, 0.6), rgba(150, 150, 150, 0.7))"
+                    : "linear-gradient(135deg, #e07028, #c85d1e)",
+                  border: "none",
                   boxShadow: isButtonDisabled
                     ? "0 4px 12px rgba(0, 0, 0, 0.1)"
-                    : "0 8px 32px rgba(224, 112, 40, 0.3), 0 2px 8px rgba(224, 112, 40, 0.15)",
+                    : "0 8px 32px rgba(224, 112, 40, 0.35), 0 2px 8px rgba(224, 112, 40, 0.2), inset 0 1px 1px rgba(255, 255, 255, 0.25)",
                   color: isButtonDisabled ? "rgba(255, 255, 255, 0.8)" : "white",
                 }}
               >
