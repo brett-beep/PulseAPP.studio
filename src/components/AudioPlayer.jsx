@@ -736,16 +736,60 @@ export default function AudioPlayer({
         <div className={`mb-6 md:mb-10 px-1 mt-5`}>
           {isMobileView ? (
             <>
-              <div className="mobile-slim-slider">
-                <Slider
-                  value={[currentTime]}
-                  max={totalDuration || 100}
-                  step={1}
-                  onValueChange={handleSeek}
-                  className="cursor-pointer"
+              <div
+                className="mobile-custom-timeline"
+                style={{
+                  position: "relative",
+                  width: "100%",
+                  height: "3px",
+                  background: "rgba(0,0,0,0.06)",
+                  borderRadius: "999px",
+                  cursor: "pointer",
+                  touchAction: "none",
+                }}
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                  const duration = totalDuration || 100;
+                  handleSeek([pct * duration]);
+                }}
+                onTouchStart={(e) => {
+                  const touch = e.touches[0];
+                  if (!touch) return;
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const pct = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
+                  const duration = totalDuration || 100;
+                  handleSeek([pct * duration]);
+                }}
+                onTouchMove={(e) => {
+                  const touch = e.touches[0];
+                  if (!touch) return;
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const pct = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
+                  const duration = totalDuration || 100;
+                  handleSeek([pct * duration]);
+                }}
+              >
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    bottom: 0,
+                    width: `${totalDuration ? (currentTime / totalDuration) * 100 : 0}%`,
+                    background: "#e07028",
+                    borderRadius: "999px",
+                  }}
                 />
               </div>
-              <div className="flex justify-between mt-2 md:mt-3 mobile-time-labels audio-time-labels">
+              <div
+                className="flex justify-between mt-2 md:mt-3"
+                style={{
+                  fontFamily: "'DM Sans', sans-serif",
+                  fontSize: "12px",
+                  color: "#a0a0a0",
+                }}
+              >
                 <span>{formatTime(currentTime)}</span>
                 <span>-{formatTime(Math.max(0, totalDuration - currentTime))}</span>
               </div>
