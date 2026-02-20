@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
@@ -15,66 +15,129 @@ function SwipeBackWrapper({ onBack, children }) {
   const startXRef = useRef(0);
   const startYRef = useRef(0);
   const isDraggingRef = useRef(false);
-  const [dragOffset, setDragOffset] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
+  const directionLockedRef = useRef(false);
+  const isHorizontalRef = useRef(false);
+  const velocityRef = useRef(0);
+  const lastXRef = useRef(0);
+  const lastTimeRef = useRef(0);
+  const [dragX, setDragX] = useState(0);
+  const [isAnimating, setIsAnimating] = useState(false);
 
-  const handleTouchStart = (e) => {
+  const handleTouchStart = useCallback((e) => {
     const touch = e.touches[0];
-    if (touch.clientX > 30) return;
+    if (touch.clientX > 25) return;
+
     startXRef.current = touch.clientX;
     startYRef.current = touch.clientY;
+    lastXRef.current = touch.clientX;
+    lastTimeRef.current = Date.now();
     isDraggingRef.current = true;
-    setIsDragging(true);
-  };
+    directionLockedRef.current = false;
+    isHorizontalRef.current = false;
+    velocityRef.current = 0;
+    setIsAnimating(false);
+  }, []);
 
-  const handleTouchMove = (e) => {
+  const handleTouchMove = useCallback((e) => {
     if (!isDraggingRef.current) return;
+
     const touch = e.touches[0];
     const deltaX = touch.clientX - startXRef.current;
-    const deltaY = Math.abs(touch.clientY - startYRef.current);
+    const deltaY = touch.clientY - startYRef.current;
 
-    if (deltaY > Math.abs(deltaX) && deltaX < 20) {
+    if (!directionLockedRef.current && (Math.abs(deltaX) > 8 || Math.abs(deltaY) > 8)) {
+      directionLockedRef.current = true;
+      isHorizontalRef.current = Math.abs(deltaX) > Math.abs(deltaY);
+      if (!isHorizontalRef.current) {
+        isDraggingRef.current = false;
+        setDragX(0);
+        return;
+      }
+    }
+
+    if (!directionLockedRef.current || !isHorizontalRef.current) return;
+    if (deltaX < 0) return;
+
+    e.preventDefault();
+
+    const now = Date.now();
+    const dt = now - lastTimeRef.current;
+    if (dt > 0) {
+      velocityRef.current = (touch.clientX - lastXRef.current) / dt;
+    }
+    lastXRef.current = touch.clientX;
+    lastTimeRef.current = now;
+
+    setDragX(deltaX);
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    if (!isDraggingRef.current || !isHorizontalRef.current) {
       isDraggingRef.current = false;
-      setIsDragging(false);
-      setDragOffset(0);
       return;
     }
-
-    if (deltaX > 0) {
-      e.preventDefault();
-      setDragOffset(deltaX);
-    }
-  };
-
-  const handleTouchEnd = () => {
-    if (!isDraggingRef.current) return;
     isDraggingRef.current = false;
-    setIsDragging(false);
 
-    if (dragOffset > window.innerWidth * 0.35) {
-      setDragOffset(window.innerWidth);
+    const screenWidth = window.innerWidth;
+    const velocity = velocityRef.current;
+    const currentX = dragX;
+
+    const shouldGoBack = currentX > screenWidth * 0.4 || velocity > 0.5;
+
+    setIsAnimating(true);
+
+    if (shouldGoBack) {
+      setDragX(screenWidth);
       setTimeout(() => {
         onBack();
-        setDragOffset(0);
-      }, 200);
+        setDragX(0);
+        setIsAnimating(false);
+      }, 250);
     } else {
-      setDragOffset(0);
+      setDragX(0);
+      setTimeout(() => setIsAnimating(false), 250);
     }
-  };
+  }, [dragX, onBack]);
+
+  const progress = Math.min(dragX / window.innerWidth, 1);
 
   return (
-    <div
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-      onTouchCancel={handleTouchEnd}
-      style={{
-        transform: `translateX(${dragOffset}px)`,
-        transition: isDragging ? "none" : "transform 250ms cubic-bezier(0.2, 0.9, 0.3, 1)",
-        willChange: "transform",
-      }}
-    >
-      {children}
+    <div style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden" }}>
+      {dragX > 0 && (
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: `rgba(0, 0, 0, ${0.15 * (1 - progress)})`,
+            pointerEvents: "none",
+            zIndex: 0,
+          }}
+        />
+      )}
+
+      <div
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
+        style={{
+          transform: `translateX(${dragX}px)`,
+          transition: isAnimating
+            ? "transform 250ms cubic-bezier(0.2, 0.9, 0.3, 1)"
+            : "none",
+          willChange: "transform",
+          position: "relative",
+          zIndex: 1,
+          width: "100%",
+          height: "100%",
+          background: "#faf7f2",
+        }}
+      >
+        {children}
+      </div>
     </div>
   );
 }

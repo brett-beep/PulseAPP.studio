@@ -736,13 +736,14 @@ export default function AudioPlayer({
         <div className={`mb-6 md:mb-10 px-1 mt-5`}>
           {isMobileView ? (
             <>
+              {/* OUTER wrapper — touch target only, NO visible background */}
               <div
                 className="mobile-custom-timeline"
                 style={{
                   position: "relative",
                   width: "100%",
                   height: "3px",
-                  background: "rgba(0,0,0,0.06)",
+                  background: "transparent",
                   borderRadius: "999px",
                   cursor: "pointer",
                   touchAction: "none",
@@ -768,15 +769,17 @@ export default function AudioPlayer({
                   e.currentTarget.releasePointerCapture(e.pointerId);
                 }}
               >
+                {/* INNER visual track — only visible part */}
                 <div
                   style={{
                     position: "absolute",
-                    top: 16,
+                    top: "16px",
                     left: 0,
                     right: 0,
                     height: "3px",
-                    background: "rgba(0,0,0,0.06)",
+                    background: "rgba(0,0,0,0.08)",
                     borderRadius: "999px",
+                    overflow: "hidden",
                   }}
                 >
                   <div

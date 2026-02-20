@@ -870,19 +870,9 @@ textarea,
     margin-bottom: 16px;
   }
 
-  /* §3 (Prompt D): Skip button numbers — centered, not cut off */
-  .audio-skip-btn,
-  .skip-button {
-    width: 44px;
-    height: 44px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
+  /* §2 (Prompt E): Skip button numbers — prevent clipping only; keep previous size */
   .audio-skip-btn svg,
   .skip-button svg {
-    width: 28px;
-    height: 28px;
     overflow: visible;
   }
 
