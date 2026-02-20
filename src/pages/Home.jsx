@@ -1162,8 +1162,10 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
      ────────────────────────────────────────────── */
   return (
     <div
-      className="min-h-screen relative app-theme-surface"
-      style={{ backgroundColor: "hsl(var(--background))" }}
+      className={`min-h-screen relative app-theme-surface ${isMobile ? "mobile-warm-bg" : ""}`}
+      style={{
+        backgroundColor: isMobile ? "#faf7f2" : "hsl(var(--background))",
+      }}
     >
       <AmbientAurora />
 
