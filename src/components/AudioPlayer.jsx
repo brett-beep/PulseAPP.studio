@@ -535,7 +535,7 @@ export default function AudioPlayer({
                   border: "1px solid rgba(255, 255, 255, 0.5)",
                   boxShadow: isButtonDisabled
                     ? "0 4px 12px rgba(0, 0, 0, 0.1)"
-                    : "0 8px 24px rgba(230, 115, 26, 0.3), 0 4px 12px rgba(230, 115, 26, 0.2), inset 0 1px 1px rgba(255, 255, 255, 0.3)",
+                    : "0 8px 32px rgba(224, 112, 40, 0.3), 0 2px 8px rgba(224, 112, 40, 0.15)",
                   color: isButtonDisabled ? "rgba(255, 255, 255, 0.8)" : "white",
                 }}
               >
@@ -1008,7 +1008,7 @@ export default function AudioPlayer({
                       ? "linear-gradient(135deg, rgba(180, 180, 180, 0.6) 0%, rgba(150, 150, 150, 0.7) 100%)"
                       : "linear-gradient(135deg, rgba(230, 115, 26, 0.95) 0%, rgba(219, 114, 67, 1) 100%)",
                     border: "1px solid rgba(255, 255, 255, 0.5)",
-                    boxShadow: isButtonDisabled ? "0 4px 12px rgba(0, 0, 0, 0.1)" : "0 8px 24px rgba(230, 115, 26, 0.3), 0 4px 12px rgba(230, 115, 26, 0.2), inset 0 1px 1px rgba(255, 255, 255, 0.3)",
+                    boxShadow: isButtonDisabled ? "0 4px 12px rgba(0, 0, 0, 0.1)" : "0 8px 32px rgba(224, 112, 40, 0.3), 0 2px 8px rgba(224, 112, 40, 0.15)",
                     color: isButtonDisabled ? "rgba(255, 255, 255, 0.8)" : "white",
                   }}
                 >

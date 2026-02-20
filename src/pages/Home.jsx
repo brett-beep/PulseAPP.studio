@@ -1176,7 +1176,8 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
         <>
           {mobileTab === "home" && (
             <main
-              className="px-4 relative z-10"
+              key="tab-home"
+              className="px-4 relative z-10 mobile-tab-content"
               style={{
                 paddingTop: "calc(12px + env(safe-area-inset-top, 0px))",
                 paddingBottom: "calc(84px + env(safe-area-inset-bottom, 0px))",
@@ -1190,7 +1191,8 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
 
           {mobileTab === "news" && (
             <main
-              className="px-4 relative z-10"
+              key="tab-news"
+              className="px-4 relative z-10 mobile-tab-content"
               style={{
                 paddingTop: "calc(24px + env(safe-area-inset-top, 0px))",
                 paddingBottom: "calc(84px + env(safe-area-inset-bottom, 0px))",
@@ -1226,10 +1228,12 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
           )}
 
           {mobileTab === "settings" && (
-            <MobileSettings
-              isPremium={isPremium}
-              onUpgrade={() => setShowUpgradeModal(true)}
-            />
+            <div key="tab-settings" className="mobile-tab-content">
+              <MobileSettings
+                isPremium={isPremium}
+                onUpgrade={() => setShowUpgradeModal(true)}
+              />
+            </div>
           )}
 
           <MobileTabBar
