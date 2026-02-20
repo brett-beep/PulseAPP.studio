@@ -746,41 +746,52 @@ export default function AudioPlayer({
                   borderRadius: "999px",
                   cursor: "pointer",
                   touchAction: "none",
+                  padding: "16px 0",
+                  margin: "-16px 0",
+                  boxSizing: "content-box",
                 }}
-                onClick={(e) => {
+                onPointerDown={(e) => {
+                  e.currentTarget.setPointerCapture(e.pointerId);
                   const rect = e.currentTarget.getBoundingClientRect();
                   const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
                   const duration = totalDuration || 100;
                   handleSeek([pct * duration]);
                 }}
-                onTouchStart={(e) => {
-                  const touch = e.touches[0];
-                  if (!touch) return;
+                onPointerMove={(e) => {
+                  if (e.buttons === 0 && e.pressure === 0) return;
                   const rect = e.currentTarget.getBoundingClientRect();
-                  const pct = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
+                  const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
                   const duration = totalDuration || 100;
                   handleSeek([pct * duration]);
                 }}
-                onTouchMove={(e) => {
-                  const touch = e.touches[0];
-                  if (!touch) return;
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const pct = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
-                  const duration = totalDuration || 100;
-                  handleSeek([pct * duration]);
+                onPointerUp={(e) => {
+                  e.currentTarget.releasePointerCapture(e.pointerId);
                 }}
               >
                 <div
                   style={{
                     position: "absolute",
-                    top: 0,
+                    top: 16,
                     left: 0,
-                    bottom: 0,
-                    width: `${totalDuration ? (currentTime / totalDuration) * 100 : 0}%`,
-                    background: "#e07028",
+                    right: 0,
+                    height: "3px",
+                    background: "rgba(0,0,0,0.06)",
                     borderRadius: "999px",
                   }}
-                />
+                >
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      bottom: 0,
+                      width: `${totalDuration ? (currentTime / totalDuration) * 100 : 0}%`,
+                      background: "#e07028",
+                      borderRadius: "999px",
+                      transition: "none",
+                    }}
+                  />
+                </div>
               </div>
               <div
                 className="flex justify-between mt-2 md:mt-3"
@@ -909,7 +920,7 @@ export default function AudioPlayer({
           <motion.button
             whileHover={{ scale: 1.12 }}
             whileTap={{ scale: 0.94 }}
-            onClick={() => skip(30)}
+            onClick={() => skip(15)}
             className="w-14 h-14 rounded-full flex items-center justify-center"
             style={{
               background: "var(--glass-btn-bg)",
@@ -985,12 +996,12 @@ export default function AudioPlayer({
           <button
             type="button"
             onClick={() => skip(-15)}
-            className="w-11 h-11 rounded-full flex items-center justify-center active:scale-90 transition-transform"
+            className="audio-skip-btn w-11 h-11 rounded-full flex items-center justify-center active:scale-90 transition-transform"
             style={{ background: "none", border: "none", color: "#6b6b6b" }}
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="22" height="22">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="22" height="22" style={{ overflow: "visible" }}>
               <path d="M1 4v6h6" /><path d="M3.51 15a9 9 0 105.64-8.37L1 10" />
-              <text x="12" y="16" textAnchor="middle" fill="currentColor" stroke="none" fontSize="7" fontWeight="700">15</text>
+              <text x="12" y="16" textAnchor="middle" fill="currentColor" stroke="none" fontSize="9" fontWeight="700" style={{ lineHeight: 1 }}>15</text>
             </svg>
           </button>
 
@@ -998,7 +1009,7 @@ export default function AudioPlayer({
             type="button"
             onClick={togglePlay}
             disabled={!audioUrl}
-            className="w-[68px] h-[68px] rounded-full flex items-center justify-center disabled:opacity-50 active:scale-[0.93] transition-transform"
+            className="play-pause-btn w-[68px] h-[68px] rounded-full flex items-center justify-center disabled:opacity-50 active:scale-[0.93] transition-transform"
             style={{
               background: "rgba(224, 112, 40, 0.1)",
               backdropFilter: "blur(20px)",
@@ -1016,13 +1027,13 @@ export default function AudioPlayer({
 
           <button
             type="button"
-            onClick={() => skip(30)}
-            className="w-11 h-11 rounded-full flex items-center justify-center active:scale-90 transition-transform"
+            onClick={() => skip(15)}
+            className="audio-skip-btn w-11 h-11 rounded-full flex items-center justify-center active:scale-90 transition-transform"
             style={{ background: "none", border: "none", color: "#6b6b6b" }}
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="22" height="22">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="22" height="22" style={{ overflow: "visible" }}>
               <path d="M23 4v6h-6" /><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
-              <text x="12" y="16" textAnchor="middle" fill="currentColor" stroke="none" fontSize="7" fontWeight="700">30</text>
+              <text x="12" y="16" textAnchor="middle" fill="currentColor" stroke="none" fontSize="9" fontWeight="700" style={{ lineHeight: 1 }}>15</text>
             </svg>
           </button>
         </div>
@@ -1191,7 +1202,7 @@ export default function AudioPlayer({
                 >
                   <RotateCcw className="h-4 w-4" style={{ color: "var(--glass-btn-icon)" }} />
                 </button>
-                <button type="button" onClick={() => skip(30)}
+                <button type="button" onClick={() => skip(15)}
                   className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
                   style={{ background: "var(--glass-btn-bg)", backdropFilter: "blur(10px)", border: "0.5px solid var(--glass-btn-border)", boxShadow: "var(--glass-btn-shadow)" }}
                 >

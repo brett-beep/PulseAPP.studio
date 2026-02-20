@@ -91,6 +91,18 @@ function parseBase44Timestamp(value) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+// Render text with **bold** markers as actual bold
+function renderBoldText(text) {
+  if (!text) return null;
+  const parts = text.split(/\*\*(.*?)\*\*/g);
+  return parts.map((part, i) => {
+    if (i % 2 === 1) {
+      return <strong key={i} className="font-semibold">{part}</strong>;
+    }
+    return <span key={i}>{part}</span>;
+  });
+}
+
 // Format summary text with section headers
 // Handles BOTH formats: "**Market Snapshot:** text" AND "Market Snapshot: text"
 function FormattedSummary({ text }) {
@@ -125,9 +137,9 @@ function FormattedSummary({ text }) {
     });
   }
 
-  // If no headers found, just return clean text
+  // If no headers found, return text with ** rendered as bold
   if (headerPositions.length === 0) {
-    return <p className="text-slate-700 dark:text-neutral-300 leading-relaxed">{text.replace(/\*\*/g, '')}</p>;
+    return <p className="text-slate-700 dark:text-neutral-300 leading-relaxed">{renderBoldText(text)}</p>;
   }
 
   // Build sections from header positions
@@ -135,7 +147,7 @@ function FormattedSummary({ text }) {
 
   // Any text before the first header
   if (headerPositions[0].index > 0) {
-    const beforeText = text.slice(0, headerPositions[0].index).replace(/\*\*/g, '').trim();
+    const beforeText = text.slice(0, headerPositions[0].index).trim();
     if (beforeText) {
       sections.push({ type: 'text', content: beforeText });
     }
@@ -145,7 +157,7 @@ function FormattedSummary({ text }) {
   for (let i = 0; i < headerPositions.length; i++) {
     const contentStart = headerPositions[i].endIndex;
     const contentEnd = i + 1 < headerPositions.length ? headerPositions[i + 1].index : text.length;
-    const content = text.slice(contentStart, contentEnd).replace(/\*\*/g, '').trim();
+    const content = text.slice(contentStart, contentEnd).trim();
 
     sections.push({
       type: 'section',
@@ -163,12 +175,12 @@ function FormattedSummary({ text }) {
               {section.title}
             </h4>
             <p className="text-slate-700 dark:text-neutral-300 leading-relaxed">
-              {section.content}
+              {renderBoldText(section.content)}
             </p>
           </div>
         ) : (
           <p key={index} className="text-slate-700 dark:text-neutral-300 leading-relaxed">
-            {section.content}
+            {renderBoldText(section.content)}
           </p>
         )
       ))}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
@@ -10,6 +10,74 @@ import {
   User, BarChart3, Shield, Globe, Mic, ChevronRight, ChevronLeft,
   LogOut, Crown, Trash2, Check, X,
 } from "lucide-react";
+
+function SwipeBackWrapper({ onBack, children }) {
+  const startXRef = useRef(0);
+  const startYRef = useRef(0);
+  const isDraggingRef = useRef(false);
+  const [dragOffset, setDragOffset] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleTouchStart = (e) => {
+    const touch = e.touches[0];
+    if (touch.clientX > 30) return;
+    startXRef.current = touch.clientX;
+    startYRef.current = touch.clientY;
+    isDraggingRef.current = true;
+    setIsDragging(true);
+  };
+
+  const handleTouchMove = (e) => {
+    if (!isDraggingRef.current) return;
+    const touch = e.touches[0];
+    const deltaX = touch.clientX - startXRef.current;
+    const deltaY = Math.abs(touch.clientY - startYRef.current);
+
+    if (deltaY > Math.abs(deltaX) && deltaX < 20) {
+      isDraggingRef.current = false;
+      setIsDragging(false);
+      setDragOffset(0);
+      return;
+    }
+
+    if (deltaX > 0) {
+      e.preventDefault();
+      setDragOffset(deltaX);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    setIsDragging(false);
+
+    if (dragOffset > window.innerWidth * 0.35) {
+      setDragOffset(window.innerWidth);
+      setTimeout(() => {
+        onBack();
+        setDragOffset(0);
+      }, 200);
+    } else {
+      setDragOffset(0);
+    }
+  };
+
+  return (
+    <div
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchEnd}
+      style={{
+        transform: `translateX(${dragOffset}px)`,
+        transition: isDragging ? "none" : "transform 250ms cubic-bezier(0.2, 0.9, 0.3, 1)",
+        willChange: "transform",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
 
 const ACCENT = "#e07028";
 const CARD_BG = "rgba(255,255,255,0.55)";
@@ -37,63 +105,65 @@ function SubPageShell({ isOpen, onClose, title, onSave, saving, children }) {
           key="subpage"
           initial={{ x: "100%" }}
           animate={{ x: 0 }}
-          exit={{ x: "100%" }}
-          transition={{ type: "tween", duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
+          exit={{ x: "100%", transition: { type: "tween", duration: 0.28, ease: [0.4, 0, 1, 1] } }}
+          transition={{ type: "tween", duration: 0.35, ease: [0.2, 0.9, 0.3, 1] }}
           className="fixed inset-0 z-[210] flex flex-col"
           style={{ background: "#faf7f2" }}
         >
-          <header
-            className="flex items-center gap-3 shrink-0"
-            style={{
-              padding: "calc(env(safe-area-inset-top, 20px) + 12px) 20px 12px",
-              background: "rgba(250,247,242,0.92)",
-              backdropFilter: "blur(16px)",
-              WebkitBackdropFilter: "blur(16px)",
-              borderBottom: BORDER,
-            }}
-          >
-            <button
-              type="button"
-              onClick={onClose}
-              className="w-9 h-9 rounded-full flex items-center justify-center active:scale-90 transition-transform"
-              style={{ background: CARD_BG, backdropFilter: BLUR, border: BORDER }}
-            >
-              <ChevronLeft className="w-[18px] h-[18px]" />
-            </button>
-            <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18, fontWeight: 500 }}>
-              {title}
-            </span>
-          </header>
-
-          <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: "touch" }}>
-            <div className="px-5 py-5" style={{ paddingBottom: "calc(80px + env(safe-area-inset-bottom, 20px))" }}>
-              {children}
-            </div>
-          </div>
-
-          <div
-            className="shrink-0"
-            style={{
-              padding: "12px 20px calc(12px + env(safe-area-inset-bottom, 20px))",
-              background: "rgba(250,247,242,0.92)",
-              backdropFilter: "blur(16px)",
-              WebkitBackdropFilter: "blur(16px)",
-              borderTop: BORDER,
-            }}
-          >
-            <button
-              type="button"
-              onClick={onSave}
-              disabled={saving}
-              className="w-full py-3.5 rounded-2xl text-[15px] font-semibold text-white active:scale-[0.98] transition-transform disabled:opacity-60"
+          <SwipeBackWrapper onBack={onClose}>
+            <header
+              className="flex items-center gap-3 shrink-0"
               style={{
-                background: `linear-gradient(135deg, ${ACCENT}, #c85d1e)`,
-                boxShadow: `0 8px 24px rgba(224,112,40,0.25)`,
+                padding: "calc(env(safe-area-inset-top, 20px) + 12px) 20px 12px",
+                background: "rgba(250,247,242,0.92)",
+                backdropFilter: "blur(16px)",
+                WebkitBackdropFilter: "blur(16px)",
+                borderBottom: BORDER,
               }}
             >
-              {saving ? "Saving..." : "Save"}
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-9 h-9 rounded-full flex items-center justify-center active:scale-90 transition-transform"
+                style={{ background: CARD_BG, backdropFilter: BLUR, border: BORDER }}
+              >
+                <ChevronLeft className="w-[18px] h-[18px]" />
+              </button>
+              <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18, fontWeight: 500 }}>
+                {title}
+              </span>
+            </header>
+
+            <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: "touch" }}>
+              <div className="px-5 py-5" style={{ paddingBottom: "calc(80px + env(safe-area-inset-bottom, 20px))" }}>
+                {children}
+              </div>
+            </div>
+
+            <div
+              className="shrink-0"
+              style={{
+                padding: "12px 20px calc(12px + env(safe-area-inset-bottom, 20px))",
+                background: "rgba(250,247,242,0.92)",
+                backdropFilter: "blur(16px)",
+                WebkitBackdropFilter: "blur(16px)",
+                borderTop: BORDER,
+              }}
+            >
+              <button
+                type="button"
+                onClick={onSave}
+                disabled={saving}
+                className="w-full py-3.5 rounded-2xl text-[15px] font-semibold text-white active:scale-[0.98] transition-transform disabled:opacity-60"
+                style={{
+                  background: `linear-gradient(135deg, ${ACCENT}, #c85d1e)`,
+                  boxShadow: `0 8px 24px rgba(224,112,40,0.25)`,
+                }}
+              >
+                {saving ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </SwipeBackWrapper>
         </motion.div>
       )}
     </AnimatePresence>

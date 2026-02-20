@@ -10,6 +10,18 @@ function parseHighlight(highlight) {
     return null;
 }
 
+// Render text with **bold** markers as actual bold
+function renderBoldText(text) {
+    if (!text) return null;
+    const parts = text.split(/\*\*(.*?)\*\*/g);
+    return parts.map((part, i) => {
+        if (i % 2 === 1) {
+            return <strong key={i} className="font-semibold">{part}</strong>;
+        }
+        return <span key={i}>{part}</span>;
+    });
+}
+
 export default function KeyHighlights({ highlights = [] }) {
     if (!highlights || highlights.length === 0) return null;
 
@@ -39,10 +51,10 @@ export default function KeyHighlights({ highlights = [] }) {
                                 {parsed ? (
                                     <>
                                         <span className="font-semibold text-slate-900 dark:text-neutral-100">{parsed.header}:</span>
-                                        {parsed.rest ? ` ${parsed.rest}` : ''}
+                                        {parsed.rest ? <> {renderBoldText(parsed.rest)}</> : ''}
                                     </>
                                 ) : (
-                                    highlight
+                                    renderBoldText(highlight)
                                 )}
                             </p>
                         </motion.li>

@@ -869,6 +869,61 @@ textarea,
     margin-top: 12px;
     margin-bottom: 16px;
   }
+
+  /* §3 (Prompt D): Skip button numbers — centered, not cut off */
+  .audio-skip-btn,
+  .skip-button {
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .audio-skip-btn svg,
+  .skip-button svg {
+    width: 28px;
+    height: 28px;
+    overflow: visible;
+  }
+
+  /* §6a (Prompt D): Button press feedback — smooth press/release */
+  button,
+  [role="button"] {
+    transition: transform 120ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                opacity 120ms ease;
+    will-change: transform;
+  }
+  button:active,
+  [role="button"]:active {
+    transform: scale(0.96);
+    opacity: 0.85;
+    transition: transform 60ms ease-out, opacity 60ms ease-out;
+  }
+
+  /* §6b (Prompt D): Play/pause button — spring overshoot on release */
+  .play-pause-btn,
+  [class*="play-btn"],
+  [class*="PlayBtn"] {
+    transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .play-pause-btn:active,
+  [class*="play-btn"]:active {
+    transform: scale(0.88);
+    transition: transform 80ms ease-out;
+  }
+
+  /* §6c (Prompt D): Settings sub-page slide — spring curve (used by Framer in SubPageShell) */
+  .sub-page-enter {
+    transform: translateX(100%);
+  }
+  .sub-page-enter-active {
+    transform: translateX(0);
+    transition: transform 350ms cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  .sub-page-exit-active {
+    transform: translateX(100%);
+    transition: transform 280ms cubic-bezier(0.4, 0, 1, 1);
+  }
 }
 
 .dark .app-theme-surface .text-slate-900 {
