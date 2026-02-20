@@ -3,6 +3,7 @@ import { motion, AnimatePresence, useMotionValue, useSpring } from "framer-motio
 import { Play, Pause, RotateCcw, FastForward, Volume2, VolumeX, Gauge, Clock, Loader2, FileText, X, Settings2, ChevronDown } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { GlassFilter } from "@/components/ui/liquid-glass-button";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export default function AudioPlayer({
   audioUrl,
@@ -51,6 +52,8 @@ export default function AudioPlayer({
   const sy = useSpring(my, { stiffness: 200, damping: 30, mass: 0.5 });
 
   const speedOptions = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+  const isMobileView = useIsMobile();
+  const isPreGen = !audioUrl && !isGenerating;
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -371,7 +374,7 @@ export default function AudioPlayer({
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
       onPointerMove={onPointerMove}
-      className="audio-player-controls relative overflow-visible md:overflow-hidden rounded-[32px] md:rounded-[40px] p-5 md:p-10"
+      className={`audio-player-controls relative overflow-visible md:overflow-hidden rounded-[32px] md:rounded-[40px] p-5 md:p-10 ${isMobileView && isPreGen ? "min-h-[calc(100dvh-180px)] flex flex-col" : ""}`}
       style={{
         background: "var(--player-bg)",
         backdropFilter: "blur(60px) saturate(1.5) url(#container-glass)",
@@ -492,8 +495,56 @@ export default function AudioPlayer({
         />
       ) : null}
 
-      <div className="relative z-10">
-        <div className="flex items-start md:items-center justify-between mb-6 md:mb-8 gap-3">
+      <div className={`relative z-10 ${isMobileView && isPreGen ? "flex-1 flex flex-col" : ""}`}>
+        {/* ── MOBILE PRE-GEN: centered welcome screen ── */}
+        {isMobileView && isPreGen ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-center -mt-4">
+            <p className="text-slate-500/80 text-[10px] font-medium tracking-wider uppercase mb-2">
+              {currentDate}
+            </p>
+            <p style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 300, letterSpacing: '0.15em' }}>
+              <span className="text-slate-800/90 uppercase text-sm">{greeting},</span>
+              <br />
+              <span className="font-semibold text-slate-900 normal-case text-[3.2rem] leading-none inline-block mt-2" style={{ fontFamily: "'Italianno', 'Sacramento', cursive", letterSpacing: '0.05em', fontWeight: 400 }}>
+                {userName}
+              </span>
+            </p>
+
+            <div className="w-full mt-10 px-2">
+              <p className="text-slate-500 text-[11px] font-medium mb-3">{briefingCount} of 3 briefings today</p>
+              <button
+                type="button"
+                onClick={canGenerateNew ? onGenerate : undefined}
+                disabled={isButtonDisabled}
+                className={`w-full py-4 text-base font-semibold ${isButtonDisabled ? "cursor-not-allowed" : "cursor-pointer"}`}
+                style={{
+                  borderRadius: "999px",
+                  background: isButtonDisabled
+                    ? "linear-gradient(135deg, rgba(180, 180, 180, 0.6) 0%, rgba(150, 150, 150, 0.7) 100%)"
+                    : "linear-gradient(135deg, rgba(230, 115, 26, 0.95) 0%, rgba(219, 114, 67, 1) 100%)",
+                  border: "1px solid rgba(255, 255, 255, 0.5)",
+                  boxShadow: isButtonDisabled
+                    ? "0 4px 12px rgba(0, 0, 0, 0.1)"
+                    : "0 8px 24px rgba(230, 115, 26, 0.3), 0 4px 12px rgba(230, 115, 26, 0.2), inset 0 1px 1px rgba(255, 255, 255, 0.3)",
+                  color: isButtonDisabled ? "rgba(255, 255, 255, 0.8)" : "white",
+                }}
+              >
+                {getButtonText()}
+              </button>
+              {timeUntilNextBriefing && timeUntilNextBriefing !== "Daily limit reached" && (
+                <p className="flex items-center justify-center gap-1.5 text-slate-500 text-xs mt-3">
+                  <Clock className="h-3 w-3" />
+                  <span>Next briefing in {timeUntilNextBriefing}</span>
+                </p>
+              )}
+              {timeUntilNextBriefing === "Daily limit reached" && (
+                <p className="text-slate-500 text-xs mt-3">Daily limit reached. Resets at midnight.</p>
+              )}
+            </div>
+          </div>
+        ) : (
+        /* ── NORMAL GREETING (desktop + mobile post-gen) ── */
+        <div className={`flex items-start md:items-center justify-between ${isMobileView ? "mb-4" : "mb-6 md:mb-8"} gap-3`}>
           <div className="flex-1 min-w-0">
             <p className="text-slate-500/80 text-[10px] md:text-xs font-medium tracking-wider uppercase mb-1">
               {currentDate}
@@ -501,7 +552,7 @@ export default function AudioPlayer({
             <p className="text-base md:text-lg" style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 300, letterSpacing: '0.15em' }}>
               <span className="text-slate-800/90 uppercase text-sm md:text-[inherit]">{greeting},</span>
               <br />
-              <span className="font-semibold text-slate-900 normal-case text-[2.5rem] md:text-[3.5rem] leading-none md:leading-tight inline-block mt-1 md:mt-2" style={{ fontFamily: "'Italianno', 'Sacramento', cursive", letterSpacing: '0.05em', fontWeight: 400 }}>
+              <span className={`font-semibold text-slate-900 normal-case leading-none md:leading-tight inline-block mt-1 md:mt-2 ${isMobileView && audioUrl ? "text-[1.8rem]" : "text-[2.5rem] md:text-[3.5rem]"}`} style={{ fontFamily: "'Italianno', 'Sacramento', cursive", letterSpacing: '0.05em', fontWeight: 400 }}>
                 {userName}
               </span>
             </p>
@@ -537,7 +588,11 @@ export default function AudioPlayer({
             </div>
           </div>
         </div>
+        )}
 
+        {/* Hide transcript/waveform/controls/generate on mobile pre-gen (welcome screen handles it) */}
+        {!(isMobileView && isPreGen) && (
+        <>
         <AnimatePresence>
           {showTranscript && transcript.trim() && (
             <motion.div
@@ -1094,6 +1149,8 @@ export default function AudioPlayer({
             </motion.div>
           )}
         </AnimatePresence>
+        </>
+        )}
       </div>
     </motion.div>
   );

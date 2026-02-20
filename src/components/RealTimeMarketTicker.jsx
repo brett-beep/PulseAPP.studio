@@ -1,20 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 // API keys (consider moving to env: VITE_FINNHUB_API_KEY, VITE_FINLIGHT_API_KEY)
 const FINNHUB_API_KEY = 'd5n7s19r01qh5ppc5ln0d5n7s19r01qh5ppc5lng';
 const FINLIGHT_API_KEY = import.meta.env.VITE_FINLIGHT_API_KEY || '';
 
+const INDEX_SYMBOLS = ['QQQ', 'SPY', 'DIA'];
+const INDEX_LABELS = { QQQ: 'NASDAQ', SPY: 'S&P 500', DIA: 'DOW' };
+
 export default function RealTimeMarketTicker({ watchlist = [] }) {
+  const isMobile = useIsMobile();
   const [marketData, setMarketData] = useState({
     sp500: null,
+    indexes: [],
     userStocks: []
   });
   const [isLoading, setIsLoading] = useState(true);
 
   // Take top 3 stocks from user's watchlist
   const topStocks = watchlist.slice(0, 3);
-  const symbols = ['QQQ', ...topStocks]; // QQQ = Nasdaq-100 ETF
+  const symbols = [...INDEX_SYMBOLS, ...topStocks.filter(s => !INDEX_SYMBOLS.includes(s))];
 
   console.log("🎯 Ticker received watchlist:", watchlist);
   console.log("🎯 topStocks (first 3):", topStocks);
@@ -117,11 +123,12 @@ export default function RealTimeMarketTicker({ watchlist = [] }) {
         const validResults = results.filter(Boolean);
 
         console.log("🎯 validResults:", validResults);
-        console.log("🎯 userStocks filtered:", validResults.filter(d => d.symbol !== 'QQQ'));
+        console.log("🎯 userStocks filtered:", validResults.filter(d => !INDEX_SYMBOLS.includes(d.symbol)));
 
         setMarketData({
-          sp500: validResults.find(d => d.symbol === 'QQQ'), // Using QQQ for Nasdaq
-          userStocks: validResults.filter(d => d.symbol !== 'QQQ')
+          sp500: validResults.find(d => d.symbol === 'QQQ'),
+          indexes: validResults.filter(d => INDEX_SYMBOLS.includes(d.symbol)),
+          userStocks: validResults.filter(d => !INDEX_SYMBOLS.includes(d.symbol))
         });
       } catch (error) {
         console.error('Error fetching market data:', error);
@@ -237,6 +244,60 @@ export default function RealTimeMarketTicker({ watchlist = [] }) {
 
   const sentiment = getSP500Sentiment();
 
+  const renderIndexTicker = (data) => {
+    if (!data || !data.price || data.price === 0) return null;
+    const label = INDEX_LABELS[data.symbol] || data.symbol;
+    const isPositive = data.change >= 0;
+    const isFlat = Math.abs(data.change) < 0.01;
+    return (
+      <div className="flex items-center gap-1.5 flex-shrink-0">
+        <span className="font-semibold text-slate-700 dark:text-neutral-200 text-xs">{label}</span>
+        {isFlat ? (
+          <Minus className="h-3 w-3 text-slate-400 flex-shrink-0" />
+        ) : isPositive ? (
+          <TrendingUp className="h-3 w-3 text-green-600 flex-shrink-0" />
+        ) : (
+          <TrendingDown className="h-3 w-3 text-red-600 flex-shrink-0" />
+        )}
+        <span className={`text-[10px] ${isFlat ? 'text-slate-500' : isPositive ? 'text-green-600' : 'text-red-600'}`}>
+          {isPositive ? '+' : ''}{data.changePercent.toFixed(2)}%
+        </span>
+      </div>
+    );
+  };
+
+  if (isMobile) {
+    return (
+      <div className="flex flex-col gap-2">
+        {/* Indexes row */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <div className={`h-2 w-2 rounded-full ${
+              sentiment.label === 'Bullish' || sentiment.label === 'Positive' ? 'bg-green-500' :
+              sentiment.label === 'Bearish' || sentiment.label === 'Negative' ? 'bg-red-500' :
+              'bg-amber-500'
+            }`} />
+            <span className={`font-medium text-xs ${sentiment.color}`}>{sentiment.label}</span>
+          </div>
+          {marketData.indexes.map((idx) => (
+            <React.Fragment key={idx.symbol}>{renderIndexTicker(idx)}</React.Fragment>
+          ))}
+        </div>
+        {/* Portfolio tickers row */}
+        {marketData.userStocks.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap">
+            {marketData.userStocks.map((stock) => (
+              <React.Fragment key={stock.symbol}>{renderTicker(stock)}</React.Fragment>
+            ))}
+          </div>
+        )}
+        {topStocks.length === 0 && (
+          <span className="text-xs text-slate-400 italic">Add stocks in Settings</span>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-center gap-3 md:gap-6 flex-wrap">
       {/* Nasdaq Sentiment */}
@@ -254,12 +315,10 @@ export default function RealTimeMarketTicker({ watchlist = [] }) {
         </span>
       </div>
 
-      {/* Divider */}
       {marketData.userStocks.length > 0 && (
         <div className="h-3 md:h-4 w-px bg-slate-200 dark:bg-neutral-700 flex-shrink-0" />
       )}
 
-      {/* User's Top 3 Stocks */}
       <div className="flex items-center gap-2 md:gap-4 flex-wrap">
         {marketData.userStocks.map((stock) => (
           <React.Fragment key={stock.symbol}>
@@ -268,7 +327,6 @@ export default function RealTimeMarketTicker({ watchlist = [] }) {
         ))}
       </div>
 
-      {/* Show "Add stocks" hint if no watchlist */}
       {topStocks.length === 0 && (
         <span className="text-xs md:text-sm text-slate-400 italic">
           Add stocks to your watchlist in Settings
