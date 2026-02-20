@@ -13,6 +13,7 @@ import AmbientAurora from "@/components/ui/ambient-aurora";
 import UpgradeModal from "@/components/UpgradeModal";
 import MobileTabBar from "@/components/MobileTabBar";
 import SettingsPage from "@/pages/Settings";
+import MobileSettings from "@/components/MobileSettings";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 import { Settings, Headphones, Loader2, RefreshCw, Crown, ChevronDown } from "lucide-react";
@@ -1225,9 +1226,10 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
           )}
 
           {mobileTab === "settings" && (
-            <div style={{ paddingBottom: "calc(84px + env(safe-area-inset-bottom, 0px))" }}>
-              <SettingsPage />
-            </div>
+            <MobileSettings
+              isPremium={isPremium}
+              onUpgrade={() => setShowUpgradeModal(true)}
+            />
           )}
 
           <MobileTabBar
