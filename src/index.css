@@ -221,9 +221,11 @@
   box-shadow: 0 0 60px -15px hsl(var(--accent) / 0.4);
 }
 
-/* Smooth scrolling */
-html {
-  scroll-behavior: smooth;
+/* Smooth scrolling — desktop only; on mobile it interferes with inner container scroll */
+@media (min-width: 768px) {
+  html {
+    scroll-behavior: smooth;
+  }
 }
 
 :root {
@@ -452,45 +454,43 @@ textarea,
 }
 
 @media (max-width: 767px) and (pointer: coarse) {
-  /* Section 1: Kill rubber-band scrolling & white space bounce */
   html {
-    overflow: hidden;
     height: 100%;
-    position: fixed;
-    width: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+    /* REMOVED: position: fixed — this breaks scroll momentum */
+    /* REMOVED: width: 100% with position:fixed — unnecessary */
   }
 
   body {
-    overflow: hidden;
     height: 100%;
-    position: fixed;
-    width: 100%;
+    overflow: hidden;
     overscroll-behavior: none;
-    -webkit-overflow-scrolling: auto;
     touch-action: pan-y;
     -webkit-user-select: none;
     user-select: none;
     -webkit-touch-callout: none;
     background: #faf7f2;
+    margin: 0;
+    padding: 0;
+    /* REMOVED: position: fixed — this is what killed scroll momentum */
+    /* REMOVED: -webkit-overflow-scrolling: auto — we want touch on inner containers */
   }
 
   #root {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    height: 100dvh;
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    min-height: 100dvh;
     max-width: 100vw;
+    /* REMOVED: position: fixed and top/left/right/bottom — use height: 100dvh instead */
+    /* REMOVED: min-height: 100dvh — use exact height so children are constrained */
   }
 
-  /* Section 1: Only tab content area scrolls */
+  /* Tab content area — only this scrolls; min-height: 0 is CRITICAL for flex */
   .tab-content-area {
     flex: 1;
-    min-height: 0;
+    min-height: 0; /* CRITICAL — without this, flex children grow instead of scrolling */
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
@@ -498,6 +498,7 @@ textarea,
   }
   .tab-content-area-no-scroll {
     overflow: hidden !important;
+    overflow-y: hidden !important;
   }
 
   /* Section 1: Horizontal scrolling impossible everywhere */
@@ -511,11 +512,11 @@ textarea,
   }
 
   .mobile-app-shell {
-    min-height: 100dvh;
+    height: 100%;
     overflow-x: hidden;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    overscroll-behavior: none;
+    overscroll-behavior-y: contain;
     padding-bottom: calc(72px + var(--safe-area-bottom));
   }
 

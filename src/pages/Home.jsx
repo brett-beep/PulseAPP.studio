@@ -1199,9 +1199,10 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
      ────────────────────────────────────────────── */
   return (
     <div
-      className={`min-h-screen relative app-theme-surface ${isMobile ? "mobile-warm-bg mobile-root-transparent flex flex-col flex-1 min-h-0 overflow-hidden" : ""}`}
+      className={`min-h-screen relative app-theme-surface ${isMobile ? "mobile-warm-bg mobile-root-transparent" : ""}`}
       style={{
         backgroundColor: isMobile ? "transparent" : "hsl(var(--background))",
+        ...(isMobile ? { height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" } : {}),
       }}
     >
       <AmbientAurora />
