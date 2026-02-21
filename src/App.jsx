@@ -68,76 +68,16 @@ const AuthenticatedApp = () => {
     };
   }, []);
 
-  // Splash/loading screen while checking app public settings or auth
+  // Loading state while checking app public settings or auth — warm beige only, no duplicate splash (Prompt G)
   if (isLoadingPublicSettings || isLoadingAuth) {
     return (
       <div
         style={{
           width: "100vw",
           height: "100dvh",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
-          alignItems: "center",
           background: "#faf7f2",
-          position: "relative",
-          overflow: "hidden",
         }}
-      >
-        {/* Ambient orange orbs — same as the main app */}
-        <div
-          style={{
-            position: "absolute",
-            top: "15%",
-            left: "20%",
-            width: 300,
-            height: 300,
-            borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(224,112,40,0.08) 0%, transparent 70%)",
-            filter: "blur(40px)",
-            pointerEvents: "none",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            bottom: "20%",
-            right: "15%",
-            width: 250,
-            height: 250,
-            borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(224,112,40,0.06) 0%, transparent 70%)",
-            filter: "blur(40px)",
-            pointerEvents: "none",
-          }}
-        />
-
-        {/* Logo — centered */}
-        <img
-          src="/pulse-logo.svg"
-          alt="PulseApp"
-          style={{
-            width: 80,
-            height: 80,
-            objectFit: "contain",
-            marginBottom: 24,
-          }}
-        />
-
-        {/* Pulse dots (replaces spinner) */}
-        <div
-          className="splash-pulse-dots"
-          style={{
-            display: "flex",
-            gap: "6px",
-            alignItems: "center",
-          }}
-        >
-          <span className="splash-dot" style={{ animationDelay: "0ms" }} />
-          <span className="splash-dot" style={{ animationDelay: "150ms" }} />
-          <span className="splash-dot" style={{ animationDelay: "300ms" }} />
-        </div>
-      </div>
+      />
     );
   }
 
@@ -179,6 +119,31 @@ const AuthenticatedApp = () => {
 
 
 function App() {
+  // Prevent pinch-to-zoom and double-tap zoom (Prompt G §3c)
+  useEffect(() => {
+    const preventZoom = (e) => {
+      if (e.touches && e.touches.length > 1) {
+        e.preventDefault();
+      }
+    };
+
+    let lastTouchEnd = 0;
+    const preventDoubleTapZoom = (e) => {
+      const now = Date.now();
+      if (now - lastTouchEnd < 300) {
+        e.preventDefault();
+      }
+      lastTouchEnd = now;
+    };
+
+    document.addEventListener("touchmove", preventZoom, { passive: false });
+    document.addEventListener("touchend", preventDoubleTapZoom, { passive: false });
+
+    return () => {
+      document.removeEventListener("touchmove", preventZoom);
+      document.removeEventListener("touchend", preventDoubleTapZoom);
+    };
+  }, []);
 
   return (
     <AuthProvider>

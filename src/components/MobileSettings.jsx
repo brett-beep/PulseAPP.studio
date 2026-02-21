@@ -69,7 +69,14 @@ function SwipeBackWrapper({ onBack, parentContent, children }) {
     lastTimeRef.current = now;
 
     setDragX(deltaX);
-  }, []);
+
+    // Auto-complete when dragged past 90% — swipe IS the exit (Prompt G §2)
+    const screenWidth = typeof window !== "undefined" ? window.innerWidth : 375;
+    if (deltaX > screenWidth * 0.9) {
+      isDraggingRef.current = false;
+      onBack();
+    }
+  }, [onBack]);
 
   const handleTouchEnd = useCallback(() => {
     if (!isDraggingRef.current || !isHorizontalRef.current) {
@@ -82,16 +89,11 @@ function SwipeBackWrapper({ onBack, parentContent, children }) {
     const velocity = velocityRef.current;
     const shouldGoBack = dragX > screenWidth * 0.35 || velocity > 0.4;
 
-    setIsAnimating(true);
-
     if (shouldGoBack) {
-      setDragX(screenWidth);
-      setTimeout(() => {
-        onBack();
-        setDragX(0);
-        setIsAnimating(false);
-      }, 280);
+      // Call onBack IMMEDIATELY — swipe IS the exit (Prompt G §2)
+      onBack();
     } else {
+      setIsAnimating(true);
       setDragX(0);
       setTimeout(() => setIsAnimating(false), 280);
     }
