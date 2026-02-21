@@ -496,18 +496,19 @@ export default function AudioPlayer({
         {/* ── MOBILE PRE-GEN: centered welcome screen ── */}
         {isMobileView && isPreGen ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center w-full">
-            <div style={{ fontSize: 12, fontWeight: 500, color: "#999", letterSpacing: "0.08em", marginBottom: 6 }}>
+            <p className="text-slate-500/80 text-[10px] font-medium tracking-wider uppercase mb-2">
               {currentDate}
-            </div>
-            <div style={{ fontSize: 15, fontWeight: 500, color: "#666", letterSpacing: "0.15em", marginBottom: 4 }}>
-              {greeting.toUpperCase()},
-            </div>
-            <div style={{ fontSize: 42, fontFamily: "'Georgia', serif", fontStyle: "italic", color: "#1a1a1a", marginBottom: 24 }}>
-              {userName}
-            </div>
-            <div style={{ fontSize: 13, color: "#e07028", fontWeight: 500, marginBottom: 16 }}>
+            </p>
+            <p style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 300, letterSpacing: "0.15em" }}>
+              <span className="text-slate-800/90 uppercase text-sm">{greeting},</span>
+              <br />
+              <span className="font-semibold text-slate-900 normal-case text-[3.2rem] leading-none inline-block mt-2" style={{ fontFamily: "'Italianno', 'Sacramento', cursive", letterSpacing: "0.05em", fontWeight: 400 }}>
+                {userName}
+              </span>
+            </p>
+            <p className="text-[13px] font-medium mb-3" style={{ color: "#e07028" }}>
               {briefingCount} of 3 briefings today
-            </div>
+            </p>
 
             <div className="w-full max-w-[320px] mx-auto">
               <button
