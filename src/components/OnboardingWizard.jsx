@@ -1,9 +1,39 @@
-import React, { useState } from 'react';
+import React, { useState, Component } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import StockPicker from "@/components/StockPicker";
 import MobileOnboarding from "@/components/MobileOnboarding";
 import { useIsMobile } from "@/hooks/use-mobile";
+
+class OnboardingErrorBoundary extends Component {
+  state = { hasError: false, error: null };
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, info) {
+    console.error('Onboarding crashed:', error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: 40, textAlign: 'center', background: '#faf7f2', minHeight: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <h2 style={{ fontSize: 20, fontWeight: 600, color: '#1a1a1a', marginBottom: 8 }}>Something went wrong</h2>
+          <p style={{ color: '#999', fontSize: 14 }}>{this.state.error?.message}</p>
+          <button
+            onClick={() => window.location.reload()}
+            style={{ padding: '12px 24px', background: '#e07028', color: 'white', border: 'none', borderRadius: 12, marginTop: 16, cursor: 'pointer', fontWeight: 600 }}
+          >
+            Reload App
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const steps = [
   { title: "Welcome to PulseApp", subtitle: "Let's personalize your experience", id: "welcome" },
@@ -24,11 +54,6 @@ const interestOptions = [
 export default function OnboardingWizard({ onComplete }) {
   const isMobile = useIsMobile();
   const [currentStep, setCurrentStep] = useState(0);
-
-  // Mobile: Prompt H full-page onboarding. Desktop: unchanged floating card.
-  if (isMobile) {
-    return <MobileOnboarding onComplete={onComplete} />;
-  }
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [preferences, setPreferences] = useState({
     display_name: '',
@@ -96,6 +121,15 @@ export default function OnboardingWizard({ onComplete }) {
       setIsSubmitting(false);
     }
   };
+
+  // Mobile: Prompt H full-page onboarding. Desktop: unchanged floating card.
+  if (isMobile) {
+    return (
+      <OnboardingErrorBoundary>
+        <MobileOnboarding onComplete={onComplete} />
+      </OnboardingErrorBoundary>
+    );
+  }
 
   const renderStepContent = () => {
     switch (currentStep) {
@@ -228,6 +262,7 @@ export default function OnboardingWizard({ onComplete }) {
   };
 
   return (
+    <OnboardingErrorBoundary>
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-neutral-950 dark:to-neutral-900 flex items-center justify-center p-4">
       <div className="w-full max-w-2xl bg-white dark:bg-neutral-800 rounded-3xl shadow-2xl overflow-hidden">
         {/* Header */}
@@ -278,5 +313,6 @@ export default function OnboardingWizard({ onComplete }) {
         </div>
       </div>
     </div>
+    </OnboardingErrorBoundary>
   );
 }

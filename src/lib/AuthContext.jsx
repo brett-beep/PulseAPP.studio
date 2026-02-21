@@ -121,8 +121,9 @@ export const AuthProvider = ({ children }) => {
       setIsLoadingAuth(false);
       setIsAuthenticated(false);
 
-      // MOBILE ONLY: Clear stale auth when user deleted or token invalid (Base44)
-      if (isNativeApp()) {
+      const isTokenInvalid = error?.status === 401 || error?.status === 403;
+      // MOBILE ONLY: Clear stale auth ONLY when token is definitively invalid (user deleted)
+      if (isNativeApp() && isTokenInvalid) {
         try {
           localStorage.clear();
           sessionStorage.clear();
@@ -130,12 +131,9 @@ export const AuthProvider = ({ children }) => {
         } catch (e) {
           console.warn('Auth clear failed:', e);
         }
+      }
+      if (isTokenInvalid) {
         setAuthError({ type: 'auth_required', message: 'Authentication required' });
-      } else if (error.status === 401 || error.status === 403) {
-        setAuthError({
-          type: 'auth_required',
-          message: 'Authentication required'
-        });
       }
     }
   };
