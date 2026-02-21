@@ -48,11 +48,21 @@ export const AuthProvider = ({ children }) => {
         setIsLoadingPublicSettings(false);
       } catch (appError) {
         console.error('App state check failed:', appError);
-        
+
         // Handle app-level errors
         if (appError.status === 403 && appError.data?.extra_data?.reason) {
           const reason = appError.data.extra_data.reason;
           if (reason === 'auth_required') {
+            // MOBILE ONLY: Clear stale auth when token rejected (user deleted from Base44)
+            if (isNativeApp()) {
+              try {
+                localStorage.clear();
+                sessionStorage.clear();
+                await base44.auth.logout();
+              } catch (e) {
+                console.warn('Auth clear failed:', e);
+              }
+            }
             setAuthError({
               type: 'auth_required',
               message: 'Authentication required'
@@ -68,6 +78,16 @@ export const AuthProvider = ({ children }) => {
               message: appError.message
             });
           }
+        } else if (appError.status === 401 && isNativeApp()) {
+          // MOBILE ONLY: 401 = token invalid / user deleted
+          try {
+            localStorage.clear();
+            sessionStorage.clear();
+            await base44.auth.logout();
+          } catch (e) {
+            console.warn('Auth clear failed:', e);
+          }
+          setAuthError({ type: 'auth_required', message: 'Authentication required' });
         } else {
           setAuthError({
             type: 'unknown',
@@ -100,9 +120,18 @@ export const AuthProvider = ({ children }) => {
       console.error('User auth check failed:', error);
       setIsLoadingAuth(false);
       setIsAuthenticated(false);
-      
-      // If user auth fails, it might be an expired token
-      if (error.status === 401 || error.status === 403) {
+
+      // MOBILE ONLY: Clear stale auth when user deleted or token invalid (Base44)
+      if (isNativeApp()) {
+        try {
+          localStorage.clear();
+          sessionStorage.clear();
+          await base44.auth.logout();
+        } catch (e) {
+          console.warn('Auth clear failed:', e);
+        }
+        setAuthError({ type: 'auth_required', message: 'Authentication required' });
+      } else if (error.status === 401 || error.status === 403) {
         setAuthError({
           type: 'auth_required',
           message: 'Authentication required'
