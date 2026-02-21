@@ -333,11 +333,15 @@ function PortfolioStep({ preferences, setPreferences }) {
 
 const styles = {
   root: {
+    position: "fixed",
+    inset: 0,
     minHeight: "100dvh",
+    height: "100dvh",
     background: "#faf7f2",
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
+    overscrollBehavior: "none",
     fontFamily: "'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif",
     paddingTop: "env(safe-area-inset-top, 0px)",
   },
@@ -418,11 +422,11 @@ const styles = {
   },
   content: {
     flex: 1,
+    minHeight: 0,
     padding: "0 32px",
     zIndex: 2,
-    overflowY: "auto",
-    overflowX: "hidden",
-    WebkitOverflowScrolling: "touch",
+    overflow: "hidden",
+    overscrollBehavior: "none",
   },
   stepWrapper: {
     paddingTop: 28,

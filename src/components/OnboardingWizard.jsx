@@ -1,9 +1,22 @@
-import React, { useState, Component } from 'react';
+import React, { useState, useEffect, Component } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import StockPicker from "@/components/StockPicker";
 import MobileOnboarding from "@/components/MobileOnboarding";
-import { useIsMobile } from "@/hooks/use-mobile";
+
+/** True only for actual touch devices with narrow viewport (mobile app). Web app = always false. */
+function useIsMobileDevice() {
+  const [isMobileDevice, setIsMobileDevice] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia("(max-width: 767px) and (pointer: coarse)").matches : false
+  );
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 767px) and (pointer: coarse)");
+    const onChange = () => setIsMobileDevice(mql.matches);
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+  return !!isMobileDevice;
+}
 
 class OnboardingErrorBoundary extends Component {
   state = { hasError: false, error: null };
@@ -52,7 +65,7 @@ const interestOptions = [
 ];
 
 export default function OnboardingWizard({ onComplete }) {
-  const isMobile = useIsMobile();
+  const isMobileDevice = useIsMobileDevice();
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [preferences, setPreferences] = useState({
@@ -122,8 +135,8 @@ export default function OnboardingWizard({ onComplete }) {
     }
   };
 
-  // Mobile: Prompt H full-page onboarding. Desktop: unchanged floating card.
-  if (isMobile) {
+  // Mobile device only: Prompt H full-page onboarding. Web app: original floating card.
+  if (isMobileDevice) {
     return (
       <OnboardingErrorBoundary>
         <MobileOnboarding onComplete={onComplete} />
