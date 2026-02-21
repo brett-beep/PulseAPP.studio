@@ -1,8 +1,11 @@
 import React, { useState, useEffect, Component } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import StockPicker from "@/components/StockPicker";
 import MobileOnboarding from "@/components/MobileOnboarding";
+import { ArrowRight, ArrowLeft, Check, Sparkles } from 'lucide-react';
 
 /** True only for actual touch devices with narrow viewport (mobile app). Web app = always false. */
 function useIsMobileDevice() {
@@ -48,24 +51,28 @@ class OnboardingErrorBoundary extends Component {
   }
 }
 
+// Original 6-step web onboarding (commit 219b302~1 style)
 const steps = [
-  { title: "Welcome to PulseApp", subtitle: "Let's personalize your experience", id: "welcome" },
-  { title: "Investment Goals", subtitle: "What are you looking to achieve?", id: "goals" },
-  { title: "Risk Tolerance", subtitle: "How do you approach risk?", id: "risk" },
-  { title: "Investment Interests", subtitle: "What sectors interest you?", id: "interests" },
-  { title: "Portfolio Holdings", subtitle: "Add your stock positions", id: "portfolio" }
+  { id: 'name', title: 'Your Name', icon: null },
+  { id: 'goals', title: 'Investment Goals', icon: null },
+  { id: 'risk', title: 'Risk Tolerance', icon: null },
+  { id: 'interests', title: 'Interests', icon: null },
+  { id: 'portfolio', title: 'Portfolio', icon: null },
+  { id: 'preferences', title: 'Preferences', icon: null },
 ];
 
-const goalOptions = ['Retirement', 'Wealth Growth', 'Passive Income', 'Capital Preservation', 'Short-term Gains', 'Education Fund'];
+const goalOptions = [
+  'Retirement', 'Wealth Growth', 'Passive Income',
+  'Capital Preservation', 'Short-term Gains', 'Education Fund'
+];
 
 const interestOptions = [
-  'Technology', 'Healthcare', 'Real Estate', 'Crypto', 
+  'Technology', 'Healthcare', 'Real Estate', 'Crypto',
   'Energy', 'Finance', 'Consumer Goods', 'Commodities',
   'ESG/Sustainable', 'Emerging Markets', 'Dividends', 'ETFs'
 ];
 
-export default function OnboardingWizard({ onComplete }) {
-  const isMobileDevice = useIsMobileDevice();
+function WebOnboardingWizard({ onComplete }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [preferences, setPreferences] = useState({
@@ -76,14 +83,13 @@ export default function OnboardingWizard({ onComplete }) {
     portfolio_holdings: [],
     briefing_length: 'medium',
     preferred_voice: 'professional',
-    onboarding_completed: true
   });
 
   const handleGoalToggle = (goal) => {
     setPreferences(prev => ({
       ...prev,
-      investment_goals: prev.investment_goals?.includes(goal)
-        ? prev.investment_goals.filter(g => g !== goal)
+      investment_goals: (prev.investment_goals || []).includes(goal)
+        ? (prev.investment_goals || []).filter(g => g !== goal)
         : [...(prev.investment_goals || []), goal]
     }));
   };
@@ -91,8 +97,8 @@ export default function OnboardingWizard({ onComplete }) {
   const handleInterestToggle = (interest) => {
     setPreferences(prev => ({
       ...prev,
-      investment_interests: prev.investment_interests?.includes(interest)
-        ? prev.investment_interests.filter(i => i !== interest)
+      investment_interests: (prev.investment_interests || []).includes(interest)
+        ? (prev.investment_interests || []).filter(i => i !== interest)
         : [...(prev.investment_interests || []), interest]
     }));
   };
@@ -107,11 +113,11 @@ export default function OnboardingWizard({ onComplete }) {
   const handleRemoveStock = (symbol) => {
     setPreferences(prev => ({
       ...prev,
-      portfolio_holdings: prev.portfolio_holdings?.filter(h => h !== symbol) || []
+      portfolio_holdings: (prev.portfolio_holdings || []).filter(h => h !== symbol)
     }));
   };
 
-  const goToNext = () => {
+  const nextStep = () => {
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
@@ -119,7 +125,7 @@ export default function OnboardingWizard({ onComplete }) {
     }
   };
 
-  const goToPrevious = () => {
+  const prevStep = () => {
     if (currentStep > 0) {
       setCurrentStep(currentStep - 1);
     }
@@ -128,145 +134,201 @@ export default function OnboardingWizard({ onComplete }) {
   const handleComplete = async () => {
     setIsSubmitting(true);
     try {
-      await onComplete(preferences);
+      await onComplete({ ...preferences, onboarding_completed: true });
     } catch (error) {
       console.error('Error completing onboarding:', error);
       setIsSubmitting(false);
     }
   };
 
-  // Mobile device only: Prompt H full-page onboarding. Web app: original floating card.
-  if (isMobileDevice) {
-    return (
-      <OnboardingErrorBoundary>
-        <MobileOnboarding onComplete={onComplete} />
-      </OnboardingErrorBoundary>
-    );
-  }
-
   const renderStepContent = () => {
-    switch (currentStep) {
-      case 0:
+    switch (steps[currentStep].id) {
+      case 'name':
         return (
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="space-y-6"
-          >
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-neutral-300 mb-2">
-                What should we call you?
-              </label>
-              <input
+          <div className="space-y-6">
+            <p className="text-slate-600 text-center">
+              What should we call you?
+            </p>
+            <div className="max-w-md mx-auto">
+              <Input
                 type="text"
-                value={preferences.display_name || ''}
-                onChange={(e) => setPreferences({ ...preferences, display_name: e.target.value })}
                 placeholder="Enter your name"
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-slate-900 dark:text-neutral-100 focus:border-amber-500 dark:focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 dark:focus:ring-amber-400/20 transition-all placeholder:text-slate-400 dark:placeholder:text-neutral-500"
+                value={preferences.display_name || ''}
+                onChange={(e) => setPreferences(prev => ({ ...prev, display_name: e.target.value }))}
+                className="text-center text-lg h-12"
               />
+              <p className="text-xs text-slate-400 text-center mt-2">
+                This name will appear on your home page
+              </p>
             </div>
-          </motion.div>
+          </div>
         );
 
-      case 1:
+      case 'goals':
         return (
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="space-y-4"
-          >
-            <h3 className="font-semibold text-slate-900 dark:text-neutral-100 mb-3">What are you investing for?</h3>
-            <div className="flex flex-wrap gap-2">
+          <div className="space-y-6">
+            <p className="text-slate-600 text-center">
+              What are you investing for? Select all that apply.
+            </p>
+            <div className="flex flex-wrap gap-3 justify-center">
               {goalOptions.map(goal => (
-                <button
+                <motion.button
                   key={goal}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={() => handleGoalToggle(goal)}
-                  className={`px-4 py-2 rounded-full border transition-all ${
-                    preferences.investment_goals?.includes(goal)
-                      ? 'border-amber-500 dark:border-amber-400 bg-amber-50 dark:bg-amber-400/12 text-amber-700 dark:text-amber-400'
-                      : 'border-slate-200 dark:border-neutral-600 hover:border-slate-300 dark:hover:border-neutral-500 text-slate-600 dark:text-neutral-400'
+                  className={`px-5 py-2.5 rounded-full border-2 transition-all ${
+                    (preferences.investment_goals || []).includes(goal)
+                      ? 'border-amber-500 bg-amber-50 text-amber-700'
+                      : 'border-slate-200 hover:border-slate-300 text-slate-600'
                   }`}
                 >
+                  {(preferences.investment_goals || []).includes(goal) && (
+                    <Check className="inline h-4 w-4 mr-2" />
+                  )}
                   {goal}
-                </button>
+                </motion.button>
               ))}
             </div>
-          </motion.div>
+          </div>
         );
 
-      case 2:
+      case 'risk':
         return (
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="space-y-4"
-          >
-            <h3 className="font-semibold text-slate-900 dark:text-neutral-100 mb-3">How comfortable are you with risk?</h3>
-            <div className="grid grid-cols-3 gap-3">
+          <div className="space-y-8">
+            <p className="text-slate-600 text-center">
+              How comfortable are you with investment risk?
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {['conservative', 'moderate', 'aggressive'].map(level => (
-                <button
+                <motion.button
                   key={level}
-                  onClick={() => setPreferences({ ...preferences, risk_tolerance: level })}
-                  className={`p-4 rounded-xl border-2 transition-all ${
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setPreferences(prev => ({ ...prev, risk_tolerance: level }))}
+                  className={`p-6 rounded-2xl border-2 transition-all ${
                     preferences.risk_tolerance === level
-                      ? 'border-amber-500 dark:border-amber-400 bg-amber-50 dark:bg-amber-400/12'
-                      : 'border-slate-200 dark:border-neutral-600 hover:border-slate-300 dark:hover:border-neutral-500'
+                      ? 'border-amber-500 bg-amber-50'
+                      : 'border-slate-200 hover:border-slate-300'
                   }`}
                 >
-                  <div className="text-xl mb-2">
+                  <div className="text-2xl mb-3">
                     {level === 'conservative' ? '🛡️' : level === 'moderate' ? '⚖️' : '🚀'}
                   </div>
-                  <span className="font-medium capitalize text-slate-900 dark:text-neutral-100">{level}</span>
-                </button>
+                  <h4 className="font-semibold capitalize text-slate-900">{level}</h4>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {level === 'conservative' && 'Prioritize capital preservation'}
+                    {level === 'moderate' && 'Balanced risk and reward'}
+                    {level === 'aggressive' && 'Higher risk for higher returns'}
+                  </p>
+                </motion.button>
               ))}
             </div>
-          </motion.div>
+          </div>
         );
 
-      case 3:
+      case 'interests':
         return (
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="space-y-4"
-          >
-            <h3 className="font-semibold text-slate-900 dark:text-neutral-100 mb-3">What interests you?</h3>
-            <div className="flex flex-wrap gap-2">
+          <div className="space-y-6">
+            <p className="text-slate-600 text-center">
+              Which sectors and topics interest you most?
+            </p>
+            <div className="flex flex-wrap gap-3 justify-center">
               {interestOptions.map(interest => (
-                <button
+                <motion.button
                   key={interest}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={() => handleInterestToggle(interest)}
-                  className={`px-3 py-1.5 rounded-full border text-sm transition-all ${
-                    preferences.investment_interests?.includes(interest)
-                      ? 'border-amber-500 dark:border-amber-400 bg-amber-50 dark:bg-amber-400/12 text-amber-700 dark:text-amber-400'
-                      : 'border-slate-200 dark:border-neutral-600 hover:border-slate-300 dark:hover:border-neutral-500 text-slate-600 dark:text-neutral-400'
+                  className={`px-4 py-2 rounded-full border-2 text-sm transition-all ${
+                    (preferences.investment_interests || []).includes(interest)
+                      ? 'border-amber-500 bg-amber-50 text-amber-700'
+                      : 'border-slate-200 hover:border-slate-300 text-slate-600'
                   }`}
                 >
+                  {(preferences.investment_interests || []).includes(interest) && (
+                    <Check className="inline h-3 w-3 mr-1" />
+                  )}
                   {interest}
-                </button>
+                </motion.button>
               ))}
             </div>
-          </motion.div>
+          </div>
         );
 
-      case 4:
+      case 'portfolio':
         return (
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="space-y-4"
-          >
-            <h3 className="font-semibold text-slate-900 dark:text-neutral-100 mb-3">Add your portfolio holdings</h3>
-            <p className="text-sm text-slate-600 dark:text-neutral-400 mb-4">
-              Add the stocks you currently own or are tracking
+          <div className="space-y-6">
+            <p className="text-slate-600 text-center">
+              Add stocks to track - these will appear on your home page with live prices
             </p>
+
             <StockPicker
               selectedStocks={preferences.portfolio_holdings || []}
               onAdd={handleAddStock}
               onRemove={handleRemoveStock}
-              maxStocks={20}
+              maxStocks={10}
             />
-          </motion.div>
+
+            <p className="text-xs text-slate-400 text-center">
+              Click the × button to remove stocks. You can skip or add more later in Settings.
+            </p>
+          </div>
+        );
+
+      case 'preferences':
+        return (
+          <div className="space-y-8">
+            <div className="space-y-4">
+              <Label className="text-slate-700">Briefing Length</Label>
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { value: 'short', label: '~5 min', desc: 'Quick highlights' },
+                  { value: 'medium', label: '~8 min', desc: 'Balanced coverage' },
+                  { value: 'long', label: '~12 min', desc: 'Deep dive' },
+                ].map(opt => (
+                  <motion.button
+                    key={opt.value}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setPreferences(prev => ({ ...prev, briefing_length: opt.value }))}
+                    className={`p-4 rounded-xl border-2 transition-all ${
+                      preferences.briefing_length === opt.value
+                        ? 'border-amber-500 bg-amber-50'
+                        : 'border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="font-semibold text-slate-900">{opt.label}</div>
+                    <div className="text-xs text-slate-500">{opt.desc}</div>
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <Label className="text-slate-700">Voice Style</Label>
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { value: 'professional', label: 'Professional', desc: 'News anchor style' },
+                  { value: 'conversational', label: 'Conversational', desc: 'Friendly & casual' },
+                  { value: 'energetic', label: 'Energetic', desc: 'Upbeat & dynamic' },
+                ].map(opt => (
+                  <motion.button
+                    key={opt.value}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setPreferences(prev => ({ ...prev, preferred_voice: opt.value }))}
+                    className={`p-4 rounded-xl border-2 transition-all ${
+                      preferences.preferred_voice === opt.value
+                        ? 'border-amber-500 bg-amber-50'
+                        : 'border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="font-semibold text-slate-900">{opt.label}</div>
+                    <div className="text-xs text-slate-500">{opt.desc}</div>
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+          </div>
         );
 
       default:
@@ -275,57 +337,105 @@ export default function OnboardingWizard({ onComplete }) {
   };
 
   return (
-    <OnboardingErrorBoundary>
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-neutral-950 dark:to-neutral-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-2xl bg-white dark:bg-neutral-800 rounded-3xl shadow-2xl overflow-hidden">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="min-h-screen flex items-center justify-center p-6"
+      style={{ background: 'linear-gradient(180deg, rgba(255, 255, 249, 0.7) 0%, rgba(255, 226, 148, 0.51) 76%, rgba(255, 95, 31, 0.52) 100%)' }}
+    >
+      <div className="w-full max-w-2xl">
         {/* Header */}
-        <div className="bg-gradient-to-r from-amber-500 to-orange-600 dark:from-amber-600 dark:to-orange-700 p-8 text-white dark:text-neutral-50">
-          <h1 className="text-3xl font-bold mb-2 dark:text-white">{steps[currentStep].title}</h1>
-          <p className="text-amber-50 dark:text-amber-100 opacity-90">{steps[currentStep].subtitle}</p>
-
-          {/* Progress Bar */}
-          <div className="flex gap-2 mt-4">
-            {steps.map((_, idx) => (
-              <div
-                key={idx}
-                className={`h-1 flex-1 rounded-full transition-all ${
-                  idx <= currentStep ? 'bg-white dark:bg-neutral-100' : 'bg-white/30 dark:bg-neutral-500/30'
-                }`}
-              />
-            ))}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center mb-12"
+        >
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500/10 rounded-full mb-6">
+            <Sparkles className="h-4 w-4 text-amber-500" />
+            <span className="text-amber-700 text-sm font-medium">Personalization</span>
           </div>
+          <h1 className="text-3xl font-light text-slate-900 mb-2">
+            Let's customize your <span className="font-semibold">briefings</span>
+          </h1>
+          <p className="text-slate-500">Step {currentStep + 1} of {steps.length}</p>
+        </motion.div>
+
+        {/* Progress */}
+        <div className="flex gap-2 mb-12">
+          {steps.map((step, i) => (
+            <div
+              key={step.id}
+              className={`h-1 flex-1 rounded-full transition-all duration-300 ${
+                i <= currentStep ? 'bg-amber-500' : 'bg-slate-200'
+              }`}
+            />
+          ))}
         </div>
+
+        {/* Step Title */}
+        <motion.h2
+          key={currentStep}
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="text-xl font-semibold text-slate-900 text-center mb-8"
+        >
+          {steps[currentStep].title}
+        </motion.h2>
 
         {/* Content */}
-        <div className="p-8 min-h-[300px]">
-          {renderStepContent()}
-        </div>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={currentStep}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="min-h-[300px]"
+          >
+            {renderStepContent()}
+          </motion.div>
+        </AnimatePresence>
 
         {/* Navigation */}
-        <div className="p-8 pt-0 flex justify-between gap-4">
-          {currentStep > 0 && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={goToPrevious}
-              disabled={isSubmitting}
-              className="dark:border-neutral-600 dark:text-neutral-300 dark:hover:bg-neutral-700"
-            >
-              Back
-            </Button>
-          )}
+        <div className="flex justify-between items-center mt-12">
           <Button
-            onClick={goToNext}
+            variant="ghost"
+            onClick={prevStep}
+            disabled={currentStep === 0}
+            className="text-slate-500"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back
+          </Button>
+
+          <Button
+            onClick={nextStep}
             disabled={isSubmitting}
-            className={`bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white ${
-              currentStep === 0 ? 'w-full' : 'ml-auto'
-            }`}
+            className="bg-slate-900 hover:bg-slate-800 text-white px-8"
           >
             {isSubmitting ? 'Completing...' : currentStep === steps.length - 1 ? 'Complete Setup' : 'Continue'}
+            <ArrowRight className="h-4 w-4 ml-2" />
           </Button>
         </div>
       </div>
-    </div>
+    </motion.div>
+  );
+}
+
+export default function OnboardingWizard({ onComplete }) {
+  const isMobileDevice = useIsMobileDevice();
+
+  // Mobile device only: full-page mobile onboarding. Web app: original 6-step flow.
+  if (isMobileDevice) {
+    return (
+      <OnboardingErrorBoundary>
+        <MobileOnboarding onComplete={onComplete} />
+      </OnboardingErrorBoundary>
+    );
+  }
+
+  return (
+    <OnboardingErrorBoundary>
+      <WebOnboardingWizard onComplete={onComplete} />
     </OnboardingErrorBoundary>
   );
 }

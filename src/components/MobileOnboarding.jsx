@@ -8,9 +8,10 @@ const STEPS = [
   { id: "risk", title: "Risk Tolerance", subtitle: "How do you approach risk?", progress: 3 },
   { id: "sectors", title: "Sector Interests", subtitle: "What industries excite you?", progress: 4 },
   { id: "portfolio", title: "Your Portfolio", subtitle: "Add stocks you want to track", progress: 5 },
+  { id: "preferences", title: "Briefing Preferences", subtitle: "Customize your audio briefings", progress: 6 },
 ];
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 6;
 
 const GOALS = [
   { label: "Retirement", icon: "🏖️" },
@@ -161,6 +162,12 @@ export default function MobileOnboarding({ onComplete }) {
             )}
             {step === 4 && (
               <PortfolioStep
+                preferences={preferences}
+                setPreferences={setPreferences}
+              />
+            )}
+            {step === 5 && (
+              <PreferencesStep
                 preferences={preferences}
                 setPreferences={setPreferences}
               />
@@ -326,6 +333,67 @@ function PortfolioStep({ preferences, setPreferences }) {
           }
           maxStocks={3}
         />
+      </div>
+    </div>
+  );
+}
+
+function PreferencesStep({ preferences, setPreferences }) {
+  const BRIEFING_OPTS = [
+    { value: "short", label: "~5 min", desc: "Quick highlights" },
+    { value: "medium", label: "~8 min", desc: "Balanced" },
+    { value: "long", label: "~12 min", desc: "Deep dive" },
+  ];
+  const VOICE_OPTS = [
+    { value: "professional", label: "Professional", desc: "News anchor" },
+    { value: "conversational", label: "Conversational", desc: "Friendly" },
+    { value: "energetic", label: "Energetic", desc: "Upbeat" },
+  ];
+
+  return (
+    <div style={styles.stepContent}>
+      <label style={styles.label}>Briefing length</label>
+      <p style={styles.hint}>How long would you like your daily briefings?</p>
+      <div style={styles.preferencesGrid}>
+        {BRIEFING_OPTS.map((opt) => (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => setPreferences((p) => ({ ...p, briefing_length: opt.value }))}
+            style={{
+              ...styles.preferenceCard,
+              ...(preferences.briefing_length === opt.value ? styles.preferenceCardSelected : {}),
+            }}
+            className="mobile-onboarding-chip"
+          >
+            <span style={{ fontWeight: 600, fontSize: 15, color: preferences.briefing_length === opt.value ? "#c85d1e" : "#222" }}>
+              {opt.label}
+            </span>
+            <span style={{ fontSize: 12, color: "#888", marginTop: 2 }}>{opt.desc}</span>
+          </button>
+        ))}
+      </div>
+
+      <label style={{ ...styles.label, marginTop: 24 }}>Voice style</label>
+      <p style={styles.hint}>Choose how your briefings will sound</p>
+      <div style={styles.preferencesGrid}>
+        {VOICE_OPTS.map((opt) => (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => setPreferences((p) => ({ ...p, preferred_voice: opt.value }))}
+            style={{
+              ...styles.preferenceCard,
+              ...(preferences.preferred_voice === opt.value ? styles.preferenceCardSelected : {}),
+            }}
+            className="mobile-onboarding-chip"
+          >
+            <span style={{ fontWeight: 600, fontSize: 15, color: preferences.preferred_voice === opt.value ? "#c85d1e" : "#222" }}>
+              {opt.label}
+            </span>
+            <span style={{ fontSize: 12, color: "#888", marginTop: 2 }}>{opt.desc}</span>
+          </button>
+        ))}
       </div>
     </div>
   );
@@ -521,6 +589,34 @@ const styles = {
     border: "1.5px solid #e07028",
     background: "rgba(224,112,40,0.06)",
     transform: "scale(1.02)",
+  },
+  preferencesGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr 1fr",
+    gap: 10,
+    marginTop: 12,
+    width: "100%",
+  },
+  preferenceCard: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "16px 12px",
+    borderRadius: 14,
+    border: "1.5px solid rgba(0,0,0,0.06)",
+    background: "rgba(255,255,255,0.6)",
+    backdropFilter: "blur(8px)",
+    WebkitBackdropFilter: "blur(8px)",
+    fontFamily: "inherit",
+    textAlign: "center",
+    cursor: "pointer",
+    WebkitTapHighlightColor: "transparent",
+    transition: "all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)",
+  },
+  preferenceCardSelected: {
+    border: "1.5px solid #e07028",
+    background: "rgba(224,112,40,0.06)",
   },
   sectorWrap: {
     display: "flex",
