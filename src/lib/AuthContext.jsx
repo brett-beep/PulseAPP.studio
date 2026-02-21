@@ -116,9 +116,9 @@ export const AuthProvider = ({ children }) => {
     setIsAuthenticated(false);
 
     if (shouldRedirect) {
-      // Native app: always return to origin so auth_required guard redirects to login
+      // Native app: return to /login so users never see landing page
       const returnUrl = isNativeApp()
-        ? window.location.origin + "/"
+        ? window.location.origin + "/login"
         : window.location.href;
       base44.auth.logout(returnUrl);
     } else {

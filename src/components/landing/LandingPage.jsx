@@ -22,12 +22,12 @@ export function LandingPage({ onSignIn }) {
     setIsWaitlistOpen(true)
   }
 
-  // Skip landing page in native app (TestFlight/Capacitor) — go straight to login
+  // Skip landing page in native app — go straight to /login
   useEffect(() => {
-    if (isNativeApp() && onSignIn) {
-      onSignIn()
+    if (isNativeApp()) {
+      window.location.replace("/login")
     }
-  }, [onSignIn])
+  }, [])
 
   // Open waitlist modal when user lands via share link: /#waitlist or ?waitlist=1
   useEffect(() => {

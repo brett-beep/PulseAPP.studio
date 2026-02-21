@@ -10,17 +10,16 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import { LandingPage } from '@/components/landing/LandingPage';
 import { isNativeApp } from '@/utils/isNativeApp';
-import { base44 } from '@/api/base44Client';
 
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
 
-function NativeAppAuthRedirect({ onRedirect }) {
+function NativeAppAuthRedirect() {
   useEffect(() => {
-    onRedirect();
-  }, [onRedirect]);
+    window.location.replace("/login");
+  }, []);
   return <div style={{ width: "100vw", height: "100dvh", background: "#faf7f2" }} />;
 }
 
@@ -34,12 +33,12 @@ const AuthenticatedApp = () => {
   const touchStartYRef = useRef(0);
   const touchStartXRef = useRef(0);
 
-  // Global redirect: native app on landing path when auth required → go straight to login (cursor-fix-skip-landing-always)
+  // Global redirect: native app on landing path when auth required → go straight to /login
   useEffect(() => {
     if (isNativeApp() && authError?.type === "auth_required") {
       const path = window.location.pathname || "";
       if (path === "/" || path === "" || path === "/landing") {
-        base44.auth.redirectToLogin(window.location.href);
+        window.location.replace("/login");
       }
     }
   }, [location.pathname, authError?.type]);
@@ -106,9 +105,9 @@ const AuthenticatedApp = () => {
     if (authError.type === 'user_not_registered') {
       return <UserNotRegisteredError />;
     } else if (authError.type === 'auth_required') {
-      // Native app: never show landing — go straight to login
+      // Native app: never show landing — go straight to /login
       if (isNativeApp()) {
-        return <NativeAppAuthRedirect onRedirect={navigateToLogin} />;
+        return <NativeAppAuthRedirect />;
       }
       return <LandingPage onSignIn={navigateToLogin} />;
     }
