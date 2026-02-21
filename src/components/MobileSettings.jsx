@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { useAuth } from "@/lib/AuthContext";
@@ -11,7 +10,8 @@ import {
   LogOut, Crown, Trash2, Check, X,
 } from "lucide-react";
 
-function SwipeBackWrapper({ onBack, parentContent, children }) {
+/** Touch-only hook: reports drag position and velocity to parent. Parent owns animation and unmount. */
+function useSwipeBack(onDragUpdate, onSwipeComplete, onSwipeCancel) {
   const startXRef = useRef(0);
   const startYRef = useRef(0);
   const isDraggingRef = useRef(false);
@@ -20,158 +20,66 @@ function SwipeBackWrapper({ onBack, parentContent, children }) {
   const velocityRef = useRef(0);
   const lastXRef = useRef(0);
   const lastTimeRef = useRef(0);
-  const [dragX, setDragX] = useState(0);
-  const [isAnimating, setIsAnimating] = useState(false);
 
-  const handleTouchStart = useCallback((e) => {
-    const touch = e.touches[0];
-    if (touch.clientX > 25) return;
-
-    startXRef.current = touch.clientX;
-    startYRef.current = touch.clientY;
-    lastXRef.current = touch.clientX;
-    lastTimeRef.current = Date.now();
-    isDraggingRef.current = true;
-    directionLockedRef.current = false;
-    isHorizontalRef.current = false;
-    velocityRef.current = 0;
-    setIsAnimating(false);
-  }, []);
-
-  const handleTouchMove = useCallback((e) => {
-    if (!isDraggingRef.current) return;
-
-    const touch = e.touches[0];
-    const deltaX = touch.clientX - startXRef.current;
-    const deltaY = touch.clientY - startYRef.current;
-
-    if (!directionLockedRef.current && (Math.abs(deltaX) > 8 || Math.abs(deltaY) > 8)) {
-      directionLockedRef.current = true;
-      isHorizontalRef.current = Math.abs(deltaX) > Math.abs(deltaY);
-      if (!isHorizontalRef.current) {
+  const handlers = useMemo(
+    () => ({
+      onTouchStart: (e) => {
+        const touch = e.touches[0];
+        if (touch.clientX > 25) return;
+        startXRef.current = touch.clientX;
+        startYRef.current = touch.clientY;
+        lastXRef.current = touch.clientX;
+        lastTimeRef.current = Date.now();
+        isDraggingRef.current = true;
+        directionLockedRef.current = false;
+        isHorizontalRef.current = false;
+        velocityRef.current = 0;
+      },
+      onTouchMove: (e) => {
+        if (!isDraggingRef.current) return;
+        const touch = e.touches[0];
+        const deltaX = touch.clientX - startXRef.current;
+        const deltaY = touch.clientY - startYRef.current;
+        if (!directionLockedRef.current && (Math.abs(deltaX) > 8 || Math.abs(deltaY) > 8)) {
+          directionLockedRef.current = true;
+          isHorizontalRef.current = Math.abs(deltaX) > Math.abs(deltaY);
+          if (!isHorizontalRef.current) {
+            isDraggingRef.current = false;
+            onDragUpdate(0);
+            return;
+          }
+        }
+        if (!directionLockedRef.current || !isHorizontalRef.current) return;
+        const clampedX = Math.max(0, deltaX);
+        e.preventDefault();
+        const now = Date.now();
+        const dt = now - lastTimeRef.current;
+        if (dt > 0) velocityRef.current = (touch.clientX - lastXRef.current) / dt;
+        lastXRef.current = touch.clientX;
+        lastTimeRef.current = now;
+        onDragUpdate(clampedX);
+      },
+      onTouchEnd: () => {
+        if (!isDraggingRef.current || !isHorizontalRef.current) {
+          isDraggingRef.current = false;
+          return;
+        }
         isDraggingRef.current = false;
-        setDragX(0);
-        return;
-      }
-    }
-
-    if (!directionLockedRef.current || !isHorizontalRef.current) return;
-    if (deltaX < 0) return;
-
-    e.preventDefault();
-
-    const now = Date.now();
-    const dt = now - lastTimeRef.current;
-    if (dt > 0) {
-      velocityRef.current = (touch.clientX - lastXRef.current) / dt;
-    }
-    lastXRef.current = touch.clientX;
-    lastTimeRef.current = now;
-
-    setDragX(deltaX);
-
-    // Auto-complete when dragged past 90% — swipe IS the exit (Prompt G §2)
-    const screenWidth = typeof window !== "undefined" ? window.innerWidth : 375;
-    if (deltaX > screenWidth * 0.9) {
-      isDraggingRef.current = false;
-      onBack();
-    }
-  }, [onBack]);
-
-  const handleTouchEnd = useCallback(() => {
-    if (!isDraggingRef.current || !isHorizontalRef.current) {
-      isDraggingRef.current = false;
-      return;
-    }
-    isDraggingRef.current = false;
-
-    const screenWidth = typeof window !== "undefined" ? window.innerWidth : 375;
-    const velocity = velocityRef.current;
-    const shouldGoBack = dragX > screenWidth * 0.35 || velocity > 0.4;
-
-    if (shouldGoBack) {
-      // Call onBack IMMEDIATELY — swipe IS the exit (Prompt G §2)
-      onBack();
-    } else {
-      setIsAnimating(true);
-      setDragX(0);
-      setTimeout(() => setIsAnimating(false), 280);
-    }
-  }, [dragX, onBack]);
-
-  const screenWidth = typeof window !== "undefined" ? window.innerWidth : 375;
-  const progress = Math.min(dragX / screenWidth, 1);
-  const parentOffset = -screenWidth * 0.3 * (1 - progress);
-
-  return (
-    <div
-      style={{
-        position: "absolute",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        overflow: "hidden",
-      }}
-    >
-      {/* LAYER 1: Parent/previous page behind — visible during swipe */}
-      <div
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          transform: `translateX(${parentOffset}px)`,
-          transition: isAnimating ? "transform 280ms cubic-bezier(0.2, 0.9, 0.3, 1)" : "none",
-          willChange: "transform",
-          zIndex: 0,
-          background: "#faf7f2",
-        }}
-      >
-        {parentContent}
-      </div>
-
-      {/* Shadow edge between pages */}
-      {dragX > 0 && (
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: `${dragX - 20}px`,
-            width: 20,
-            height: "100%",
-            background: "linear-gradient(to right, rgba(0,0,0,0.08), transparent)",
-            zIndex: 2,
-            pointerEvents: "none",
-            transition: isAnimating ? "left 280ms cubic-bezier(0.2, 0.9, 0.3, 1)" : "none",
-          }}
-        />
-      )}
-
-      {/* LAYER 2: Current sub-page — slides right with finger */}
-      <div
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onTouchCancel={handleTouchEnd}
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          transform: `translateX(${dragX}px)`,
-          transition: isAnimating ? "transform 280ms cubic-bezier(0.2, 0.9, 0.3, 1)" : "none",
-          willChange: "transform",
-          zIndex: 1,
-          background: "#faf7f2",
-        }}
-      >
-        {children}
-      </div>
-    </div>
+        const screenWidth = typeof window !== "undefined" ? window.innerWidth : 375;
+        const currentX = Math.max(0, lastXRef.current - startXRef.current);
+        const velocity = velocityRef.current;
+        const shouldGoBack = currentX > screenWidth * 0.35 || velocity > 0.4;
+        if (shouldGoBack) onSwipeComplete(currentX, velocity);
+        else onSwipeCancel();
+      },
+      onTouchCancel: () => {
+        isDraggingRef.current = false;
+        onSwipeCancel();
+      },
+    }),
+    [onDragUpdate, onSwipeComplete, onSwipeCancel]
   );
+  return handlers;
 }
 
 const ACCENT = "#e07028";
@@ -191,82 +99,6 @@ const themeOptions = [
   "Crypto", "ETFs", "Dividends", "ESG/Sustainable",
   "Emerging Markets", "Commodities", "IPOs & SPACs", "Small Cap",
 ];
-
-function SubPageShell({ isOpen, onClose, title, onSave, saving, parentContent, children }) {
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          key="subpage"
-          initial={{ x: "100%" }}
-          animate={{ x: 0 }}
-          exit={{ x: "100%", transition: { type: "tween", duration: 0.28, ease: [0.4, 0, 1, 1] } }}
-          transition={{ type: "tween", duration: 0.35, ease: [0.2, 0.9, 0.3, 1] }}
-          className="fixed inset-0 z-[210] flex flex-col"
-          style={{ background: "#faf7f2" }}
-        >
-          <SwipeBackWrapper onBack={onClose} parentContent={parentContent}>
-            <header
-              className="flex items-center gap-3 shrink-0"
-              style={{
-                padding: "calc(env(safe-area-inset-top, 20px) + 12px) 20px 12px",
-                background: "rgba(250,247,242,0.92)",
-                backdropFilter: "blur(16px)",
-                WebkitBackdropFilter: "blur(16px)",
-                borderBottom: BORDER,
-              }}
-            >
-              <button
-                type="button"
-                onClick={onClose}
-                className="w-9 h-9 rounded-full flex items-center justify-center active:scale-90 transition-transform"
-                style={{ background: CARD_BG, backdropFilter: BLUR, border: BORDER }}
-              >
-                <ChevronLeft className="w-[18px] h-[18px]" />
-              </button>
-              <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18, fontWeight: 500 }}>
-                {title}
-              </span>
-            </header>
-
-            <div className="flex-1 overflow-y-auto settings-sub-page" style={{ WebkitOverflowScrolling: "touch" }}>
-              <div className="px-5 py-5 settings-sub-content" style={{ paddingBottom: "calc(120px + env(safe-area-inset-bottom, 0px))" }}>
-                {children}
-              </div>
-            </div>
-
-            {/* Save button — sticky above tab bar (Prompt F §4) */}
-            <div
-              style={{
-                position: "sticky",
-                bottom: 0,
-                left: 0,
-                right: 0,
-                padding: "16px 24px",
-                paddingBottom: "calc(16px + env(safe-area-inset-bottom, 0px) + 64px)",
-                background: "linear-gradient(to top, #faf7f2 80%, transparent)",
-                zIndex: 10,
-              }}
-            >
-              <button
-                type="button"
-                onClick={onSave}
-                disabled={saving}
-                className="w-full py-3.5 rounded-2xl text-[15px] font-semibold text-white active:scale-[0.98] transition-transform disabled:opacity-60"
-                style={{
-                  background: `linear-gradient(135deg, ${ACCENT}, #c85d1e)`,
-                  boxShadow: `0 8px 24px rgba(224,112,40,0.25)`,
-                }}
-              >
-                {saving ? "Saving..." : "Save"}
-              </button>
-            </div>
-          </SwipeBackWrapper>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-}
 
 function Chip({ label, active, onToggle }) {
   return (
@@ -320,6 +152,43 @@ export default function MobileSettings({ isPremium = false, onUpgrade }) {
   const [saving, setSaving] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
+  // Swipe-back state — parent owns everything (definitive fix)
+  const [dragX, setDragX] = useState(0);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [exitTarget, setExitTarget] = useState(null);
+
+  const handleDragUpdate = useCallback((x) => {
+    setDragX(x);
+    setIsAnimating(false);
+  }, []);
+
+  const handleSwipeComplete = useCallback((currentX, velocity) => {
+    const W = typeof window !== "undefined" ? window.innerWidth : 375;
+    const remaining = W - currentX;
+    const duration = Math.max(150, Math.min(300, remaining / Math.max(velocity, 0.5)));
+    setDragX(W);
+    setIsAnimating(true);
+    setExitTarget("exit");
+    setTimeout(() => {
+      setActivePage(null);
+      setDragX(0);
+      setIsAnimating(false);
+      setExitTarget(null);
+    }, duration);
+  }, []);
+
+  const handleSwipeCancel = useCallback(() => {
+    setDragX(0);
+    setIsAnimating(true);
+    setExitTarget("cancel");
+    setTimeout(() => {
+      setIsAnimating(false);
+      setExitTarget(null);
+    }, 300);
+  }, []);
+
+  const swipeHandlers = useSwipeBack(handleDragUpdate, handleSwipeComplete, handleSwipeCancel);
+
   const { data: user } = useQuery({
     queryKey: ["currentUser"],
     queryFn: () => base44.auth.me(),
@@ -340,12 +209,22 @@ export default function MobileSettings({ isPremium = false, onUpgrade }) {
     if (preferences) setDraft({ ...preferences });
   }, [preferences]);
 
+  const screenWidth = typeof window !== "undefined" ? window.innerWidth : 375;
+
   const openPage = (page) => {
     if (preferences) setDraft({ ...preferences });
+    setDragX(screenWidth);
     setActivePage(page);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setIsAnimating(true);
+        setDragX(0);
+        setTimeout(() => setIsAnimating(false), 350);
+      });
+    });
   };
 
-  const closePage = () => setActivePage(null);
+  const closePage = () => handleSwipeComplete(0, 0.8);
 
   const saveDraft = async () => {
     if (!draft || !preferences?.id) return;
@@ -354,7 +233,7 @@ export default function MobileSettings({ isPremium = false, onUpgrade }) {
       await base44.entities.UserPreferences.update(preferences.id, draft);
       queryClient.invalidateQueries({ queryKey: ["userPreferences"] });
       toast.success("Saved!");
-      setTimeout(closePage, 350);
+      closePage();
     } catch {
       toast.error("Save failed. Please try again.");
     } finally {
@@ -466,91 +345,42 @@ export default function MobileSettings({ isPremium = false, onUpgrade }) {
     </div>
   );
 
-  return (
-    <div
-      className="relative z-10"
-      style={{
-        paddingTop: "calc(24px + env(safe-area-inset-top, 0px))",
-        paddingBottom: "calc(84px + env(safe-area-inset-bottom, 0px))",
-      }}
-    >
-      {/* Title */}
-      <div className="px-5 mb-5">
-        <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 28, fontWeight: 500 }} className="text-slate-900">
-          Settings
-        </h1>
-        <p className="text-[14px] mt-1" style={{ color: "#a0a0a0" }}>Manage your account & preferences</p>
-      </div>
+  const progress = Math.min(dragX / screenWidth, 1);
+  const parentOffset = -screenWidth * 0.3 * (1 - progress);
+  const animDuration = exitTarget === "exit" ? "250ms" : "300ms";
+  const animEasing = "cubic-bezier(0.2, 0.9, 0.3, 1)";
 
-      {/* Upgrade card */}
-      {!isPremium && (
-        <div className="mx-5 mb-5 rounded-[20px] p-5 relative overflow-hidden" style={{ background: `linear-gradient(135deg, ${ACCENT}, #c85d1e)` }}>
-          <div className="absolute -top-8 -right-8 w-28 h-28 rounded-full" style={{ background: "rgba(255,255,255,0.1)" }} />
-          <div className="relative">
-            <h3 className="text-white text-lg font-semibold mb-1.5" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>
-              Upgrade to Pro
-            </h3>
-            <p className="text-white/85 text-[13px] leading-relaxed mb-4">
-              Unlimited briefings, priority generation, and premium voices
-            </p>
-            <button
-              type="button"
-              onClick={onUpgrade}
-              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full text-[14px] font-semibold active:scale-[0.97] transition-transform"
-              style={{ background: "#fff", color: "#c85d1e" }}
-            >
-              <Crown className="w-4 h-4" />
-              Upgrade Now
-            </button>
-          </div>
-        </div>
-      )}
+  const PAGE_TITLES = { account: "Account", portfolio: "Portfolio", investment: "Investment Profile", sectors: "Sector Interests", briefing: "Briefing & Voice" };
 
-      {/* Setting items */}
-      <div className="px-5 space-y-2 mb-8">
-        {settingItems.map((item) => {
-          const Icon = item.icon;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => openPage(item.id)}
-              className="w-full flex items-center justify-between p-4 rounded-2xl active:scale-[0.985] transition-transform"
-              style={{ background: CARD_BG, backdropFilter: BLUR, border: BORDER }}
-            >
-              <div className="flex items-center gap-3.5">
-                <div className="w-9 h-9 rounded-[10px] flex items-center justify-center" style={{ background: item.bg }}>
-                  <Icon className="w-[18px] h-[18px]" style={{ color: item.color }} />
-                </div>
-                <div className="text-left">
-                  <div className="text-[15px] font-medium text-slate-900">{item.label}</div>
-                  <div className="text-[12px]" style={{ color: "#a0a0a0" }}>{item.desc}</div>
-                </div>
-              </div>
-              <ChevronRight className="w-4 h-4" style={{ color: "#a0a0a0" }} />
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Logout */}
-      <div className="px-5">
-        <button
-          type="button"
-          onClick={() => logout(true)}
-          className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl text-[15px] font-semibold active:bg-red-50 transition-colors"
-          style={{ border: "1px solid rgba(220,53,69,0.2)", color: "#dc3545" }}
+  function renderSubPageContent(page) {
+    const title = PAGE_TITLES[page];
+    return (
+      <>
+        <header
+          className="flex items-center gap-3 shrink-0"
+          style={{
+            padding: "calc(env(safe-area-inset-top, 20px) + 12px) 20px 12px",
+            background: "rgba(250,247,242,0.92)",
+            backdropFilter: "blur(16px)",
+            WebkitBackdropFilter: "blur(16px)",
+            borderBottom: BORDER,
+          }}
         >
-          <LogOut className="w-[18px] h-[18px]" />
-          Log Out
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={closePage}
+            className="w-9 h-9 rounded-full flex items-center justify-center active:scale-90 transition-transform"
+            style={{ background: CARD_BG, backdropFilter: BLUR, border: BORDER }}
+          >
+            <ChevronLeft className="w-[18px] h-[18px]" />
+          </button>
+          <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18, fontWeight: 500 }}>{title}</span>
+        </header>
 
-      {/* ═══════ SUB-PAGES ═══════ */}
-
-      {/* ACCOUNT */}
-      <SubPageShell isOpen={activePage === "account"} onClose={closePage} title="Account" onSave={saveDraft} saving={saving} parentContent={mainSettingsContent}>
-        <div className="space-y-6">
+        <div className="flex-1 overflow-y-auto settings-sub-page" style={{ WebkitOverflowScrolling: "touch" }}>
+          <div className="px-5 py-5 settings-sub-content" style={{ paddingBottom: "calc(120px + env(safe-area-inset-bottom, 0px))" }}>
+            {page === "account" && (
+              <div className="space-y-6">
           <div>
             <SectionLabel>Display Name</SectionLabel>
             <input
@@ -602,11 +432,9 @@ export default function MobileSettings({ isPremium = false, onUpgrade }) {
             </button>
           </div>
         </div>
-      </SubPageShell>
-
-      {/* PORTFOLIO */}
-      <SubPageShell isOpen={activePage === "portfolio"} onClose={closePage} title="Portfolio" onSave={saveDraft} saving={saving} parentContent={mainSettingsContent}>
-        <div className="space-y-5">
+            )}
+            {page === "portfolio" && (
+              <div className="space-y-5">
           <SectionLabel>Your Tickers</SectionLabel>
 
           {(draft.portfolio_holdings || []).length === 0 ? (
@@ -659,11 +487,9 @@ export default function MobileSettings({ isPremium = false, onUpgrade }) {
             maxStocks={isPremium ? 10 : 3}
           />
         </div>
-      </SubPageShell>
-
-      {/* INVESTMENT PROFILE */}
-      <SubPageShell isOpen={activePage === "investment"} onClose={closePage} title="Investment Profile" onSave={saveDraft} saving={saving} parentContent={mainSettingsContent}>
-        <div className="space-y-7">
+            )}
+            {page === "investment" && (
+              <div className="space-y-7">
           <div>
             <SectionLabel>Risk Tolerance</SectionLabel>
             <div className="flex flex-col gap-2">
@@ -703,11 +529,9 @@ export default function MobileSettings({ isPremium = false, onUpgrade }) {
             </div>
           </div>
         </div>
-      </SubPageShell>
-
-      {/* SECTOR INTERESTS */}
-      <SubPageShell isOpen={activePage === "sectors"} onClose={closePage} title="Sector Interests" onSave={saveDraft} saving={saving} parentContent={mainSettingsContent}>
-        <div className="space-y-7">
+            )}
+            {page === "sectors" && (
+              <div className="space-y-7">
           <div>
             <SectionLabel>Industries</SectionLabel>
             <div className="flex flex-wrap gap-2">
@@ -750,11 +574,9 @@ export default function MobileSettings({ isPremium = false, onUpgrade }) {
             </div>
           </div>
         </div>
-      </SubPageShell>
-
-      {/* BRIEFING & VOICE */}
-      <SubPageShell isOpen={activePage === "briefing"} onClose={closePage} title="Briefing & Voice" onSave={saveDraft} saving={saving} parentContent={mainSettingsContent}>
-        <div className="space-y-7">
+            )}
+            {page === "briefing" && (
+              <div className="space-y-7">
           <div>
             <SectionLabel>Briefing Length</SectionLabel>
             <div className="flex flex-col gap-2">
@@ -793,7 +615,101 @@ export default function MobileSettings({ isPremium = false, onUpgrade }) {
             </div>
           </div>
         </div>
-      </SubPageShell>
+            )}
+          </div>
+        </div>
+
+        <div
+          style={{
+            position: "sticky",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            padding: "16px 24px",
+            paddingBottom: "calc(16px + env(safe-area-inset-bottom, 0px) + 64px)",
+            background: "linear-gradient(to top, #faf7f2 80%, transparent)",
+            zIndex: 10,
+          }}
+        >
+          <button
+            type="button"
+            onClick={saveDraft}
+            disabled={saving}
+            className="w-full py-3.5 rounded-2xl text-[15px] font-semibold text-white active:scale-[0.98] transition-transform disabled:opacity-60"
+            style={{
+              background: `linear-gradient(135deg, ${ACCENT}, #c85d1e)`,
+              boxShadow: `0 8px 24px rgba(224,112,40,0.25)`,
+            }}
+          >
+            {saving ? "Saving..." : "Save"}
+          </button>
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <div className="relative z-10" style={{ position: "relative", width: "100%", minHeight: "100%" }}>
+      {/* MAIN SETTINGS — always rendered */}
+      <div
+        style={{
+          position: activePage ? "absolute" : "relative",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 0,
+          transform: activePage ? `translateX(${parentOffset}px)` : "none",
+          transition: isAnimating ? `transform ${animDuration} ${animEasing}` : "none",
+          willChange: activePage ? "transform" : "auto",
+          background: "#faf7f2",
+          paddingTop: "calc(24px + env(safe-area-inset-top, 0px))",
+          paddingBottom: "calc(84px + env(safe-area-inset-bottom, 0px))",
+          overflow: "hidden",
+        }}
+      >
+        {mainSettingsContent}
+      </div>
+
+      {/* SUB-PAGE OVERLAY — only when active (mobile swipe-back) */}
+      {activePage && (
+        <>
+          {dragX > 0 && (
+            <div
+              style={{
+                position: "fixed",
+                top: 0,
+                left: dragX - 15,
+                width: 15,
+                height: "100%",
+                background: "linear-gradient(to right, rgba(0,0,0,0.06), transparent)",
+                zIndex: 211,
+                pointerEvents: "none",
+                transition: isAnimating ? `left ${animDuration} ${animEasing}` : "none",
+              }}
+            />
+          )}
+          <div
+            {...swipeHandlers}
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              transform: `translateX(${dragX}px)`,
+              transition: isAnimating ? `transform ${animDuration} ${animEasing}` : "none",
+              willChange: "transform",
+              zIndex: 210,
+              background: "#faf7f2",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            {renderSubPageContent(activePage)}
+          </div>
+        </>
+      )}
     </div>
   );
 }
