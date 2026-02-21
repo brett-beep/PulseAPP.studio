@@ -4,27 +4,26 @@
  * Browser visits to pulseapp.studio are unchanged.
  */
 export function isNativeApp() {
-  if (typeof window === "undefined") return false;
+  if (typeof window !== "undefined") {
+    // 1. Capacitor native platform
+    if (window.Capacitor?.isNativePlatform?.()) return true;
+    if (window.Capacitor?.getPlatform?.() === "ios") return true;
+    if (window.Capacitor?.getPlatform?.() === "android") return true;
 
-  // Check for Capacitor native platform
-  if (window.Capacitor?.isNativePlatform?.()) {
-    return true;
-  }
+    // 2. iOS standalone (added to home screen)
+    if (window.navigator?.standalone === true) return true;
 
-  // Check for standalone display mode (PWA installed to home screen or Capacitor)
-  if (window.matchMedia?.("(display-mode: standalone)").matches) {
-    return true;
-  }
+    // 3. Display mode standalone (PWA or Capacitor)
+    if (window.matchMedia?.("(display-mode: standalone)")?.matches) return true;
 
-  // Check for iOS standalone mode
-  if (window.navigator?.standalone === true) {
-    return true;
-  }
+    // 4. Capacitor protocol detection
+    const protocol = window.location?.protocol || "";
+    if (protocol === "capacitor:" || protocol === "ionic:") return true;
 
-  // URL-based: Capacitor/Base44 native app may load from capacitor:// or file:// or ionic://
-  const protocol = window.location?.protocol || "";
-  if (protocol === "capacitor:" || protocol === "ionic:" || protocol === "file:") {
-    return true;
+    // 5. User agent WebView markers
+    const ua = navigator.userAgent || "";
+    if (ua.includes("CapacitorApp") || ua.includes("GoNativeIOS") || ua.includes("median"))
+      return true;
   }
 
   return false;

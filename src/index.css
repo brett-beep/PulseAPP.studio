@@ -138,6 +138,15 @@ input, select, textarea {
   }
 }
 
+/* Native/standalone: hide landing page during redirect flash (cursor-fix-skip-landing-always) */
+@media (display-mode: standalone) {
+  .landing-theme,
+  [class*="landing"],
+  [class*="Landing"] {
+    display: none !important;
+  }
+}
+
 /* Typography for landing page */
 .landing-theme {
   font-family: 'DM Sans', sans-serif;

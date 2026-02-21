@@ -2,6 +2,7 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { appParams } from '@/lib/app-params';
 import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
+import { isNativeApp } from '@/utils/isNativeApp';
 
 const AuthContext = createContext();
 
@@ -113,12 +114,14 @@ export const AuthProvider = ({ children }) => {
   const logout = (shouldRedirect = true) => {
     setUser(null);
     setIsAuthenticated(false);
-    
+
     if (shouldRedirect) {
-      // Use the SDK's logout method which handles token cleanup and redirect
-      base44.auth.logout(window.location.href);
+      // Native app: always return to origin so auth_required guard redirects to login
+      const returnUrl = isNativeApp()
+        ? window.location.origin + "/"
+        : window.location.href;
+      base44.auth.logout(returnUrl);
     } else {
-      // Just remove the token without redirect
       base44.auth.logout();
     }
   };
