@@ -271,7 +271,7 @@ function Chip({ label, active, onToggle }) {
     <button
       type="button"
       onClick={onToggle}
-      className="px-4 py-2.5 rounded-xl text-[14px] font-medium transition-all active:scale-[0.96]"
+      className="px-4 py-2.5 rounded-xl text-[14px] font-medium active:scale-[0.96]"
       style={{
         border: active ? `1.5px solid ${ACCENT}` : "1.5px solid rgba(0,0,0,0.06)",
         background: active ? "rgba(224,112,40,0.08)" : CARD_BG,
@@ -290,15 +290,15 @@ function ChoiceCard({ label, subtitle, active, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="w-full py-3.5 px-4 rounded-[14px] text-left transition-all active:scale-[0.97]"
+      className="w-full py-3.5 px-4 rounded-[14px] text-left active:scale-[0.97]"
       style={{
         border: active ? `1.5px solid ${ACCENT}` : "1.5px solid rgba(0,0,0,0.06)",
         background: active ? "rgba(224,112,40,0.08)" : CARD_BG,
         backdropFilter: BLUR,
       }}
     >
-      <div className="text-[15px] font-semibold" style={{ color: active ? ACCENT : "#1a1a1a" }}>{label}</div>
-      {subtitle && <div className="text-[11px] mt-0.5" style={{ color: "#a0a0a0" }}>{subtitle}</div>}
+      <div className="text-[15px] font-semibold break-words min-w-0" style={{ color: active ? ACCENT : "#1a1a1a" }}>{label}</div>
+      {subtitle && <div className="text-[11px] mt-0.5 break-words min-w-0" style={{ color: "#a0a0a0" }}>{subtitle}</div>}
     </button>
   );
 }
@@ -664,7 +664,7 @@ export default function MobileSettings({ isPremium = false, onUpgrade }) {
         <div className="space-y-7">
           <div>
             <SectionLabel>Risk Tolerance</SectionLabel>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="flex flex-col gap-2">
               {[
                 { value: "conservative", label: "Conservative" },
                 { value: "moderate", label: "Moderate" },
