@@ -1,4 +1,4 @@
-NOimport { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Hero } from "./Hero"
 import { ValueProps } from "./ValueProps"
 import { HowItWorks } from "./HowItWorks"
