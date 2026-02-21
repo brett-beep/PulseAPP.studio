@@ -535,12 +535,15 @@ textarea,
     touch-action: none !important; /* Prevents ALL touch-based scrolling */
   }
 
-  /* Settings — enable iOS rubber-band bounce (doc: cursor-fix-settings-scroll-bounce) */
+  /* Settings — enable iOS rubber-band bounce (doc: cursor-fix-settings-rubberband) */
   .settings-scroll-container,
   .settings-tab-scroll {
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    overscroll-behavior-y: auto; /* ENABLES iOS bounce — 'contain' disables it */
+    overscroll-behavior-y: auto; /* CRITICAL: 'auto' enables bounce, 'contain' kills it */
+    height: 100%;
+    flex: 1;
+    min-height: 0; /* Required for flex children to scroll */
   }
 
   /* Hide scrollbar on all scrollable containers — native iOS feel */

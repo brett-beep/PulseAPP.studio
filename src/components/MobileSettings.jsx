@@ -271,10 +271,10 @@ export default function MobileSettings({ isPremium = false, onUpgrade }) {
   // Parent content shown underneath when swiping back from sub-page (Prompt F §3)
   const mainSettingsContent = (
     <div
-      className="relative z-10 settings-scroll-container overflow-y-auto"
+      className="relative z-10 settings-scroll-container settings-main-list overflow-y-auto"
       style={{
-        paddingTop: "calc(24px + env(safe-area-inset-top, 0px))",
-        paddingBottom: "calc(20px + env(safe-area-inset-bottom, 0px))",
+        paddingTop: "calc(env(safe-area-inset-top, 0px) + 16px)",
+        paddingBottom: "calc(16px + env(safe-area-inset-bottom, 0px))",
         height: "100%",
       }}
     >
