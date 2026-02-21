@@ -509,7 +509,7 @@ textarea,
   }
 
   #root {
-    height: 100dvh;
+    height: 100svh; /* 100svh = stable small viewport — prevents Home greeting shift when returning from Settings (100dvh changes with URL bar) */
     overflow: hidden;
     display: flex;
     flex-direction: column;

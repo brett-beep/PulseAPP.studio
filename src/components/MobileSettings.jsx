@@ -651,9 +651,10 @@ export default function MobileSettings({ isPremium = false, onUpgrade }) {
   return (
     <div className="relative z-10" style={{ position: "relative", width: "100%", minHeight: "100%" }}>
       {/* MAIN SETTINGS — always rendered */}
+      {/* Always absolute so mainSettingsContent stays the scroll container — preserves scroll on sub-page enter/exit */}
       <div
         style={{
-          position: activePage ? "absolute" : "relative",
+          position: "absolute",
           top: 0,
           left: 0,
           right: 0,
