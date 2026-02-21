@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import StockPicker from "@/components/StockPicker";
+import MobileOnboarding from "@/components/MobileOnboarding";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const steps = [
   { title: "Welcome to PulseApp", subtitle: "Let's personalize your experience", id: "welcome" },
@@ -20,7 +22,13 @@ const interestOptions = [
 ];
 
 export default function OnboardingWizard({ onComplete }) {
+  const isMobile = useIsMobile();
   const [currentStep, setCurrentStep] = useState(0);
+
+  // Mobile: Prompt H full-page onboarding. Desktop: unchanged floating card.
+  if (isMobile) {
+    return <MobileOnboarding onComplete={onComplete} />;
+  }
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [preferences, setPreferences] = useState({
     display_name: '',

@@ -1086,6 +1086,34 @@ textarea,
     color: rgb(251 191 36);
     background: rgba(251, 191, 36, 0.12);
   }
+
+  /* Prompt H — Mobile onboarding + pre-gen (MOBILE ONLY) */
+  @keyframes mobileOnboardingFadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes mobileBtnBreathe {
+    0%, 100% {
+      box-shadow: 0 8px 32px rgba(224,112,40,0.25),
+                  0 2px 8px rgba(224,112,40,0.1),
+                  inset 0 1.5px 1px rgba(255,255,255,0.3);
+    }
+    50% {
+      box-shadow: 0 12px 48px rgba(224,112,40,0.4),
+                  0 4px 16px rgba(224,112,40,0.2),
+                  0 0 60px rgba(224,112,40,0.08),
+                  inset 0 1.5px 1px rgba(255,255,255,0.3);
+    }
+  }
+  .mobile-onboarding-root button:active,
+  .mobile-onboarding-root .mobile-onboarding-btn:active,
+  .mobile-onboarding-root .mobile-onboarding-chip:active {
+    transform: scale(0.96) !important;
+    transition: transform 60ms ease-out !important;
+  }
+  .mobile-gen-btn-breathe {
+    animation: mobileBtnBreathe 3s ease-in-out infinite;
+  }
 }
 
 /* Dark mode: Settings page selected-state overrides */

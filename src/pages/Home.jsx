@@ -1328,13 +1328,14 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
                     }}
                   >
                     <div
+                      className="mobile-pre-gen-center"
                       style={{
                         display: "flex",
                         flexDirection: "column",
                         alignItems: "center",
                         width: "100%",
                         padding: "0 24px",
-                        marginTop: "-20px",
+                        marginTop: "-30px",
                       }}
                     >
                       {audioPlayerBlock}
