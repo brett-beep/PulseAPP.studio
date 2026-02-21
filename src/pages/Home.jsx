@@ -1332,10 +1332,13 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
                       style={{
                         display: "flex",
                         flexDirection: "column",
+                        justifyContent: "center",
                         alignItems: "center",
-                        width: "100%",
-                        padding: "0 24px",
+                        flex: 1,
                         marginTop: "-30px",
+                        textAlign: "center",
+                        padding: "0 32px",
+                        width: "100%",
                       }}
                     >
                       {audioPlayerBlock}

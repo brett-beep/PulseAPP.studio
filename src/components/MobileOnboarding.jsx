@@ -171,21 +171,19 @@ export default function MobileOnboarding({ onComplete }) {
 
       <footer style={styles.footer}>
         {step > 0 ? (
-          <motion.button
+          <button
             type="button"
             onClick={goBack}
             disabled={isSubmitting}
             style={styles.backBtn}
             className="mobile-onboarding-btn"
-            whileTap={{ scale: 0.96 }}
-            transition={{ type: "spring", stiffness: 400, damping: 22 }}
           >
             ← Back
-          </motion.button>
+          </button>
         ) : (
           <div style={{ width: 1 }} />
         )}
-        <motion.button
+        <button
           type="button"
           onClick={goNext}
           disabled={isSubmitting || !canContinue}
@@ -194,11 +192,9 @@ export default function MobileOnboarding({ onComplete }) {
             opacity: !canContinue ? 0.5 : 1,
           }}
           className="mobile-onboarding-btn"
-          whileTap={{ scale: 0.96 }}
-          transition={{ type: "spring", stiffness: 400, damping: 22 }}
         >
           {isSubmitting ? "Completing..." : isLastStep ? "Finish →" : "Continue →"}
-        </motion.button>
+        </button>
       </footer>
     </div>
   );
@@ -228,7 +224,7 @@ function GoalsStep({ goals, selected, toggle }) {
       <p style={styles.hint}>Select all that apply</p>
       <div style={styles.chipGrid}>
         {goals.map((g, i) => (
-          <motion.button
+          <button
             key={g.label}
             type="button"
             onClick={() => toggle(g.label)}
@@ -238,12 +234,10 @@ function GoalsStep({ goals, selected, toggle }) {
               animationDelay: `${i * 60}ms`,
             }}
             className="mobile-onboarding-chip"
-            whileTap={{ scale: 0.97 }}
-            transition={{ type: "spring", stiffness: 400, damping: 22 }}
           >
             <span style={{ fontSize: 20 }}>{g.icon}</span>
             <span style={{ fontSize: 14, fontWeight: 500 }}>{g.label}</span>
-          </motion.button>
+          </button>
         ))}
       </div>
     </div>
@@ -256,7 +250,7 @@ function RiskStep({ risks, selected, setSelected }) {
       <label style={styles.label}>How comfortable are you with risk?</label>
       <div style={styles.riskStack}>
         {risks.map((r, i) => (
-          <motion.button
+          <button
             key={r.value}
             type="button"
             onClick={() => setSelected(r.value)}
@@ -266,8 +260,6 @@ function RiskStep({ risks, selected, setSelected }) {
               animationDelay: `${i * 80}ms`,
             }}
             className="mobile-onboarding-chip"
-            whileTap={{ scale: 0.98 }}
-            transition={{ type: "spring", stiffness: 400, damping: 22 }}
           >
             <span style={{ fontSize: 28 }}>{r.icon}</span>
             <div style={{ textAlign: "left", flex: 1 }}>
@@ -276,7 +268,7 @@ function RiskStep({ risks, selected, setSelected }) {
               </div>
               <div style={{ fontSize: 13, color: "#999", marginTop: 2 }}>{r.desc}</div>
             </div>
-          </motion.button>
+          </button>
         ))}
       </div>
     </div>
@@ -290,7 +282,7 @@ function SectorsStep({ sectors, selected, toggle }) {
       <p style={styles.hint}>Select all that apply</p>
       <div style={styles.sectorWrap}>
         {sectors.map((s, i) => (
-          <motion.button
+          <button
             key={s}
             type="button"
             onClick={() => toggle(s)}
@@ -300,12 +292,10 @@ function SectorsStep({ sectors, selected, toggle }) {
               animationDelay: `${i * 40}ms`,
             }}
             className="mobile-onboarding-chip"
-            whileTap={{ scale: 0.97 }}
-            transition={{ type: "spring", stiffness: 400, damping: 22 }}
           >
             {selected.includes(s) && <span style={{ fontSize: 12 }}>✓ </span>}
             {s}
-          </motion.button>
+          </button>
         ))}
       </div>
     </div>

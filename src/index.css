@@ -1105,14 +1105,45 @@ textarea,
                   inset 0 1.5px 1px rgba(255,255,255,0.3);
     }
   }
-  .mobile-onboarding-root button:active,
+  @keyframes btnBreathe {
+    0%, 100% {
+      box-shadow:
+        0 8px 32px rgba(224,112,40,0.25),
+        0 2px 8px rgba(224,112,40,0.1),
+        inset 0 1.5px 1px rgba(255,255,255,0.3);
+    }
+    50% {
+      box-shadow:
+        0 14px 52px rgba(224,112,40,0.45),
+        0 6px 20px rgba(224,112,40,0.25),
+        0 0 80px rgba(224,112,40,0.1),
+        inset 0 1.5px 1px rgba(255,255,255,0.3);
+    }
+  }
+  /* Smooth press — same as Settings (no flash, no overshoot) */
+  .mobile-onboarding-root .mobile-onboarding-btn,
+  .mobile-onboarding-root .mobile-onboarding-chip {
+    transition: transform 120ms ease-out;
+    -webkit-tap-highlight-color: transparent;
+  }
   .mobile-onboarding-root .mobile-onboarding-btn:active,
   .mobile-onboarding-root .mobile-onboarding-chip:active {
-    transform: scale(0.97) !important;
-    transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+    transform: scale(0.97);
   }
   .mobile-gen-btn-breathe {
     animation: mobileBtnBreathe 3s ease-in-out infinite;
+  }
+  .generate-briefing-btn {
+    animation: btnBreathe 3s ease-in-out infinite;
+    box-shadow: 0 8px 32px rgba(224,112,40,0.3), inset 0 1.5px 1px rgba(255,255,255,0.3);
+  }
+  .generate-briefing-btn-disabled {
+    animation: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  }
+  .generate-briefing-btn:active {
+    transform: scale(0.96);
+    transition: transform 60ms ease-out;
   }
 
   /* StockPicker inside mobile onboarding — match warm beige style */

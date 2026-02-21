@@ -495,36 +495,35 @@ export default function AudioPlayer({
       <div className={`relative z-10 ${isMobileView && isPreGen ? "flex-1 flex flex-col" : ""} ${isMobileView && !isPreGen ? "audio-player-mobile" : ""}`}>
         {/* ── MOBILE PRE-GEN: centered welcome screen ── */}
         {isMobileView && isPreGen ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-center -mt-4">
-            <p className="text-slate-500/80 text-[10px] font-medium tracking-wider uppercase mb-2">
+          <div className="flex-1 flex flex-col items-center justify-center text-center w-full">
+            <div style={{ fontSize: 12, fontWeight: 500, color: "#999", letterSpacing: "0.08em", marginBottom: 6 }}>
               {currentDate}
-            </p>
-            <p style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 300, letterSpacing: '0.15em' }}>
-              <span className="text-slate-800/90 uppercase text-sm">{greeting},</span>
-              <br />
-              <span className="font-semibold text-slate-900 normal-case text-[3.2rem] leading-none inline-block mt-2" style={{ fontFamily: "'Italianno', 'Sacramento', cursive", letterSpacing: '0.05em', fontWeight: 400 }}>
-                {userName}
-              </span>
-            </p>
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 500, color: "#666", letterSpacing: "0.15em", marginBottom: 4 }}>
+              {greeting.toUpperCase()},
+            </div>
+            <div style={{ fontSize: 42, fontFamily: "'Georgia', serif", fontStyle: "italic", color: "#1a1a1a", marginBottom: 24 }}>
+              {userName}
+            </div>
+            <div style={{ fontSize: 13, color: "#e07028", fontWeight: 500, marginBottom: 16 }}>
+              {briefingCount} of 3 briefings today
+            </div>
 
-            <div className="w-full mt-10 px-2">
-              <p className="text-[13px] font-medium mb-3" style={{ color: "#e07028" }}>{briefingCount} of 3 briefings today</p>
+            <div className="w-full max-w-[320px] mx-auto">
               <button
                 type="button"
                 onClick={canGenerateNew ? onGenerate : undefined}
                 disabled={isButtonDisabled}
-                className={`mobile-gen-btn w-full max-w-[320px] mx-auto py-[18px] px-8 text-[16px] font-semibold relative overflow-hidden ${isButtonDisabled ? "cursor-not-allowed" : "cursor-pointer mobile-gen-btn-breathe active:scale-[0.97]"} transition-transform`}
+                className={`generate-briefing-btn w-full py-[18px] px-8 text-[16px] font-semibold relative overflow-hidden ${isButtonDisabled ? "cursor-not-allowed generate-briefing-btn-disabled" : "cursor-pointer"}`}
                 style={{
-                  borderRadius: "999px",
+                  borderRadius: 999,
                   background: isButtonDisabled
                     ? "linear-gradient(135deg, rgba(180, 180, 180, 0.6), rgba(150, 150, 150, 0.7))"
                     : "linear-gradient(160deg, #f5a05a 0%, #e07028 35%, #c85d1e 100%)",
                   border: "none",
-                  boxShadow: isButtonDisabled
-                    ? "0 4px 12px rgba(0, 0, 0, 0.1)"
-                    : "0 8px 32px rgba(224, 112, 40, 0.3), inset 0 1.5px 1px rgba(255, 255, 255, 0.3)",
                   color: isButtonDisabled ? "rgba(255, 255, 255, 0.8)" : "white",
                   fontFamily: "'DM Sans', sans-serif",
+                  WebkitTapHighlightColor: "transparent",
                 }}
               >
                 {getButtonText()}
