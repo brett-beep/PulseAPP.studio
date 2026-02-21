@@ -271,10 +271,10 @@ export default function MobileSettings({ isPremium = false, onUpgrade }) {
   // Parent content shown underneath when swiping back from sub-page (Prompt F §3)
   const mainSettingsContent = (
     <div
-      className="relative z-10 overflow-y-auto"
+      className="relative z-10 settings-scroll-container overflow-y-auto"
       style={{
         paddingTop: "calc(24px + env(safe-area-inset-top, 0px))",
-        paddingBottom: "calc(84px + env(safe-area-inset-bottom, 0px))",
+        paddingBottom: "calc(20px + env(safe-area-inset-bottom, 0px))",
         height: "100%",
       }}
     >
@@ -377,7 +377,7 @@ export default function MobileSettings({ isPremium = false, onUpgrade }) {
           <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18, fontWeight: 500 }}>{title}</span>
         </header>
 
-        <div className="flex-1 overflow-y-auto settings-sub-page" style={{ WebkitOverflowScrolling: "touch" }}>
+        <div className="flex-1 settings-sub-page overflow-hidden" style={{ overflowY: "hidden" }}>
           <div className="px-5 py-5 settings-sub-content" style={{ paddingBottom: "calc(120px + env(safe-area-inset-bottom, 0px))" }}>
             {page === "account" && (
               <div className="space-y-6">

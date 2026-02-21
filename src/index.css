@@ -535,6 +535,14 @@ textarea,
     touch-action: none !important; /* Prevents ALL touch-based scrolling */
   }
 
+  /* Settings — enable iOS rubber-band bounce (doc: cursor-fix-settings-scroll-bounce) */
+  .settings-scroll-container,
+  .settings-tab-scroll {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: auto; /* ENABLES iOS bounce — 'contain' disables it */
+  }
+
   /* Hide scrollbar on all scrollable containers — native iOS feel */
   .tab-content-area::-webkit-scrollbar {
     display: none;
@@ -949,11 +957,8 @@ textarea,
     transition: transform 60ms ease-out, opacity 60ms ease-out !important;
   }
 
-  /* §4 (Prompt F): Settings sub-page — ensure save button visible above tab bar */
-  .settings-sub-page,
-  .settings-sub-content,
-  [class*="SubPage"],
-  [class*="subpage"] {
+  /* §4 (Prompt F): Settings sub-pages with save button — extra padding for tab bar clearance (main settings list excluded) */
+  .settings-sub-content {
     padding-bottom: calc(120px + env(safe-area-inset-bottom, 0px)) !important;
   }
 

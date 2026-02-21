@@ -1298,8 +1298,12 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
                     key="tab-home"
                     className="tab-content-area tab-content-area-no-scroll px-6 relative z-10 mobile-tab-content"
                     style={{
-                      paddingTop: "calc(12px + env(safe-area-inset-top, 0px))",
-                      paddingBottom: "calc(84px + env(safe-area-inset-bottom, 0px))",
+                      position: "absolute",
+                      inset: 0,
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: "calc(84px + env(safe-area-inset-bottom, 0px))",
                       display: "flex",
                       flexDirection: "column",
                       justifyContent: "center",
@@ -1311,15 +1315,19 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
                   </main>
                 );
               }
-              /* §2: Pre-gen — true dead center with perceptual nudge */
+              /* §2: Pre-gen — dead center, isolated from other tabs' scroll */
               if (isPreGenHome) {
                 return (
                   <main
                     key="tab-home"
                     className="tab-content-area tab-content-area-no-scroll px-6 relative z-10 mobile-tab-content"
                     style={{
-                      paddingTop: "env(safe-area-inset-top, 0px)",
-                      paddingBottom: "calc(84px + env(safe-area-inset-bottom, 0px))",
+                      position: "absolute",
+                      inset: 0,
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: "calc(84px + env(safe-area-inset-bottom, 0px))",
                       display: "flex",
                       flexDirection: "column",
                       justifyContent: "center",
@@ -1335,10 +1343,10 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
                         justifyContent: "center",
                         alignItems: "center",
                         flex: 1,
-                        marginTop: "-30px",
                         textAlign: "center",
                         padding: "0 32px",
                         width: "100%",
+                        minHeight: 0,
                       }}
                     >
                       {audioPlayerBlock}
@@ -1400,7 +1408,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
             )}
 
             {mobileTab === "settings" && (
-              <div key="tab-settings" className="tab-content-area scrollable-tab-content mobile-tab-content flex-1 min-h-0 flex flex-col relative z-[2]">
+              <div key="tab-settings" className="tab-content-area scrollable-tab-content settings-tab-scroll mobile-tab-content flex-1 min-h-0 flex flex-col relative z-[2]">
                 <MobileSettings
                   isPremium={isPremium}
                   onUpgrade={() => setShowUpgradeModal(true)}
