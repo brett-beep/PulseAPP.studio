@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import StockPicker from "@/components/StockPicker";
 
 const STEPS = [
   { id: "name", title: "Welcome to PulseApp", subtitle: "Let's personalize your experience", progress: 1 },
@@ -29,17 +30,6 @@ const RISKS = [
 const SECTORS = [
   "Technology", "Healthcare", "Finance", "Energy", "Industrials", "Consumer",
   "Real Estate", "Crypto", "ETFs", "Commodities", "ESG/Sustainable",
-];
-
-const SUGGESTED_TICKERS = [
-  { symbol: "AAPL", name: "Apple" },
-  { symbol: "MSFT", name: "Microsoft" },
-  { symbol: "GOOGL", name: "Alphabet" },
-  { symbol: "AMZN", name: "Amazon" },
-  { symbol: "NVDA", name: "Nvidia" },
-  { symbol: "META", name: "Meta" },
-  { symbol: "TSLA", name: "Tesla" },
-  { symbol: "JPM", name: "JPMorgan" },
 ];
 
 export default function MobileOnboarding({ onComplete }) {
@@ -181,19 +171,21 @@ export default function MobileOnboarding({ onComplete }) {
 
       <footer style={styles.footer}>
         {step > 0 ? (
-          <button
+          <motion.button
             type="button"
             onClick={goBack}
             disabled={isSubmitting}
             style={styles.backBtn}
             className="mobile-onboarding-btn"
+            whileTap={{ scale: 0.96 }}
+            transition={{ type: "spring", stiffness: 400, damping: 22 }}
           >
             ← Back
-          </button>
+          </motion.button>
         ) : (
           <div style={{ width: 1 }} />
         )}
-        <button
+        <motion.button
           type="button"
           onClick={goNext}
           disabled={isSubmitting || !canContinue}
@@ -202,9 +194,11 @@ export default function MobileOnboarding({ onComplete }) {
             opacity: !canContinue ? 0.5 : 1,
           }}
           className="mobile-onboarding-btn"
+          whileTap={{ scale: 0.96 }}
+          transition={{ type: "spring", stiffness: 400, damping: 22 }}
         >
           {isSubmitting ? "Completing..." : isLastStep ? "Finish →" : "Continue →"}
-        </button>
+        </motion.button>
       </footer>
     </div>
   );
@@ -234,7 +228,7 @@ function GoalsStep({ goals, selected, toggle }) {
       <p style={styles.hint}>Select all that apply</p>
       <div style={styles.chipGrid}>
         {goals.map((g, i) => (
-          <button
+          <motion.button
             key={g.label}
             type="button"
             onClick={() => toggle(g.label)}
@@ -244,10 +238,12 @@ function GoalsStep({ goals, selected, toggle }) {
               animationDelay: `${i * 60}ms`,
             }}
             className="mobile-onboarding-chip"
+            whileTap={{ scale: 0.97 }}
+            transition={{ type: "spring", stiffness: 400, damping: 22 }}
           >
             <span style={{ fontSize: 20 }}>{g.icon}</span>
             <span style={{ fontSize: 14, fontWeight: 500 }}>{g.label}</span>
-          </button>
+          </motion.button>
         ))}
       </div>
     </div>
@@ -260,7 +256,7 @@ function RiskStep({ risks, selected, setSelected }) {
       <label style={styles.label}>How comfortable are you with risk?</label>
       <div style={styles.riskStack}>
         {risks.map((r, i) => (
-          <button
+          <motion.button
             key={r.value}
             type="button"
             onClick={() => setSelected(r.value)}
@@ -270,6 +266,8 @@ function RiskStep({ risks, selected, setSelected }) {
               animationDelay: `${i * 80}ms`,
             }}
             className="mobile-onboarding-chip"
+            whileTap={{ scale: 0.98 }}
+            transition={{ type: "spring", stiffness: 400, damping: 22 }}
           >
             <span style={{ fontSize: 28 }}>{r.icon}</span>
             <div style={{ textAlign: "left", flex: 1 }}>
@@ -278,7 +276,7 @@ function RiskStep({ risks, selected, setSelected }) {
               </div>
               <div style={{ fontSize: 13, color: "#999", marginTop: 2 }}>{r.desc}</div>
             </div>
-          </button>
+          </motion.button>
         ))}
       </div>
     </div>
@@ -292,7 +290,7 @@ function SectorsStep({ sectors, selected, toggle }) {
       <p style={styles.hint}>Select all that apply</p>
       <div style={styles.sectorWrap}>
         {sectors.map((s, i) => (
-          <button
+          <motion.button
             key={s}
             type="button"
             onClick={() => toggle(s)}
@@ -302,10 +300,12 @@ function SectorsStep({ sectors, selected, toggle }) {
               animationDelay: `${i * 40}ms`,
             }}
             className="mobile-onboarding-chip"
+            whileTap={{ scale: 0.97 }}
+            transition={{ type: "spring", stiffness: 400, damping: 22 }}
           >
             {selected.includes(s) && <span style={{ fontSize: 12 }}>✓ </span>}
             {s}
-          </button>
+          </motion.button>
         ))}
       </div>
     </div>
@@ -313,89 +313,29 @@ function SectorsStep({ sectors, selected, toggle }) {
 }
 
 function PortfolioStep({ preferences, setPreferences }) {
-  const [ticker, setTicker] = useState("");
   const tickers = preferences.portfolio_holdings || [];
-  const addTicker = () => {
-    const t = ticker.trim().toUpperCase();
-    if (t && tickers.length < 3 && !tickers.includes(t)) {
-      setPreferences((p) => ({ ...p, portfolio_holdings: [...tickers, t] }));
-      setTicker("");
-    }
-  };
-  const removeTicker = (t) => {
-    setPreferences((p) => ({
-      ...p,
-      portfolio_holdings: tickers.filter((x) => x !== t),
-    }));
-  };
-  const addSuggested = (symbol) => {
-    if (!tickers.includes(symbol) && tickers.length < 3) {
-      setPreferences((p) => ({ ...p, portfolio_holdings: [...tickers, symbol] }));
-    }
-  };
 
   return (
     <div style={styles.stepContent}>
       <label style={styles.label}>Add stocks to track</label>
-      <p style={styles.hint}>Free plan: up to 3 tickers</p>
-      <div style={styles.portfolioRow}>
-        <input
-          type="text"
-          value={ticker}
-          onChange={(e) => setTicker(e.target.value.toUpperCase())}
-          placeholder="e.g. AAPL"
-          style={{ ...styles.input, flex: 1, marginTop: 0 }}
-          onKeyDown={(e) => e.key === "Enter" && addTicker()}
+      <p style={styles.hint}>Free plan: up to 3 tickers. Search by symbol or company name.</p>
+      <div className="mobile-onboarding-stock-picker">
+        <StockPicker
+          selectedStocks={tickers}
+          onAdd={(sym) =>
+            setPreferences((p) => ({
+              ...p,
+              portfolio_holdings: [...(p.portfolio_holdings || []), sym],
+            }))
+          }
+          onRemove={(sym) =>
+            setPreferences((p) => ({
+              ...p,
+              portfolio_holdings: (p.portfolio_holdings || []).filter((x) => x !== sym),
+            }))
+          }
+          maxStocks={3}
         />
-        <button
-          type="button"
-          onClick={addTicker}
-          style={styles.addBtn}
-          className="mobile-onboarding-btn"
-        >
-          Add
-        </button>
-      </div>
-
-      {tickers.length > 0 && (
-        <div style={styles.tickerTags}>
-          {tickers.map((t) => (
-            <div key={t} style={styles.tickerTag}>
-              <span style={{ fontWeight: 600 }}>{t}</span>
-              <button
-                type="button"
-                onClick={() => removeTicker(t)}
-                style={styles.removeBtn}
-                aria-label={`Remove ${t}`}
-              >
-                ×
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div style={{ marginTop: 24 }}>
-        <p style={styles.popularHeader}>Popular stocks</p>
-        <div style={styles.suggestedWrap}>
-          {SUGGESTED_TICKERS.filter((s) => !tickers.includes(s.symbol)).map((s, i) => (
-            <button
-              key={s.symbol}
-              type="button"
-              onClick={() => addSuggested(s.symbol)}
-              disabled={tickers.length >= 3}
-              style={{
-                ...styles.suggestedChip,
-                opacity: tickers.length >= 3 ? 0.4 : 1,
-                animationDelay: `${i * 40}ms`,
-              }}
-              className="mobile-onboarding-chip"
-            >
-              <span style={{ fontWeight: 600, color: "#222" }}>{s.symbol}</span>
-              <span style={{ fontSize: 12, color: "#999" }}>{s.name}</span>
-            </button>
-          ))}
-        </div>
       </div>
     </div>
   );

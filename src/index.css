@@ -1108,11 +1108,19 @@ textarea,
   .mobile-onboarding-root button:active,
   .mobile-onboarding-root .mobile-onboarding-btn:active,
   .mobile-onboarding-root .mobile-onboarding-chip:active {
-    transform: scale(0.96) !important;
-    transition: transform 60ms ease-out !important;
+    transform: scale(0.97) !important;
+    transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
   }
   .mobile-gen-btn-breathe {
     animation: mobileBtnBreathe 3s ease-in-out infinite;
+  }
+
+  /* StockPicker inside mobile onboarding — match warm beige style */
+  .mobile-onboarding-stock-picker input {
+    border: 1.5px solid rgba(0,0,0,0.08) !important;
+    border-radius: 14px !important;
+    background: rgba(255,255,255,0.7) !important;
+    font-size: 16px !important;
   }
 }
 
