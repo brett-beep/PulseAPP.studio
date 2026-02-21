@@ -439,7 +439,7 @@ export default function AudioPlayer({
               </motion.p>
             )}
           </AnimatePresence>
-          <p className="text-slate-400 text-[11px]">Usually takes 60–90 seconds</p>
+          <p className="text-slate-400 text-[11px]">Usually takes 45–60 seconds</p>
         </motion.div>
       )}
 
@@ -1050,7 +1050,7 @@ export default function AudioPlayer({
               exit={{ opacity: 0, y: -10 }}
               className="text-center mt-6 md:mt-8 audio-player-gen-row"
             >
-              <p className="text-slate-500 text-xs">Your briefing is being created — usually takes 60–90 seconds.</p>
+              <p className="text-slate-500 text-xs">Your briefing is being created — usually takes 45–60 seconds.</p>
             </motion.div>
           ) : (
             <motion.div

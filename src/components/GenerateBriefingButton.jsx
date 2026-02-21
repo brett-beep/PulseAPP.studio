@@ -55,7 +55,7 @@ export default function GenerateBriefingButton({ onGenerate, isGenerating, hasEx
             
             {isGenerating && (
                 <p className="text-sm text-slate-500">
-                    This usually takes 60–90 seconds. Hang tight!
+                    This usually takes 45–60 seconds. Hang tight!
                 </p>
             )}
         </motion.div>

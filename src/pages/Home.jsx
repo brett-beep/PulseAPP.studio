@@ -75,7 +75,7 @@ function GeneratingAnimation({ statusLabel }) {
         className="text-center mt-1"
         style={{ fontSize: 12, color: "#bbb" }}
       >
-        Usually takes 60–90 seconds
+        Usually takes 45–60 seconds
       </p>
     </div>
   );
