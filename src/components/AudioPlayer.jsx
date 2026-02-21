@@ -43,6 +43,7 @@ export default function AudioPlayer({
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
   const [showControls, setShowControls] = useState(false);
+  const [glassBtnPressed, setGlassBtnPressed] = useState(false);
   const [infoCardExpanded, setInfoCardExpanded] = useState(false);
   const [frequencyData, setFrequencyData] = useState(() => Array(48).fill(0.3));
 
@@ -511,24 +512,60 @@ export default function AudioPlayer({
             </p>
 
             <div className="w-full max-w-[320px] mx-auto">
-              <button
-                type="button"
-                onClick={canGenerateNew ? onGenerate : undefined}
-                disabled={isButtonDisabled}
-                className={`generate-briefing-btn w-full py-[18px] px-8 text-[16px] font-semibold relative overflow-hidden ${isButtonDisabled ? "cursor-not-allowed generate-briefing-btn-disabled" : "cursor-pointer"}`}
+              <div
+                role="button"
+                tabIndex={isButtonDisabled ? -1 : 0}
+                aria-disabled={isButtonDisabled}
+                onKeyDown={(e) => { if (!isButtonDisabled && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onGenerate?.(); } }}
+                onPointerDown={() => !isButtonDisabled && setGlassBtnPressed(true)}
+                onPointerUp={() => {
+                  setGlassBtnPressed(false);
+                  if (!isButtonDisabled) onGenerate?.();
+                }}
+                onPointerLeave={() => setGlassBtnPressed(false)}
+                className={isButtonDisabled ? "generate-glass-wrap generate-glass-wrap-disabled" : "generate-glass-wrap"}
                 style={{
-                  borderRadius: 999,
-                  background: isButtonDisabled
-                    ? "linear-gradient(135deg, rgba(180, 180, 180, 0.6), rgba(150, 150, 150, 0.7))"
-                    : "linear-gradient(160deg, #f5a05a 0%, #e07028 35%, #c85d1e 100%)",
-                  border: "none",
-                  color: isButtonDisabled ? "rgba(255, 255, 255, 0.8)" : "white",
-                  fontFamily: "'DM Sans', sans-serif",
+                  position: "relative",
+                  cursor: isButtonDisabled ? "not-allowed" : "pointer",
                   WebkitTapHighlightColor: "transparent",
+                  transform: glassBtnPressed && !isButtonDisabled ? "scale(0.96)" : "scale(1)",
+                  transition: glassBtnPressed ? "transform 80ms ease-out" : "transform 500ms cubic-bezier(0.34, 1.56, 0.64, 1)",
                 }}
               >
-                {getButtonText()}
-              </button>
+                <div className="generate-glass-rotating-border" />
+                <div className="generate-glass-shadow" />
+                <div className="generate-glass-btn">
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 1,
+                      left: "15%",
+                      right: "15%",
+                      height: "40%",
+                      background: "linear-gradient(180deg, rgba(255,235,215,0.35) 0%, rgba(255,240,220,0) 100%)",
+                      borderRadius: "999px 999px 60% 60%",
+                      zIndex: 3,
+                      pointerEvents: "none",
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: "absolute",
+                      bottom: 0,
+                      left: "5%",
+                      right: "5%",
+                      height: "30%",
+                      background: "linear-gradient(0deg, rgba(200,150,100,0.04) 0%, transparent 100%)",
+                      borderRadius: "50% 50% 999px 999px",
+                      zIndex: 3,
+                      pointerEvents: "none",
+                    }}
+                  />
+                  <span className="generate-glass-btn-text" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                    {getButtonText()}
+                  </span>
+                </div>
+              </div>
               {timeUntilNextBriefing && timeUntilNextBriefing !== "Daily limit reached" && (
                 <p className="flex items-center justify-center gap-1.5 text-slate-500 text-xs mt-3">
                   <Clock className="h-3 w-3" />
