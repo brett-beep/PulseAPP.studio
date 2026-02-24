@@ -3937,15 +3937,15 @@ Deno.serve(async (req) => {
     };
 
     const meta = rawIntelligence.metadata;
-    console.log(`\n🧪 [Stage 1D TEST] Raw Intelligence Package built:`);
-    console.log(`📅 [Stage 1D] Upcoming events: ${earningsCalendar.length} earnings, ${economicCalendar.length} economic (static US)`);
-    console.log(`   generated_at: ${rawIntelligence.generated_at}`);
-    console.log(`   user: "${userName}" | interests: ${userInterests.length} | holdings: ${briefingTickers.length}`);
-    console.log(`   ticker_packages: ${meta.ticker_count} (strong=${meta.tickers_with_strong_coverage}, moderate=${meta.tickers_with_moderate_coverage}, thin=${meta.tickers_with_thin_coverage}, none=${meta.tickers_with_no_coverage})`);
-    console.log(`   total_ticker_articles: ${meta.total_ticker_articles} (avg ${meta.avg_articles_per_ticker}/ticker, ${meta.direct_article_pct}% direct)`);
-    console.log(`   macro_candidates: ${meta.macro_candidate_count}`);
-    console.log(`   pipeline_duration: ${meta.pipeline_duration_ms}ms`);
-    console.log(""); // blank line separator
+    console.log("\n🧪 [Stage 1D TEST] Raw Intelligence Package built:");
+    console.log("📅 [Stage 1D] Upcoming events:", earningsCalendar.length, "earnings,", economicCalendar.length, "economic (static US)");
+    console.log("   generated_at:", rawIntelligence.generated_at);
+    console.log("   user:", userName, "| interests:", userInterests.length, "| holdings:", briefingTickers.length);
+    console.log("   ticker_packages:", meta.ticker_count, "(strong=" + meta.tickers_with_strong_coverage + ", moderate=" + meta.tickers_with_moderate_coverage + ", thin=" + meta.tickers_with_thin_coverage + ", none=" + meta.tickers_with_no_coverage + ")");
+    console.log("   total_ticker_articles:", meta.total_ticker_articles, "(avg", meta.avg_articles_per_ticker + "/ticker,", meta.direct_article_pct + "% direct)");
+    console.log("   macro_candidates:", meta.macro_candidate_count);
+    console.log("   pipeline_duration:", meta.pipeline_duration_ms + "ms");
+    console.log("");
 
     // =========================================================
     // STAGE 2: THE ANALYST DESK (LLM Call)
