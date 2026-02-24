@@ -3,7 +3,6 @@
 // Adding this line V4 ________________ to manually redeploy on Base44
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
 import { en as numToWords } from "npm:n2words@3.1.0";
-
 // ─── Inlined from staticEconomicCalendar.ts (Base44: no cross-file imports) ───
 type StaticEconomicEvent = { event: string; date: string; country?: string; impact?: string; previous?: string; estimate?: string; unit?: string };
 type EconomicEventForBriefing = StaticEconomicEvent & { within_3_business_days: boolean; business_days_until?: number };
