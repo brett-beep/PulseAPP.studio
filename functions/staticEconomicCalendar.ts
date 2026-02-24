@@ -20,7 +20,10 @@ export type StaticEconomicEvent = {
   unit?: string;
 };
 
-export type EconomicEventForBriefing = StaticEconomicEvent & { within_3_business_days: boolean };
+export type EconomicEventForBriefing = StaticEconomicEvent & {
+  within_3_business_days: boolean;
+  business_days_until?: number; // 0 = today, 1 = next business day, etc.; lets prompt reason about "this week" vs "next week"
+};
 
 /**
  * Predetermined US events that matter most to retail investors.
@@ -145,7 +148,7 @@ export function getUpcomingEconomicEvents(): EconomicEventForBriefing[] {
     const businessDaysUntil = getBusinessDaysUntil(today, eventDate);
     const within_3_business_days = businessDaysUntil >= 0 && businessDaysUntil <= 3;
 
-    result.push({ ...e, within_3_business_days });
+    result.push({ ...e, within_3_business_days, business_days_until: businessDaysUntil });
   }
 
   return result.sort((a, b) => a.date.localeCompare(b.date));

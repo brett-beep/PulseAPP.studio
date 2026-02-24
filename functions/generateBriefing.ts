@@ -2188,7 +2188,7 @@ interface RawIntelligencePackage {
   /** Set when Stage 1 calendar fetch runs (earnings + economic). Optional for backward compatibility. */
   upcoming_events?: {
     earnings: Array<{ ticker: string; date: string; estimated_eps?: number; quarter?: number; year?: number; hour?: string }>;
-    economic: Array<{ event: string; date: string; country?: string; impact?: string; previous?: string; estimate?: string; unit?: string; within_3_business_days?: boolean }>;
+    economic: Array<{ event: string; date: string; country?: string; impact?: string; previous?: string; estimate?: string; unit?: string; within_3_business_days?: boolean; business_days_until?: number }>;
   };
   metadata: {
     ticker_count: number;
@@ -2609,8 +2609,9 @@ ${(() => {
     : "";
   const economicBlock = hasEconomic
     ? (earningsBlock ? "\n\n" : "") + "ECONOMIC EVENTS:\n" + (ue.economic || []).map((e: any) => {
+        const daysStr = e.business_days_until != null ? ` (in ${e.business_days_until} business day${e.business_days_until !== 1 ? "s" : ""})` : "";
         const cadence = e.within_3_business_days ? " — ALWAYS mention (within 3 business days)" : " — Mention selectively (before 3-business-day window)";
-        return `${e.date}: ${e.event} [${e.impact || "—"} impact]${cadence}${e.estimate != null ? ` — estimate: ${e.estimate}${e.unit || ""}` : ""}${e.previous != null ? ` (previous: ${e.previous})` : ""}`;
+        return `${e.date}: ${e.event} [${e.impact || "—"} impact]${daysStr}${cadence}${e.estimate != null ? ` — estimate: ${e.estimate}${e.unit || ""}` : ""}${e.previous != null ? ` (previous: ${e.previous})` : ""}`;
       }).join("\n")
     : "";
   return `
@@ -2620,12 +2621,28 @@ UPCOMING EVENTS (structured calendar — use these for watch_items)
 
 ${earningsBlock}${economicBlock}
 
-ECONOMIC EVENTS CADENCE:
-- Within 3 business days of an event: ALWAYS include it in watch_items / What to Watch when relevant (remind every day).
-- Before that window: Mention SELECTIVELY to avoid fatigue — e.g. once per week or on first listen in the window; do not repeat the same event every day. (When user storage exists, mention count will be provided to guide reminders.)
-- If there are no major watch items for the day: Pick the CLOSEST upcoming economic event from the list above and give one light reminder with a brief "why it matters" (e.g. PCE is the Fed's preferred inflation gauge and can move rate expectations). Do not repeat that same reminder every day.
+WATCH ITEMS RANKING (strict — you have exactly 2 slots: primary and secondary):
 
-WATCH ITEMS RULE: Your watch_items selections MUST prioritize events from the calendar data above. These are confirmed, date-certain events. Earnings dates for user holdings are the highest priority. Only add non-calendar watch items if there is a genuinely significant developing story not captured in the calendar.
+1) HARD RULE — Within 3 business days:
+   Any event (earnings or economic) marked "ALWAYS mention (within 3 business days)" MUST get one of the two slots. If multiple events are within 3 business days, use both slots for them (e.g. two earnings = primary + secondary; or one earnings + one economic).
+
+2) IMPORTANCE ORDER (when filling slots):
+   Earnings for user holdings > FOMC / CPI / NFP / PCE / GDP (high-impact economic) > other economic (ISM, Retail Sales, Consumer Confidence) > breaking macro/news not on the calendar.
+   When no earnings need to be mentioned, FOMC or the next high-impact economic can take primary.
+
+3) SECONDARY SLOT — Economic vs. breaking macro:
+   - If an economic event (e.g. CPI, PCE) is within 3 business days, it MUST get a slot (primary or secondary). No exception.
+   - If no economic is within 3 days: prefer "this week" economic (in 4–5 business days) for secondary unless the breaking macro story is clearly major (Fed/policy, big regulatory, geopolitical, or directly about the listener's holdings). For economic "next week or later" (e.g. in 10+ business days), a major macro story may take secondary.
+   - When in doubt, prefer the closer economic event so the listener gets a clear "what's coming" reminder.
+
+4) TWO EARNINGS IN WINDOW:
+   If two or more holdings have earnings within 3 business days (e.g. NVDA and AMZN), use BOTH slots for those earnings (primary = one, secondary = the other). Do not give a slot to economic in that case when earnings fill both slots.
+
+5) TRULY MAJOR MACRO:
+   If a breaking macro story is clearly more important than a routine calendar event that is far out (e.g. 2 weeks), you may use a slot for that story. Still respect the 3-business-day rule: anything within 3 days must get a slot.
+
+6) FALLBACK:
+   If no major watch items from the calendar, pick the CLOSEST upcoming economic event and give one light reminder with a brief "why it matters". Do not list every economic event — at most 2 items (primary and secondary).
 `;
 })()}
 
