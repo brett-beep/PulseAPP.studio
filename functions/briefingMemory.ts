@@ -1,5 +1,6 @@
 /**
  * Briefing Memory & Story Tracker (Piece 1).
+ * Base44: deployed as standalone function — invoked via base44.functions.invoke("briefingMemory", { userId, briefingDate, analyzedBrief, tickerMarketMap, scriptwriterResult }).
  *
  * REQUIRED BASE44 ENTITIES (create in Base44 dashboard):
  *
@@ -34,6 +35,8 @@
  * - Same-day subsequent briefing: do NOT increment mention_count (intra-day).
  * - 7-day cycle: if first_mentioned is 7+ days ago, reset to new cycle (mention_count = 1, first_mentioned = today).
  */
+
+import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
 
 const STORY_CYCLE_DAYS = 7;
 
@@ -361,3 +364,27 @@ export async function saveBriefingMemoryComplete(
   await recordBriefingDelivery(base44, userId, briefingDate);
   console.log("💾 [Memory] Briefing delivery recorded for", userId, "on", briefingDate);
 }
+
+// ─── Base44 entry: standalone HTTP function (no local imports from other function files) ───
+Deno.serve(async (req) => {
+  try {
+    const base44 = createClientFromRequest(req);
+    const body = await req.json() as { userId?: string; briefingDate?: string; analyzedBrief?: unknown; tickerMarketMap?: unknown; scriptwriterResult?: unknown };
+    const { userId, briefingDate, analyzedBrief, tickerMarketMap, scriptwriterResult } = body;
+    if (!userId || !briefingDate) {
+      return Response.json({ error: "userId and briefingDate required" }, { status: 400 });
+    }
+    await saveBriefingMemoryComplete(
+      base44,
+      userId,
+      briefingDate,
+      (analyzedBrief ?? {}) as Parameters<typeof saveBriefingMemoryComplete>[3],
+      (tickerMarketMap ?? {}) as Parameters<typeof saveBriefingMemoryComplete>[4],
+      scriptwriterResult as Parameters<typeof saveBriefingMemoryComplete>[5]
+    );
+    return Response.json({ success: true });
+  } catch (err) {
+    console.error("⚠️ [briefingMemory] Failed:", err);
+    return Response.json({ error: String((err as Error)?.message ?? err) }, { status: 500 });
+  }
+});

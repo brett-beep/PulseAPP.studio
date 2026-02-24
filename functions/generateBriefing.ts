@@ -3,8 +3,126 @@
 // Adding this line V4 ________________ to manually redeploy on Base44
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
 import { en as numToWords } from "npm:n2words@3.1.0";
-import { getUpcomingEconomicEvents } from "./staticEconomicCalendar.ts";
-import { saveBriefingMemoryComplete } from "./briefingMemory.ts";
+
+// ─── Inlined from staticEconomicCalendar.ts (Base44: no cross-file imports) ───
+type StaticEconomicEvent = { event: string; date: string; country?: string; impact?: string; previous?: string; estimate?: string; unit?: string };
+type EconomicEventForBriefing = StaticEconomicEvent & { within_3_business_days: boolean; business_days_until?: number };
+const ECONOMIC_CALENDAR_US: StaticEconomicEvent[] = [
+  { event: "FOMC meeting", date: "2026-03-17", country: "US", impact: "high" },
+  { event: "FOMC meeting", date: "2026-04-28", country: "US", impact: "high" },
+  { event: "FOMC meeting", date: "2026-06-16", country: "US", impact: "high" },
+  { event: "FOMC meeting", date: "2026-07-28", country: "US", impact: "high" },
+  { event: "FOMC meeting", date: "2026-09-15", country: "US", impact: "high" },
+  { event: "FOMC meeting", date: "2026-10-27", country: "US", impact: "high" },
+  { event: "FOMC meeting", date: "2026-12-08", country: "US", impact: "high" },
+  { event: "CPI (Consumer Price Index)", date: "2026-02-11", country: "US", impact: "high" },
+  { event: "CPI (Consumer Price Index)", date: "2026-03-11", country: "US", impact: "high" },
+  { event: "CPI (Consumer Price Index)", date: "2026-04-10", country: "US", impact: "high" },
+  { event: "CPI (Consumer Price Index)", date: "2026-05-12", country: "US", impact: "high" },
+  { event: "CPI (Consumer Price Index)", date: "2026-06-11", country: "US", impact: "high" },
+  { event: "CPI (Consumer Price Index)", date: "2026-07-11", country: "US", impact: "high" },
+  { event: "CPI (Consumer Price Index)", date: "2026-08-12", country: "US", impact: "high" },
+  { event: "CPI (Consumer Price Index)", date: "2026-09-11", country: "US", impact: "high" },
+  { event: "CPI (Consumer Price Index)", date: "2026-10-11", country: "US", impact: "high" },
+  { event: "CPI (Consumer Price Index)", date: "2026-11-12", country: "US", impact: "high" },
+  { event: "CPI (Consumer Price Index)", date: "2026-12-11", country: "US", impact: "high" },
+  { event: "Non-Farm Payrolls (Employment Situation)", date: "2026-02-06", country: "US", impact: "high" },
+  { event: "Non-Farm Payrolls (Employment Situation)", date: "2026-03-06", country: "US", impact: "high" },
+  { event: "Non-Farm Payrolls (Employment Situation)", date: "2026-04-03", country: "US", impact: "high" },
+  { event: "Non-Farm Payrolls (Employment Situation)", date: "2026-05-01", country: "US", impact: "high" },
+  { event: "Non-Farm Payrolls (Employment Situation)", date: "2026-06-05", country: "US", impact: "high" },
+  { event: "Non-Farm Payrolls (Employment Situation)", date: "2026-07-03", country: "US", impact: "high" },
+  { event: "Non-Farm Payrolls (Employment Situation)", date: "2026-08-07", country: "US", impact: "high" },
+  { event: "Non-Farm Payrolls (Employment Situation)", date: "2026-09-04", country: "US", impact: "high" },
+  { event: "Non-Farm Payrolls (Employment Situation)", date: "2026-10-02", country: "US", impact: "high" },
+  { event: "Non-Farm Payrolls (Employment Situation)", date: "2026-11-06", country: "US", impact: "high" },
+  { event: "Non-Farm Payrolls (Employment Situation)", date: "2026-12-04", country: "US", impact: "high" },
+  { event: "GDP (advance)", date: "2026-04-30", country: "US", impact: "high" },
+  { event: "GDP (advance)", date: "2026-07-30", country: "US", impact: "high" },
+  { event: "GDP (advance)", date: "2026-10-29", country: "US", impact: "high" },
+  { event: "GDP (advance)", date: "2027-01-28", country: "US", impact: "high" },
+  { event: "PCE (Personal Consumption Expenditures)", date: "2026-02-27", country: "US", impact: "high" },
+  { event: "PCE (Personal Consumption Expenditures)", date: "2026-03-27", country: "US", impact: "high" },
+  { event: "PCE (Personal Consumption Expenditures)", date: "2026-04-30", country: "US", impact: "high" },
+  { event: "PCE (Personal Consumption Expenditures)", date: "2026-05-29", country: "US", impact: "high" },
+  { event: "PCE (Personal Consumption Expenditures)", date: "2026-06-27", country: "US", impact: "high" },
+  { event: "PCE (Personal Consumption Expenditures)", date: "2026-07-31", country: "US", impact: "high" },
+  { event: "PCE (Personal Consumption Expenditures)", date: "2026-08-28", country: "US", impact: "high" },
+  { event: "PCE (Personal Consumption Expenditures)", date: "2026-09-30", country: "US", impact: "high" },
+  { event: "PCE (Personal Consumption Expenditures)", date: "2026-10-30", country: "US", impact: "high" },
+  { event: "PCE (Personal Consumption Expenditures)", date: "2026-11-25", country: "US", impact: "high" },
+  { event: "PCE (Personal Consumption Expenditures)", date: "2026-12-23", country: "US", impact: "high" },
+  { event: "Consumer Confidence (Conference Board)", date: "2026-02-25", country: "US", impact: "medium" },
+  { event: "Consumer Confidence (Conference Board)", date: "2026-03-25", country: "US", impact: "medium" },
+  { event: "Consumer Confidence (Conference Board)", date: "2026-04-28", country: "US", impact: "medium" },
+  { event: "Consumer Confidence (Conference Board)", date: "2026-05-27", country: "US", impact: "medium" },
+  { event: "Consumer Confidence (Conference Board)", date: "2026-06-25", country: "US", impact: "medium" },
+  { event: "Consumer Confidence (Conference Board)", date: "2026-07-28", country: "US", impact: "medium" },
+  { event: "Consumer Confidence (Conference Board)", date: "2026-08-26", country: "US", impact: "medium" },
+  { event: "Consumer Confidence (Conference Board)", date: "2026-09-30", country: "US", impact: "medium" },
+  { event: "Consumer Confidence (Conference Board)", date: "2026-10-28", country: "US", impact: "medium" },
+  { event: "Consumer Confidence (Conference Board)", date: "2026-11-25", country: "US", impact: "medium" },
+  { event: "Consumer Confidence (Conference Board)", date: "2026-12-30", country: "US", impact: "medium" },
+  { event: "ISM Manufacturing PMI", date: "2026-02-02", country: "US", impact: "medium" },
+  { event: "ISM Manufacturing PMI", date: "2026-03-02", country: "US", impact: "medium" },
+  { event: "ISM Manufacturing PMI", date: "2026-04-01", country: "US", impact: "medium" },
+  { event: "ISM Manufacturing PMI", date: "2026-05-01", country: "US", impact: "medium" },
+  { event: "ISM Manufacturing PMI", date: "2026-06-02", country: "US", impact: "medium" },
+  { event: "ISM Manufacturing PMI", date: "2026-07-01", country: "US", impact: "medium" },
+  { event: "ISM Manufacturing PMI", date: "2026-08-03", country: "US", impact: "medium" },
+  { event: "ISM Manufacturing PMI", date: "2026-09-01", country: "US", impact: "medium" },
+  { event: "ISM Manufacturing PMI", date: "2026-10-01", country: "US", impact: "medium" },
+  { event: "ISM Manufacturing PMI", date: "2026-11-02", country: "US", impact: "medium" },
+  { event: "ISM Manufacturing PMI", date: "2026-12-01", country: "US", impact: "medium" },
+  { event: "Retail Sales", date: "2026-02-13", country: "US", impact: "medium" },
+  { event: "Retail Sales", date: "2026-03-13", country: "US", impact: "medium" },
+  { event: "Retail Sales", date: "2026-04-14", country: "US", impact: "medium" },
+  { event: "Retail Sales", date: "2026-05-14", country: "US", impact: "medium" },
+  { event: "Retail Sales", date: "2026-06-12", country: "US", impact: "medium" },
+  { event: "Retail Sales", date: "2026-07-15", country: "US", impact: "medium" },
+  { event: "Retail Sales", date: "2026-08-14", country: "US", impact: "medium" },
+  { event: "Retail Sales", date: "2026-09-15", country: "US", impact: "medium" },
+  { event: "Retail Sales", date: "2026-10-15", country: "US", impact: "medium" },
+  { event: "Retail Sales", date: "2026-11-16", country: "US", impact: "medium" },
+  { event: "Retail Sales", date: "2026-12-15", country: "US", impact: "medium" },
+];
+function getUpcomingEconomicEvents(): EconomicEventForBriefing[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const HIGH_IMPACT_DAYS = 14;
+  const MEDIUM_IMPACT_DAYS = 7;
+  const result: EconomicEventForBriefing[] = [];
+  for (const e of ECONOMIC_CALENDAR_US) {
+    const parts = e.date.split("-").map(Number);
+    if (parts.length !== 3) continue;
+    const eventDate = new Date(parts[0], parts[1] - 1, parts[2]);
+    if (isNaN(eventDate.getTime()) || eventDate < today) continue;
+    const calendarDaysUntil = Math.round((eventDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+    const isHigh = e.impact === "high";
+    if (calendarDaysUntil > (isHigh ? HIGH_IMPACT_DAYS : MEDIUM_IMPACT_DAYS)) continue;
+    const businessDaysUntil = getBusinessDaysUntil(today, eventDate);
+    result.push({ ...e, within_3_business_days: businessDaysUntil >= 0 && businessDaysUntil <= 3, business_days_until: businessDaysUntil });
+  }
+  return result.sort((a, b) => a.date.localeCompare(b.date));
+}
+function isWeekendEconomic(d: Date): boolean {
+  return d.getDay() === 0 || d.getDay() === 6;
+}
+function getBusinessDaysUntil(today: Date, eventDate: Date): number {
+  const t = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const e = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
+  if (e < t) return -1;
+  if (e.getTime() === t.getTime()) return 0;
+  let count = 0;
+  const cur = new Date(t);
+  cur.setDate(cur.getDate() + 1);
+  while (cur <= e) {
+    if (!isWeekendEconomic(cur)) count++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return count;
+}
+// ─── End inlined economic calendar ───
 
 function safeISODate(input) {
   if (typeof input === "string" && input.trim()) return input.trim();
@@ -4255,7 +4373,13 @@ Deno.serve(async (req) => {
         // ── Save Briefing Memory & Story Tracker (blocking: await before response so isolate doesn't exit) ──
         console.log("💾 [Memory] Saving briefing memory...");
         try {
-          await saveBriefingMemoryComplete(base44, userEmail, date, analyzedBrief as any, tickerMarketMap as any, scriptwriterResult);
+          await base44.functions.invoke("briefingMemory", {
+            userId: userEmail,
+            briefingDate: date,
+            analyzedBrief,
+            tickerMarketMap,
+            scriptwriterResult,
+          });
         } catch (memoryErr: any) {
           console.error("⚠️ [Memory] Failed:", memoryErr?.message, memoryErr?.stack ?? memoryErr);
         }
