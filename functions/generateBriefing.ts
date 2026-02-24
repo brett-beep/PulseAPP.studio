@@ -4,13 +4,7 @@
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
 import { en as numToWords } from "npm:n2words@3.1.0";
 import { getUpcomingEconomicEvents } from "./staticEconomicCalendar.ts";
-import {
-  generateFallbackKey,
-  saveBriefingMemory,
-  upsertStoryTracker,
-  watchItemStoryKey,
-  recordBriefingDelivery,
-} from "./briefingMemory.ts";
+import { saveBriefingMemoryComplete } from "./briefingMemory.ts";
 
 function safeISODate(input) {
   if (typeof input === "string" && input.trim()) return input.trim();
@@ -4261,70 +4255,7 @@ Deno.serve(async (req) => {
         // ── Save Briefing Memory & Story Tracker (blocking: await before response so isolate doesn't exit) ──
         console.log("💾 [Memory] Saving briefing memory...");
         try {
-          const userId = userEmail;
-          const briefingDate = date;
-          const macroStories = (analyzedBrief.macro_selections || []).map((s: any) => ({
-            story_key: s.story_key || generateFallbackKey(s.hook || ""),
-            headline: String(s.hook || "").slice(0, 200),
-            key_fact: Array.isArray(s.facts) && s.facts[0] ? String(s.facts[0]).slice(0, 300) : "",
-          }));
-          const portfolioStories: Record<string, { story_key: string; headline: string; key_fact: string; price_at_briefing: number | null; change_at_briefing: string | null }> = {};
-          for (const ps of analyzedBrief.portfolio_selections || []) {
-            const ticker = ps.ticker || "";
-            const q = tickerMarketMap[ticker]?.quote;
-            portfolioStories[ticker] = {
-              story_key: ps.story_key || generateFallbackKey(ticker + "_" + (ps.hook || "")),
-              headline: String(ps.hook || "").slice(0, 200),
-              key_fact: Array.isArray(ps.facts) && ps.facts[0] ? String(ps.facts[0]).slice(0, 300) : "",
-              price_at_briefing: q?.current_price != null ? q.current_price : null,
-              change_at_briefing: q?.change_pct != null ? (q.change_pct >= 0 ? "+" : "") + q.change_pct.toFixed(2) + "%" : null,
-            };
-          }
-          const watchItemsList = Array.isArray(scriptwriterResult?.watch_items_mentioned)
-            ? scriptwriterResult.watch_items_mentioned.map((w: any) => (w && (w.event || w.date)) ? `${w.event || ""} (${w.date || ""})` : "").filter(Boolean)
-            : [];
-          await saveBriefingMemory(base44, {
-            user_id: userId,
-            date: briefingDate,
-            user_listened: true,
-            macro_stories: macroStories,
-            portfolio_stories: portfolioStories,
-            watch_items_mentioned: watchItemsList,
-            created_at: new Date().toISOString(),
-          });
-          console.log("💾 [Memory] Briefing memory saved for", userId, "—", macroStories.length, "macro,", Object.keys(portfolioStories).length, "portfolio stories");
-
-          const allStoriesForTracker = [
-            ...macroStories.map((s) => ({ ...s, related_ticker: null as string | null })),
-            ...Object.entries(portfolioStories).map(([ticker, s]) => ({ ...s, related_ticker: ticker })),
-          ];
-          for (const story of allStoriesForTracker) {
-            await upsertStoryTracker(base44, userId, story.story_key, {
-              date: briefingDate,
-              angle: story.headline,
-              key_fact: story.key_fact,
-            }, { related_ticker: story.related_ticker ?? null });
-          }
-          const primary = analyzedBrief.watch_items?.primary;
-          const secondary = analyzedBrief.watch_items?.secondary;
-          if (primary?.event && primary?.date) {
-            await upsertStoryTracker(base44, userId, watchItemStoryKey(primary.event, primary.date), {
-              date: briefingDate,
-              angle: primary.event + " (" + primary.date + ")",
-              key_fact: primary.why_it_matters || "",
-            }, { related_ticker: null });
-          }
-          if (secondary?.event && secondary?.date) {
-            await upsertStoryTracker(base44, userId, watchItemStoryKey(secondary.event, secondary.date), {
-              date: briefingDate,
-              angle: secondary.event + " (" + secondary.date + ")",
-              key_fact: secondary.why_it_matters || "",
-            }, { related_ticker: null });
-          }
-          console.log("💾 [Memory] Story tracker updated —", allStoriesForTracker.length, "stories + watch items");
-
-          await recordBriefingDelivery(base44, userId, briefingDate);
-          console.log("💾 [Memory] Briefing delivery recorded for", userId, "on", briefingDate);
+          await saveBriefingMemoryComplete(base44, userEmail, date, analyzedBrief as any, tickerMarketMap as any, scriptwriterResult);
         } catch (memoryErr: any) {
           console.error("⚠️ [Memory] Failed:", memoryErr?.message, memoryErr?.stack ?? memoryErr);
         }
