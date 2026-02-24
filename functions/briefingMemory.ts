@@ -128,7 +128,6 @@ export async function saveBriefingMemory(
     macro_stories: JSON.stringify(memory.macro_stories),
     portfolio_stories: JSON.stringify(memory.portfolio_stories),
     watch_items_mentioned: JSON.stringify(memory.watch_items_mentioned),
-    created_at: memory.created_at,
   };
   const existing = await base44.asServiceRole.entities.BriefingMemory.filter({
     user_id: memory.user_id,
@@ -152,7 +151,6 @@ export async function recordBriefingDelivery(
   await base44.asServiceRole.entities.BriefingDelivery.create({
     user_id,
     date,
-    created_at: new Date().toISOString(),
   });
 }
 
@@ -235,7 +233,6 @@ export async function upsertStoryTracker(
       await base44.asServiceRole.entities.StoryTracker.update(existing.id, {
         last_mentioned: today,
         mentions: JSON.stringify(mentionsArr),
-        updated_at: new Date().toISOString(),
       });
       return;
     }
@@ -248,7 +245,6 @@ export async function upsertStoryTracker(
         mention_count: 1,
         status: "active",
         mentions: JSON.stringify(mentionsArr),
-        updated_at: new Date().toISOString(),
       });
       return;
     }
@@ -262,7 +258,6 @@ export async function upsertStoryTracker(
       mention_count: newCount,
       status,
       mentions: JSON.stringify(mentionsArr),
-      updated_at: new Date().toISOString(),
     });
     return;
   }
@@ -277,7 +272,5 @@ export async function upsertStoryTracker(
     status: "active",
     related_ticker: options.related_ticker ?? null,
     mentions: JSON.stringify([newMention]),
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
   });
 }
