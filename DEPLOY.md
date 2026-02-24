@@ -14,9 +14,12 @@ This re-triggers secret injection for that function. Repeat for each function th
 
 ### Functions that use Base44 secrets
 
+Secret names must match Base44 exactly (e.g. `MARKETAUX_API_KEY` not `MARKETAUX_KEY`, `NEWSAPI_API_KEY` not `NEWSAPI_KEY`).
+
 | Function             | Secrets used |
 |----------------------|--------------|
-| `generateBriefing`   | `FINNHUB_API_KEY`, `FINLIGHT_API_KEY` |
+| `generateBriefing`   | `FINNHUB_API_KEY`, `FINLIGHT_API_KEY`, `MARKETAUX_API_KEY`, `NEWSAPI_API_KEY` |
+| `fetchNewsCards`     | `FINLIGHT_API_KEY`, `MARKETAUX_API_KEY`, `NEWSAPI_API_KEY` |
 | `refreshNewsCache`   | `FINLIGHT_API_KEY` |
 | `joinWaitlist`       | `LOOPS_API_KEY` |
 | `createCheckout`     | `STRIPE_SECRET_KEY`, `BASE44_APP_ID` |

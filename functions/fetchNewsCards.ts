@@ -4,6 +4,7 @@
 //           Falls back to category-based NewsCardCache if ticker fetch fails
 // Uses 0 LLM credits. Per-ticker Finlight calls when UserNewsCache is stale.
 // Returns: { market_news, portfolio_news }
+// Secrets (must match Base44 exactly): FINLIGHT_API_KEY, MARKETAUX_API_KEY, NEWSAPI_API_KEY.
 // MANUALLY REDEPLOY V2 TO INJECT API!! 
 // PORTFOLIO vs MARKET/BREAKING NEWS (different sources):
 // - market_news: from NewsCardCache (MARKET_*) / NewsCache — general market/breaking.
@@ -765,8 +766,8 @@ Deno.serve(async (req) => {
       //     Per-ticker cache is shared: e.g. 4 users with AAPL share one cached AAPL feed until refresh.
       if (!portfolioNews) {
         const finlightKey = Deno.env.get("FINLIGHT_API_KEY");
-        const marketauxKey = Deno.env.get("MARKETAUX_API_KEY") || Deno.env.get("MARKETAUX_KEY") || "";
-        const newsApiKey = Deno.env.get("NEWSAPI_API_KEY") || Deno.env.get("NEWS_API_KEY") || "";
+        const marketauxKey = Deno.env.get("MARKETAUX_API_KEY") ?? "";
+        const newsApiKey = Deno.env.get("NEWSAPI_API_KEY") ?? "";
 
         if (finlightKey || marketauxKey || newsApiKey) {
           try {

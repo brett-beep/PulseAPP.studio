@@ -1,5 +1,5 @@
 // generateBriefing function - synced Jan 26, 2026 (redeploy for env vars)
-// Uses secrets: FINNHUB_API_KEY, FINLIGHT_API_KEY. If missing after GitHub deploy → Base44: edit this file (e.g. add newline), Save & Deploy (see DEPLOY.md).
+// Uses secrets: FINNHUB_API_KEY, FINLIGHT_API_KEY, MARKETAUX_API_KEY, NEWSAPI_API_KEY. Names must match Base44 exactly (no MARKETAUX_KEY / NEWSAPI_KEY). If missing after GitHub deploy → Base44: edit this file (e.g. add newline), Save & Deploy (see DEPLOY.md).
 // Adding this line V4 ________________ to manually redeploy on Base44
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
 import { en as numToWords } from "npm:n2words@3.1.0";
@@ -1106,7 +1106,7 @@ async function refreshPortfolioNewsForBriefing(
     if (uncoveredTickers.length > 0) {
       console.log(`📉 [Pre-briefing refresh] ${uncoveredTickers.length} tickers with insufficient Finlight coverage: ${uncoveredTickers.join(", ")}`);
       
-      const marketauxKey = Deno.env.get("MARKETAUX_API_KEY") || Deno.env.get("MARKETAUX_KEY") || "";
+      const marketauxKey = Deno.env.get("MARKETAUX_API_KEY") ?? "";
       if (marketauxKey) {
         console.log(`🔄 [Marketaux Fallback] Trying Marketaux for: ${uncoveredTickers.join(", ")}`);
         
@@ -1127,7 +1127,7 @@ async function refreshPortfolioNewsForBriefing(
             } else {
               console.log(`⚠️ [Marketaux Fallback] No articles found for ${ticker}`);
               // Try NewsAPI when Marketaux returns 0
-              const newsApiKey = Deno.env.get("NEWSAPI_API_KEY") || Deno.env.get("NEWSAPI_KEY") || "";
+              const newsApiKey = Deno.env.get("NEWSAPI_API_KEY") ?? "";
               if (newsApiKey) {
                 try {
                   // Look up company name from userHoldings for better NewsAPI search
@@ -1585,7 +1585,7 @@ function filterJunk(candidates: MacroCandidate[]): MacroCandidate[] {
 
 // MarketAux fallback for macro news (broad market terms, not ticker-specific)
 async function fetchMarketauxMacroFallback(hoursAgo: number): Promise<MacroCandidate[]> {
-  const marketauxKey = Deno.env.get("MARKETAUX_API_KEY") || Deno.env.get("MARKETAUX_KEY") || "";
+  const marketauxKey = Deno.env.get("MARKETAUX_API_KEY") ?? "";
   if (!marketauxKey) {
     console.log("⚠️ [Stage 1B Fallback] No MARKETAUX_API_KEY available");
     return [];
@@ -1643,7 +1643,7 @@ async function fetchMarketauxMacroFallback(hoursAgo: number): Promise<MacroCandi
 
 // NewsAPI fallback for macro news (broad market terms)
 async function fetchNewsApiMacroFallback(hoursAgo: number): Promise<MacroCandidate[]> {
-  const newsApiKey = Deno.env.get("NEWSAPI_API_KEY") || Deno.env.get("NEWSAPI_KEY") || "";
+  const newsApiKey = Deno.env.get("NEWSAPI_API_KEY") ?? "";
   if (!newsApiKey) {
     console.log("⚠️ [Stage 1B Fallback] No NEWSAPI_API_KEY available");
     return [];
@@ -3302,7 +3302,7 @@ async function fetchTickerNewsCascade(
 
     // Fallback B: MarketAux with FULL company name (72h window)
     if (articles.length < MIN_ARTICLES_TARGET) {
-      const marketauxKey = Deno.env.get("MARKETAUX_API_KEY") || Deno.env.get("MARKETAUX_KEY") || "";
+      const marketauxKey = Deno.env.get("MARKETAUX_API_KEY") ?? "";
       if (marketauxKey) {
         try {
           const mxArticles = await fetchMarketauxTickerNewsForBriefing(marketauxKey, ticker, 72);
@@ -3329,7 +3329,7 @@ async function fetchTickerNewsCascade(
 
     // Fallback C: NewsAPI with company name (72h window)
     if (articles.length < MIN_ARTICLES_TARGET) {
-      const newsApiKey = Deno.env.get("NEWSAPI_API_KEY") || Deno.env.get("NEWSAPI_KEY") || "";
+      const newsApiKey = Deno.env.get("NEWSAPI_API_KEY") ?? "";
       if (newsApiKey) {
         try {
           const naArticles = await fetchNewsApiTickerNewsForBriefing(newsApiKey, ticker, 72, aliasInfo.name);
