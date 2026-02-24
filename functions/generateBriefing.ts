@@ -3,8 +3,8 @@
 // Adding this line V4 ________________ to manually redeploy on Base44
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
 import { en as numToWords } from "npm:n2words@3.1.0";
-import { getUpcomingEconomicEvents } from "./staticEconomicCalendar.ts";
-import { saveBriefingMemoryComplete } from "./briefingMemory.ts";
+// NOTE: Local imports between functions/ files don't work on Base44 (each file deploys independently).
+// staticEconomicCalendar and briefingMemory are called via base44.functions.invoke() instead.
 
 function safeISODate(input) {
   if (typeof input === "string" && input.trim()) return input.trim();
