@@ -4,6 +4,13 @@
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
 import { en as numToWords } from "npm:n2words@3.1.0";
 import { getUpcomingEconomicEvents } from "./staticEconomicCalendar.ts";
+import {
+  generateFallbackKey,
+  saveBriefingMemory,
+  upsertStoryTracker,
+  watchItemStoryKey,
+  recordBriefingDelivery,
+} from "./briefingMemory.ts";
 
 function safeISODate(input) {
   if (typeof input === "string" && input.trim()) return input.trim();
@@ -2254,6 +2261,7 @@ function buildRawIntelligencePackage(
 
 interface MacroSelection {
   rank: number;
+  story_key?: string;
   source_id: string;
   source_query: string;
   hook: string;
@@ -2268,6 +2276,7 @@ interface MacroSelection {
 
 interface PortfolioSelection {
   ticker: string;
+  story_key?: string;
   company_name: string;
   data_depth: string;
   source_type: "news" | "market_data_only";
@@ -2326,6 +2335,7 @@ const ANALYST_OUTPUT_SCHEMA = {
         additionalProperties: false,
         properties: {
           rank: { type: "number" },
+          story_key: { type: "string" },
           source_id: { type: "string" },
           source_query: { type: "string" },
           hook: { type: "string" },
@@ -2347,6 +2357,7 @@ const ANALYST_OUTPUT_SCHEMA = {
         additionalProperties: false,
         properties: {
           ticker: { type: "string" },
+          story_key: { type: "string" },
           company_name: { type: "string" },
           data_depth: { type: "string" },
           source_type: { type: "string", enum: ["news", "market_data_only"] },
@@ -2466,6 +2477,8 @@ the same earnings report). If so, MERGE them into one selection — combine the 
 from both sources. Then pick a genuinely different story for the remaining slot. Selecting
 two stories about the same event is a critical failure.
 
+STORY_KEY (required for each macro and portfolio selection): For each story you select, output a "story_key" — a short snake_case identifier (max 40 chars) for the underlying EVENT, not the article. Macro: use the theme (e.g. "fed_rate_path", "tariff_consumer_impact"). Portfolio: prefix with ticker (e.g. "ba_vietnam_orders", "nvda_q4_earnings"). The key must be STABLE: if tomorrow's story is about the same Boeing Vietnam deal, use the same key "ba_vietnam_orders". Different events, different keys: "ba_vietnam_orders" vs "ba_starliner_issues" vs "ba_q4_earnings".
+
 Story 1: ALWAYS the biggest market-moving headline of the day — Fed, inflation, indices, regulatory.
 Prefer "editorial_net" or "targeted_macro". Must NOT be about a portfolio holding.
 
@@ -2521,6 +2534,7 @@ SELECTION CRITERIA:
 - If articles are flagged is_sector_level: true, frame the insight at the sector
   level and connect it to the specific holding — don't pretend it's company-specific news.
 - NEVER fabricate news. If there's nothing, say so.
+- For each portfolio selection, include a story_key (snake_case, ticker-prefixed, e.g. "amzn_antitrust_california", "nvda_q4_earnings"). Same event across days = same key.
 
 FACTS INTEGRITY RULE: Every item in the "facts" array MUST be a specific, verifiable data
 point that comes directly from the source articles or market data provided. Examples of valid facts:
@@ -4243,6 +4257,78 @@ Deno.serve(async (req) => {
         console.log("  - status:", saved3.status);
         console.log("  - stories:", allStories3.length, `(${macroStories3.length} macro + ${portfolioStories3.length} portfolio)`);
         console.log("  - script:", wc3, "words ~", estimatedMinutes3, "min");
+
+        // ── Save Briefing Memory & Story Tracker (async, non-blocking) ──
+        (async () => {
+          try {
+            const userId = userEmail;
+            const briefingDate = date;
+            const macroStories = (analyzedBrief.macro_selections || []).map((s: any) => ({
+              story_key: s.story_key || generateFallbackKey(s.hook || ""),
+              headline: String(s.hook || "").slice(0, 200),
+              key_fact: Array.isArray(s.facts) && s.facts[0] ? String(s.facts[0]).slice(0, 300) : "",
+            }));
+            const portfolioStories: Record<string, { story_key: string; headline: string; key_fact: string; price_at_briefing: number | null; change_at_briefing: string | null }> = {};
+            for (const ps of analyzedBrief.portfolio_selections || []) {
+              const ticker = ps.ticker || "";
+              const q = tickerMarketMap[ticker]?.quote;
+              portfolioStories[ticker] = {
+                story_key: ps.story_key || generateFallbackKey(ticker + "_" + (ps.hook || "")),
+                headline: String(ps.hook || "").slice(0, 200),
+                key_fact: Array.isArray(ps.facts) && ps.facts[0] ? String(ps.facts[0]).slice(0, 300) : "",
+                price_at_briefing: q?.current_price != null ? q.current_price : null,
+                change_at_briefing: q?.change_pct != null ? (q.change_pct >= 0 ? "+" : "") + q.change_pct.toFixed(2) + "%" : null,
+              };
+            }
+            const watchItemsList = Array.isArray(scriptwriterResult?.watch_items_mentioned)
+              ? scriptwriterResult.watch_items_mentioned.map((w: any) => (w && (w.event || w.date)) ? `${w.event || ""} (${w.date || ""})` : "").filter(Boolean)
+              : [];
+            await saveBriefingMemory(base44, {
+              user_id: userId,
+              date: briefingDate,
+              user_listened: true,
+              macro_stories: macroStories,
+              portfolio_stories: portfolioStories,
+              watch_items_mentioned: watchItemsList,
+              created_at: new Date().toISOString(),
+            });
+            console.log("💾 [Memory] Briefing memory saved for", userId, "—", macroStories.length, "macro,", Object.keys(portfolioStories).length, "portfolio stories");
+
+            const allStoriesForTracker = [
+              ...macroStories.map((s) => ({ ...s, related_ticker: null as string | null })),
+              ...Object.entries(portfolioStories).map(([ticker, s]) => ({ ...s, related_ticker: ticker })),
+            ];
+            for (const story of allStoriesForTracker) {
+              await upsertStoryTracker(base44, userId, story.story_key, {
+                date: briefingDate,
+                angle: story.headline,
+                key_fact: story.key_fact,
+              }, { related_ticker: story.related_ticker ?? null });
+            }
+            const primary = analyzedBrief.watch_items?.primary;
+            const secondary = analyzedBrief.watch_items?.secondary;
+            if (primary?.event && primary?.date) {
+              await upsertStoryTracker(base44, userId, watchItemStoryKey(primary.event, primary.date), {
+                date: briefingDate,
+                angle: primary.event + " (" + primary.date + ")",
+                key_fact: primary.why_it_matters || "",
+              }, { related_ticker: null });
+            }
+            if (secondary?.event && secondary?.date) {
+              await upsertStoryTracker(base44, userId, watchItemStoryKey(secondary.event, secondary.date), {
+                date: briefingDate,
+                angle: secondary.event + " (" + secondary.date + ")",
+                key_fact: secondary.why_it_matters || "",
+              }, { related_ticker: null });
+            }
+            console.log("💾 [Memory] Story tracker updated —", allStoriesForTracker.length, "stories + watch items");
+
+            await recordBriefingDelivery(base44, userId, briefingDate);
+            console.log("💾 [Memory] Briefing delivery recorded for", userId, "on", briefingDate);
+          } catch (memoryErr: any) {
+            console.error("⚠️ [Memory] Failed to save briefing memory:", memoryErr?.message || memoryErr);
+          }
+        })();
 
         if (skipAudio) {
           return Response.json({

@@ -37,3 +37,15 @@ Confirm with Base44 support whether the issue happens only when deploying from G
 ---
 
 **Quick reminder after push:** run `npm run remind-secrets` to print these steps.
+
+---
+
+### Briefing Memory & Story Tracker (Piece 1)
+
+The `generateBriefing` function saves briefing memory and story tracker data after each successful Stage 3 run. You must create these Base44 entities and grant the function access:
+
+- **BriefingMemory** — one per user per day (macro_stories, portfolio_stories, watch_items_mentioned).
+- **StoryTracker** — per user per story_key (first_mentioned, last_mentioned, mention_count, 7-day cycle reset).
+- **BriefingDelivery** — append-only log for “briefings today” (first vs same-day subsequent).
+
+See **docs/BRIEFING_MEMORY_ENTITIES.md** for exact field names and types. Create the entities in the Base44 dashboard before deploying, or the memory save will fail (errors are logged but do not block briefing delivery).
