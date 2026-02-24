@@ -1,0 +1,1 @@
+always use react-table for table renders

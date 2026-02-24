@@ -3,6 +3,7 @@
 // Adding this line V4 ________________ to manually redeploy on Base44
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
 import { en as numToWords } from "npm:n2words@3.1.0";
+import { getUpcomingEconomicEvents } from "./staticEconomicCalendar.ts";
 
 function safeISODate(input) {
   if (typeof input === "string" && input.trim()) return input.trim();
@@ -1257,6 +1258,51 @@ async function fetchMarketSnapshot() {
 }
 
 // =========================================================
+// STAGE 1: Finnhub calendar (earnings only)
+// Run in parallel with 1A+1B. Economic calendar is Finnhub premium — use static US calendar if needed.
+// =========================================================
+
+const MAJOR_TICKERS_CALENDAR = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA"];
+
+async function fetchEarningsCalendar(
+  userHoldings: string[],
+  finnhubKey: string
+): Promise<Array<{ ticker: string; date: string; estimated_eps?: number; quarter?: number; year?: number; hour?: string }>> {
+  const today = new Date().toISOString().split("T")[0];
+  const thirtyDaysOut = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
+  try {
+    const response = await fetch(
+      `https://finnhub.io/api/v1/calendar/earnings?from=${today}&to=${thirtyDaysOut}&token=${finnhubKey}`
+    );
+    const data = await response.json();
+    if (!response.ok) {
+      console.warn(`⚠️ [Stage 1] Earnings calendar API error: ${response.status}`);
+      return [];
+    }
+
+    const relevantTickers = [...new Set([...userHoldings.map((t) => t.toUpperCase()), ...MAJOR_TICKERS_CALENDAR])];
+    const relevant = (data.earningsCalendar || [])
+      .filter((e: any) => relevantTickers.includes((e.symbol || "").toUpperCase()))
+      .map((e: any) => ({
+        ticker: (e.symbol || "").toUpperCase(),
+        date: e.date || "",
+        estimated_eps: e.epsEstimate != null ? Number(e.epsEstimate) : undefined,
+        quarter: e.quarter,
+        year: e.year,
+        hour: e.hour,
+      }));
+
+    const forUser = relevant.filter((e: any) => userHoldings.map((t) => t.toUpperCase()).includes(e.ticker)).length;
+    console.log(`📅 [Stage 1] Earnings calendar: ${relevant.length} upcoming events (${forUser} for user holdings)`);
+    return relevant;
+  } catch (err: any) {
+    console.error(`❌ [Stage 1] Earnings calendar failed:`, err?.message);
+    return [];
+  }
+}
+
+// =========================================================
 // STAGE 1A: Per-ticker market data (Finnhub /quote)
 // Returns a structured quote object for a single ticker.
 // This is the foundation for the per-ticker data packages
@@ -2139,6 +2185,11 @@ interface RawIntelligencePackage {
   };
   ticker_packages: TickerPackage[];
   macro_candidates: MacroCandidate[];
+  /** Set when Stage 1 calendar fetch runs (earnings + economic). Optional for backward compatibility. */
+  upcoming_events?: {
+    earnings: Array<{ ticker: string; date: string; estimated_eps?: number; quarter?: number; year?: number; hour?: string }>;
+    economic: Array<{ event: string; date: string; country?: string; impact?: string; previous?: string; estimate?: string; unit?: string; within_3_business_days?: boolean }>;
+  };
   metadata: {
     ticker_count: number;
     macro_candidate_count: number;
@@ -2545,6 +2596,38 @@ If ALL indices are DOWN (even modestly), market_energy CANNOT be "volatile_up".
 If ALL indices are UP (even modestly), market_energy CANNOT be "volatile_down".
 
 ${!isWeekend && marketSnapshot ? `Today's data: S&P ${marketSnapshot.sp500_pct} | Nasdaq ${marketSnapshot.nasdaq_pct} | Dow ${marketSnapshot.dow_pct}\nBased on this data, classify market_energy accordingly.` : "Today's data: N/A (weekend or unavailable). Use market_energy: quiet or mixed_calm."}
+
+${(() => {
+  const ue = (rawIntelligence as any).upcoming_events;
+  const hasEarnings = ue?.earnings?.length > 0;
+  const hasEconomic = ue?.economic?.length > 0;
+  if (!ue || (!hasEarnings && !hasEconomic)) return "\n(No calendar data for this run. Populate watch_items from news/context as before.)\n";
+  const earningsBlock = hasEarnings
+    ? "EARNINGS DATES:\n" + (ue.earnings || []).map((e: any) =>
+        `${e.ticker}: ${e.date} (${e.hour === "bmo" ? "before market open" : e.hour === "amc" ? "after market close" : e.hour || "time TBD"})${e.estimated_eps != null ? ` — EPS estimate: $${e.estimated_eps}` : ""}`
+      ).join("\n")
+    : "";
+  const economicBlock = hasEconomic
+    ? (earningsBlock ? "\n\n" : "") + "ECONOMIC EVENTS:\n" + (ue.economic || []).map((e: any) => {
+        const cadence = e.within_3_business_days ? " — ALWAYS mention (within 3 business days)" : " — Mention selectively (before 3-business-day window)";
+        return `${e.date}: ${e.event} [${e.impact || "—"} impact]${cadence}${e.estimate != null ? ` — estimate: ${e.estimate}${e.unit || ""}` : ""}${e.previous != null ? ` (previous: ${e.previous})` : ""}`;
+      }).join("\n")
+    : "";
+  return `
+═══════════════════════════════════════
+UPCOMING EVENTS (structured calendar — use these for watch_items)
+═══════════════════════════════════════
+
+${earningsBlock}${economicBlock}
+
+ECONOMIC EVENTS CADENCE:
+- Within 3 business days of an event: ALWAYS include it in watch_items / What to Watch when relevant (remind every day).
+- Before that window: Mention SELECTIVELY to avoid fatigue — e.g. once per week or on first listen in the window; do not repeat the same event every day. (When user storage exists, mention count will be provided to guide reminders.)
+- If there are no major watch items for the day: Pick the CLOSEST upcoming economic event from the list above and give one light reminder with a brief "why it matters" (e.g. PCE is the Fed's preferred inflation gauge and can move rate expectations). Do not repeat that same reminder every day.
+
+WATCH ITEMS RULE: Your watch_items selections MUST prioritize events from the calendar data above. These are confirmed, date-certain events. Earnings dates for user holdings are the highest priority. Only add non-calendar watch items if there is a genuinely significant developing story not captured in the calendar.
+`;
+})()}
 
 ═══════════════════════════════════════
 RAW INTELLIGENCE PACKAGE
@@ -3755,14 +3838,17 @@ Deno.serve(async (req) => {
     const pipelineStartMs = Date.now();
 
     // =========================================================
-    // STAGE 1A + 1B: Run in PARALLEL (independent data sources)
+    // STAGE 1A + 1B + CALENDAR: Run in PARALLEL (independent data sources)
     // 1A: Finnhub per-ticker market data
     // 1B: Finlight macro/market news candidates
+    // Calendar: earnings only (30d). Economic calendar is Finnhub premium — use static US calendar if needed.
     // =========================================================
-    console.log(`\n⚡ [Stage 1A+1B] Fetching market data and macro news in parallel...`);
-    const [tickerMarketMap, macroCandidates] = await Promise.all([
+    const finnhubKey = Deno.env.get("FINNHUB_API_KEY") || FINNHUB_FALLBACK_KEY;
+    console.log(`\n⚡ [Stage 1A+1B+Calendar] Fetching market data, macro news, and earnings calendar in parallel...`);
+    const [tickerMarketMap, macroCandidates, earningsCalendar] = await Promise.all([
       fetchAllTickerMarketData(briefingTickers),
       fetchMacroCandidates(userInterests),
+      fetchEarningsCalendar(briefingTickers, finnhubKey),
     ]);
 
     console.log(`\n🧪 [Stage 1A] Full market data for ${briefingTickers.length} holdings:`);
@@ -3844,9 +3930,15 @@ Deno.serve(async (req) => {
       },
       pipelineStartMs,
     );
+    const economicCalendar = getUpcomingEconomicEvents();
+    rawIntelligence.upcoming_events = {
+      earnings: earningsCalendar,
+      economic: economicCalendar,
+    };
 
     const meta = rawIntelligence.metadata;
     console.log(`\n🧪 [Stage 1D TEST] Raw Intelligence Package built:`);
+    console.log(`📅 [Stage 1D] Upcoming events: ${earningsCalendar.length} earnings, ${economicCalendar.length} economic (static US)`);
     console.log(`   generated_at: ${rawIntelligence.generated_at}`);
     console.log(`   user: "${userName}" | interests: ${userInterests.length} | holdings: ${briefingTickers.length}`);
     console.log(`   ticker_packages: ${meta.ticker_count} (strong=${meta.tickers_with_strong_coverage}, moderate=${meta.tickers_with_moderate_coverage}, thin=${meta.tickers_with_thin_coverage}, none=${meta.tickers_with_no_coverage})`);
