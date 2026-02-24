@@ -4259,6 +4259,7 @@ Deno.serve(async (req) => {
         console.log("  - script:", wc3, "words ~", estimatedMinutes3, "min");
 
         // ── Save Briefing Memory & Story Tracker (async, non-blocking) ──
+        console.log("💾 [Memory] Starting async save (non-blocking)...");
         (async () => {
           try {
             const userId = userEmail;
@@ -4326,7 +4327,7 @@ Deno.serve(async (req) => {
             await recordBriefingDelivery(base44, userId, briefingDate);
             console.log("💾 [Memory] Briefing delivery recorded for", userId, "on", briefingDate);
           } catch (memoryErr: any) {
-            console.error("⚠️ [Memory] Failed to save briefing memory:", memoryErr?.message || memoryErr);
+            console.error("⚠️ [Memory] Failed:", memoryErr?.message, memoryErr?.stack ?? memoryErr);
           }
         })();
 
