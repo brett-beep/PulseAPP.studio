@@ -365,7 +365,7 @@ export async function saveBriefingMemoryComplete(
   console.log("💾 [Memory] Briefing delivery recorded for", userId, "on", briefingDate);
 }
 
-// ─── Base44 entry: standalone HTTP function (no local imports from other function files) ───
+// ─── Base44 entry: standalone HTTP function (no local imports from other function files) ─── // redeploy v2
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
