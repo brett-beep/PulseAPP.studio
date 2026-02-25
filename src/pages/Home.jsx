@@ -453,6 +453,9 @@ export default function Home() {
     }
   }, [user?.id]);
 
+  // ── app_home_viewed: fires once per mount when data is ready ──
+  const homeViewedRef = useRef(false);
+
   // Fetch user preferences
   const { data: preferences, isLoading: prefsLoading } = useQuery({
     queryKey: ["userPreferences"],
@@ -1104,18 +1107,6 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
       </div>
     );
   }
-
-  // ── app_home_viewed: fires once per mount when data is ready ──
-  const homeViewedRef = useRef(false);
-  useEffect(() => {
-    if (homeViewedRef.current) return;
-    if (user && preferences?.onboarding_completed) {
-      homeViewedRef.current = true;
-      track("app_home_viewed", {
-        has_existing_briefing: !!(todayBriefing && (todayBriefing.status === "ready" || todayBriefing.status === "script_ready")),
-      });
-    }
-  }, [user, preferences?.onboarding_completed, todayBriefing]);
 
   // Show onboarding if not completed
   if (!preferences?.onboarding_completed) {
