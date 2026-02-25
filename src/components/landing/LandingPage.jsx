@@ -22,10 +22,10 @@ export function LandingPage({ onSignIn }) {
     setIsWaitlistOpen(true)
   }
 
-  // Skip landing page in native app — go straight to /login
+  // Skip landing page in native app — go straight to login
   useEffect(() => {
     if (isNativeApp()) {
-      window.location.replace("/login")
+      base44.auth.redirectToLogin(window.location.href)
     }
   }, [])
 
