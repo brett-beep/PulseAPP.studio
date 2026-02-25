@@ -540,6 +540,17 @@ export default function Home() {
   // Check if user is premium
   const isPremium = preferences?.is_premium === true;
 
+  // ── app_home_viewed: fires once per mount when data is ready ──
+  useEffect(() => {
+    if (homeViewedRef.current) return;
+    if (user && preferences?.onboarding_completed) {
+      homeViewedRef.current = true;
+      track("app_home_viewed", {
+        has_existing_briefing: !!(todayBriefing && (todayBriefing.status === "ready" || todayBriefing.status === "script_ready")),
+      });
+    }
+  }, [user, preferences, todayBriefing]);
+
   // Auto-stop isGenerating when briefing is ready OR script_ready (since you skip audio sometimes)
   // FIX: Only stop if the briefing was delivered AFTER we started generating
   useEffect(() => {
