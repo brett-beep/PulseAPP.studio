@@ -2271,6 +2271,10 @@ function classifyRelevance(
 // Minimum target: try to get at least this many articles per ticker
 const MIN_ARTICLES_TARGET = 5;
 
+// Speed optimization 3A: cap Stage 2 input size to reduce LLM latency (doc: pre-filter before Stage 2)
+const STAGE2_MACRO_CAP = 15;
+const STAGE2_ARTICLES_PER_TICKER_CAP = 5;
+
 // ── TICKER PACKAGE INTERFACE ──
 interface TickerPackage {
   ticker: string;
@@ -4058,12 +4062,40 @@ Deno.serve(async (req) => {
     // Aggregates 1A (market data), 1B (macro news), 1C (ticker
     // packages) into a single object for Stage 2 consumption.
     // No new API calls — pure aggregation.
-    // TODO: Remove test log once Stage 2 is wired up.
+    // Fix 3A: Pre-filter to cap Stage 2 input size (smaller prompt → faster Analyst call).
     // =========================================================
     const userName = safeText(preferences?.user_name || user?.name, "");
+
+    // Pre-filter 3A: macro — already sorted by premium/sector/recency in fetchMacroCandidates; take top N
+    const macroForStage2 = macroCandidates.slice(0, STAGE2_MACRO_CAP);
+    if (macroCandidates.length > STAGE2_MACRO_CAP) {
+      console.log(`📉 [Stage 1D] Pre-filter (3A): macro candidates ${macroCandidates.length} → ${macroForStage2.length} for Stage 2`);
+    }
+
+    // Pre-filter 3A: per-ticker articles — prefer direct, then by recency; take top 5 per ticker
+    const tickerPackagesForStage2 = tickerPackages.map((pkg) => {
+      if (pkg.news_articles.length <= STAGE2_ARTICLES_PER_TICKER_CAP) return pkg;
+      const relevanceRank = (a: TickerNewsArticle) =>
+        a.relevance_type === "direct" ? 0 : a.relevance_type === "tangential" ? 1 : 2;
+      const topArticles = [...pkg.news_articles]
+        .sort((a, b) => {
+          const rA = relevanceRank(a);
+          const rB = relevanceRank(b);
+          if (rA !== rB) return rA - rB;
+          return a.age_hours - b.age_hours;
+        })
+        .slice(0, STAGE2_ARTICLES_PER_TICKER_CAP);
+      return { ...pkg, news_articles: topArticles };
+    });
+    const totalBefore = tickerPackages.reduce((s, p) => s + p.news_articles.length, 0);
+    const totalAfter = tickerPackagesForStage2.reduce((s, p) => s + p.news_articles.length, 0);
+    if (totalBefore > totalAfter) {
+      console.log(`📉 [Stage 1D] Pre-filter (3A): ticker articles ${totalBefore} → ${totalAfter} (max ${STAGE2_ARTICLES_PER_TICKER_CAP}/ticker) for Stage 2`);
+    }
+
     const rawIntelligence = buildRawIntelligencePackage(
-      tickerPackages,
-      macroCandidates,
+      tickerPackagesForStage2,
+      macroForStage2,
       {
         user_name: userName,
         interests: userInterests,
