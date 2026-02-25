@@ -412,9 +412,18 @@ export default function Home() {
 
   // MOBILE APP ONLY: If running in native/standalone mode and user is not authenticated,
   // redirect to login immediately. Web browser still shows the landing page.
+  const isNative = (() => {
+    if (isNativeApp()) return true;
+    const ua = (navigator.userAgent || "").toLowerCase();
+    if (ua.includes("median") || ua.includes("gonative")) return true;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("app") === "1") return true;
+    return false;
+  })();
+
   const [nativeAuthChecked, setNativeAuthChecked] = useState(false);
   useEffect(() => {
-    if (!isNativeApp()) {
+    if (!isNative) {
       setNativeAuthChecked(true);
       return;
     }
@@ -426,7 +435,7 @@ export default function Home() {
         setNativeAuthChecked(true);
       }
     });
-  }, []);
+  }, [isNative]);
 
   // Fetch current user
   const { data: user, isLoading: userLoading } = useQuery({
