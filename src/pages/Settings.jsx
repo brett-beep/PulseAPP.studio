@@ -172,6 +172,11 @@ export default function Settings() {
         }));
     };
 
+    // Track settings_viewed on mount (must be before early returns — Rules of Hooks)
+    React.useEffect(() => {
+        track("settings_viewed", {});
+    }, []);
+
     if (isLoading || !editedPrefs) {
         return (
             <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'hsl(var(--background))' }}>
@@ -179,11 +184,6 @@ export default function Settings() {
             </div>
         );
     }
-
-    // Track settings_viewed on mount
-    React.useEffect(() => {
-        track("settings_viewed", {});
-    }, []);
 
     return (
         <motion.div 
