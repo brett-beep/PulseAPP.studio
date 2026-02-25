@@ -2894,23 +2894,27 @@ function buildAnalystPromptPortfolio(
   const userCtx = rawIntelligence.user_context;
   const holdings = userCtx.holdings;
   const interests = userCtx.interests;
+  const tickerPackages = rawIntelligence.ticker_packages || [];
+  const requiredTickers = tickerPackages.map((p: TickerPackage) => p.ticker);
 
   return `You are a senior financial analyst. This call is PORTFOLIO ONLY. Your output must contain ONLY:
-1. portfolio_selections — one selection per holding in the package (use ticker_packages; ignore macro_candidates).
-2. data_quality_flags — any holdings with insufficient coverage or data gaps.
+1. portfolio_selections — you MUST output exactly ${requiredTickers.length} selection(s), one for EACH of these tickers: ${requiredTickers.join(", ")}. Never omit a holding.
+2. data_quality_flags — flag any holding where coverage is thin or articles are not company-specific (optional; can be empty).
 
 Do NOT output macro_selections, market_energy, or watch_items.
+
+HARD RULE — ONE SELECTION PER HOLDING: For every ticker in ticker_packages you must output one portfolio_selection. If a holding has no suitable company-specific news (e.g. only tangential/sector/supplier articles), output one selection with source_type: "market_data_only", hook/facts from the quote data only, so_what brief, confidence: "low", and data_gap_note: "Insufficient company-specific news; using price data." That way the listener still gets a segment for that holding.
 
 ═══════════════════════════════════════
 PORTFOLIO STORY SELECTION
 ═══════════════════════════════════════
 - Specific news with numbers > vague commentary. Analyst actions (upgrades/downgrades/price targets) = high priority.
-- Prefer relevance_type "direct" over "tangential" or "sector". If NO news, use quote data for "market_data_only" angle.
+- Prefer relevance_type "direct" over "tangential" or "sector". When articles exist but none are clearly about the company's own performance/outlook (e.g. only supplier or industry news), still output one selection with source_type: "market_data_only" and data_gap_note explaining.
 - is_sector_level: true → frame at sector level, connect to holding. NEVER fabricate news.
-- story_key per selection: ticker-prefixed snake_case (e.g. "amzn_antitrust_california", "nvda_q4_earnings").
+- story_key per selection: ticker-prefixed snake_case (e.g. "amzn_antitrust_california", "nvda_q4_earnings", "ba_market_data_only").
 
-FACTS: Every "facts" item must be a verifiable data point from the provided articles or market data. No speculation or filler. If you cannot find 2-3 specific facts, set confidence to "low" and only include verifiable points.
-CROSS-REFERENCE: Combine specific data from ALL articles for each holding; use most authoritative or most recent when numbers differ. Flag discrepancies in data_gap_note.
+FACTS: Every "facts" item must be a verifiable data point from the provided articles or market data. No speculation or filler. For market_data_only, use only quote data (e.g. "Current price: $X, up Y% today").
+CROSS-REFERENCE: Combine specific data from ALL articles for each holding when using news; use most authoritative or most recent when numbers differ. Flag discrepancies in data_gap_note.
 
 DATA DEPTH (from each ticker_package): daily → brief (price + one insight). weekly → week-in-review. monthly → full review. earnings_ramp/earnings_day/earnings_aftermath → focus on earnings. weekend → light.
 
@@ -2921,7 +2925,7 @@ RAW INTELLIGENCE PACKAGE (use ticker_packages and user_context; ignore macro_can
 ═══════════════════════════════════════
 ${JSON.stringify(rawIntelligence)}
 
-TASK: For listener "${userCtx.user_name}" (holdings: ${holdings.join(", ")}), select one story/angle per holding and flag data quality. Return valid JSON only.`;
+TASK: For listener "${userCtx.user_name}" (holdings: ${holdings.join(", ")}), output exactly ${requiredTickers.length} portfolio_selections — one per ticker. For holdings with no company-specific news, use market_data_only. Then add any data_quality_flags. Return valid JSON only.`;
 }
 
 // =========================================================
@@ -2993,12 +2997,12 @@ WEEKEND: 350-450 words. No live markets. 1) Opening: warm, acknowledge weekend; 
 
 ` : `WEEKDAY (exact order):`}
 
-1) Opening (50-80w): greeting + each index ONCE + what's driving it; match market_energy; end "Here's your Pulse." 2) Rapid fire (80-140w): 3 macro_selections; transitions "First up," "Meanwhile," "And finally,"; sector-personalized Story 3 → "And one for your watchlist —"; no portfolio names here.
+1) Opening (50-80w): greeting + each index ONCE + what's driving it; match market_energy; end "Here's your Pulse." 2) Rapid fire (80-140w): 3 macro_selections only; transitions "First up," "Meanwhile," "And finally,". Do NOT mention calendar watch items (PCE, earnings, CPI, Consumer Confidence, etc.) in Rapid Fire — reserve those for section 4 only. No portfolio names here.
 
 3) Portfolio (200-280w): portfolio_selections. Per holding: hook (1) → facts + numbers (1-2) → context/color (1, optional) → so_what (1). If market_data_only: brief, honest. Transitions: "Looking at your [company]," "Shifting to [company]," etc.
 ${skipped_tickers.length > 0 ? `Skipped tickers ${skipped_tickers.join(", ")}: one neutral sentence at end of portfolio; do not speculate.` : ""}
 
-4) What to watch (40-70w): Use reminder_context. Missed briefings→catch up; consecutive mentions→freshen angle; primary+secondary→both; one event repeated→own it; no events→say so. End with forward pull. 5) Sign-off (15-25w): Vary by market_energy (good/volatile/catalyst/quiet) and day (Friday/Monday); never repeat two days in a row.
+4) What to watch (40-70w): Put ALL watch items (primary and secondary from analyzed_brief.watch_items) in this section only — one block after portfolio. Do not split them (e.g. one in Rapid Fire and one later). Cover both primary and secondary here; use reminder_context for catch-up/freshen. End with forward pull. 5) Sign-off (15-25w): Vary by market_energy (good/volatile/catalyst/quiet) and day (Friday/Monday); never repeat two days in a row.
 
 KILL RULES: No invented news; no fabricated ratings/targets/dates. Low confidence→brief. No generic filler; every holding sentence has a specific number. Pick 1-2 narrative techniques; Professional→don't over-explain; Conversational→plain-English bridge for complex concepts.
 TARGET: ${wordTarget} words. Tight but keep personality.
@@ -3926,11 +3930,38 @@ Deno.serve(async (req) => {
           invokeLLM(base44, portfolioPrompt, false, ANALYST_PORTFOLIO_SCHEMA),
         ]);
         if (macroResult?.macro_selections && Array.isArray(portfolioResult?.portfolio_selections)) {
+          const tickerPackages = rawIntelligence.ticker_packages || [];
+          const returnedTickers = new Set((portfolioResult.portfolio_selections as PortfolioSelection[]).map((s) => s.ticker));
+          let portfolioSelections: PortfolioSelection[] = [...(portfolioResult.portfolio_selections as PortfolioSelection[])];
+
+          // One-per-holding safeguard: if LLM returns fewer selections than tickers (e.g. BA had articles but none company-specific), fill missing with market_data_only so every holding gets a segment.
+          for (const pkg of tickerPackages) {
+            if (returnedTickers.has(pkg.ticker)) continue;
+            const q = pkg.quote;
+            const changePct = q?.change_pct ?? 0;
+            const price = q?.current_price ?? null;
+            portfolioSelections.push({
+              ticker: pkg.ticker,
+              company_name: pkg.company_name,
+              data_depth: pkg.data_depth,
+              source_type: "market_data_only",
+              source_id: null,
+              hook: `Your ${pkg.company_name} position — ${price != null ? `$${price.toFixed(2)}` : "no quote"}${changePct !== 0 ? `, ${changePct > 0 ? "+" : ""}${changePct.toFixed(2)}% today` : ""}.`,
+              facts: price != null ? [`Current price: $${price.toFixed(2)}`, changePct !== 0 ? `${changePct > 0 ? "+" : ""}${changePct.toFixed(2)}% today` : "Flat today."].filter(Boolean) : ["No quote data available."],
+              so_what: "No company-specific news in this run; keeping an eye on the position.",
+              confidence: "low",
+              quote_context: { current_price: price, change_today_pct: changePct },
+              data_gap_note: "Insufficient company-specific news; using price data.",
+              transition_suggestion: "Shifting to",
+            });
+            console.log(`   [Stage 2] Filled missing portfolio selection for ${pkg.ticker} (market_data_only).`);
+          }
+
           analyzedBrief = {
             macro_selections: macroResult.macro_selections,
             market_energy: (macroResult.market_energy as MarketEnergy) || "quiet",
             watch_items: macroResult.watch_items ?? { primary: null, secondary: null },
-            portfolio_selections: portfolioResult.portfolio_selections,
+            portfolio_selections: portfolioSelections,
             data_quality_flags: Array.isArray(portfolioResult.data_quality_flags) ? portfolioResult.data_quality_flags : [],
           };
           parallelOk = true;
