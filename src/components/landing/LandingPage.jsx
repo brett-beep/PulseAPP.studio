@@ -42,14 +42,19 @@ export function LandingPage({ onSignIn }) {
 
   // Skip landing page in native app — go straight to login
   useEffect(() => {
-    if (isNativeApp()) {
-      console.log("[LandingPage] Native app detected, redirecting to login...")
+    if (shouldSkipLanding()) {
+      console.log("[LandingPage] Native app detected, redirecting to login...", {
+        ua: navigator.userAgent,
+        standalone: window.navigator?.standalone,
+        displayMode: window.matchMedia?.("(display-mode: standalone)")?.matches,
+      })
       setRedirectingNative(true)
-      base44.auth.redirectToLogin(window.location.origin)
+      // Use onSignIn (Base44 auth redirect) to go to login
+      onSignIn()
       return
     }
     // Log why detection failed (for debugging in TestFlight)
-    console.log("[LandingPage] isNativeApp() = false", {
+    console.log("[LandingPage] shouldSkipLanding() = false", {
       ua: navigator.userAgent,
       standalone: window.navigator?.standalone,
       displayMode: window.matchMedia?.("(display-mode: standalone)")?.matches,
