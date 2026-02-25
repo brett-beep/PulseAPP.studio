@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { toast } from 'sonner';
+import { track } from "@/components/lib/analytics";
 
 const goalOptions = [
     'Retirement', 'Wealth Growth', 'Passive Income', 
@@ -110,6 +111,16 @@ export default function Settings() {
     });
 
     const handleSave = () => {
+        // Determine which fields changed for analytics
+        const updatedFields = [];
+        if (editedPrefs.display_name !== preferences.display_name) updatedFields.push("name");
+        if (JSON.stringify(editedPrefs.portfolio_holdings) !== JSON.stringify(preferences.portfolio_holdings)) updatedFields.push("portfolio");
+        if (editedPrefs.risk_tolerance !== preferences.risk_tolerance) updatedFields.push("risk_tolerance");
+        if (JSON.stringify(editedPrefs.investment_goals) !== JSON.stringify(preferences.investment_goals)) updatedFields.push("goals");
+        if (JSON.stringify(editedPrefs.investment_interests) !== JSON.stringify(preferences.investment_interests)) updatedFields.push("interests");
+        if (editedPrefs.briefing_length !== preferences.briefing_length) updatedFields.push("length");
+        if (editedPrefs.preferred_voice !== preferences.preferred_voice) updatedFields.push("voice");
+        track("settings_updated", { updated_fields: updatedFields.join(",") });
         updateMutation.mutate(editedPrefs);
     };
 
@@ -168,6 +179,11 @@ export default function Settings() {
             </div>
         );
     }
+
+    // Track settings_viewed on mount
+    React.useEffect(() => {
+        track("settings_viewed", {});
+    }, []);
 
     return (
         <motion.div 
