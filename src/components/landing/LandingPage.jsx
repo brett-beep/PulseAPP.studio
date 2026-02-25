@@ -11,7 +11,8 @@ import { base44 } from "@/api/base44Client"
 export function LandingPage({ onSignIn }) {
   const [isWaitlistOpen, setIsWaitlistOpen] = useState(false)
   const [hasConverted, setHasConverted] = useState(false)
-  const [redirectingNative, setRedirectingNative] = useState(false)
+  // Initialize synchronously — if native app, start as true so landing page NEVER flashes
+  const [redirectingNative, setRedirectingNative] = useState(() => isNativeApp())
   
   // Refs for section tracking
   const heroRef = useRef(null)
