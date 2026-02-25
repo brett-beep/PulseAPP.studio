@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import StockPicker from "@/components/StockPicker";
 import MobileOnboarding from "@/components/MobileOnboarding";
 import { ArrowRight, ArrowLeft, Check, Sparkles } from 'lucide-react';
+import { track } from "@/components/lib/analytics";
 
 /** True only for actual touch devices with narrow viewport (mobile app). Web app = always false. */
 function useIsMobileDevice() {
@@ -118,6 +119,10 @@ function WebOnboardingWizard({ onComplete }) {
   };
 
   const nextStep = () => {
+    track("onboarding_step_completed", {
+      step_index: currentStep,
+      step_name: steps[currentStep].id,
+    });
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
@@ -133,6 +138,12 @@ function WebOnboardingWizard({ onComplete }) {
 
   const handleComplete = async () => {
     setIsSubmitting(true);
+    track("onboarding_completed", {
+      holdings_count: (preferences.portfolio_holdings || []).length,
+      interests_count: (preferences.investment_interests || []).length,
+      briefing_length: preferences.briefing_length,
+      voice_preference: preferences.preferred_voice,
+    });
     try {
       await onComplete({ ...preferences, onboarding_completed: true });
     } catch (error) {
@@ -140,6 +151,14 @@ function WebOnboardingWizard({ onComplete }) {
       setIsSubmitting(false);
     }
   };
+
+  // Track each step view
+  useEffect(() => {
+    track("onboarding_step_viewed", {
+      step_index: currentStep,
+      step_name: steps[currentStep].id,
+    });
+  }, [currentStep]);
 
   const renderStepContent = () => {
     switch (steps[currentStep].id) {

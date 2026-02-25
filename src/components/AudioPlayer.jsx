@@ -4,6 +4,7 @@ import { Play, Pause, RotateCcw, FastForward, Volume2, VolumeX, Gauge, Clock, Lo
 import { Slider } from "@/components/ui/slider";
 import { GlassFilter } from "@/components/ui/liquid-glass-button";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { track } from "@/components/lib/analytics";
 
 export default function AudioPlayer({
   audioUrl,
@@ -75,6 +76,10 @@ export default function AudioPlayer({
     const handleEnded = () => {
       console.log("🎵 [Audio Element] Playback ended");
       setIsPlaying(false);
+      track("audio_completed", {
+        duration_seconds: Math.round(audio.duration || 0),
+        completion_percent: 100,
+      });
       onComplete?.();
     };
     const handleError = (e) => {
@@ -106,6 +111,24 @@ export default function AudioPlayer({
       audio.playbackRate = playbackRate;
     }
   }, [playbackRate]);
+
+  // ── audio_progress heartbeat (every 30 seconds while playing) ──
+  useEffect(() => {
+    if (!isPlaying || !audioUrl) return;
+    const interval = setInterval(() => {
+      const a = audioRef.current;
+      if (!a || a.paused) return;
+      const pos = Math.round(a.currentTime || 0);
+      const dur = Math.round(a.duration || totalDuration || 0);
+      const pct = dur > 0 ? Math.round((pos / dur) * 100) : 0;
+      track("audio_progress", {
+        playback_position_seconds: pos,
+        duration_seconds: dur,
+        completion_percent: pct,
+      });
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [isPlaying, audioUrl, totalDuration]);
 
   // Audio-reactive waveform: AnalyserNode drives bar heights when playing
   useEffect(() => {
@@ -288,6 +311,10 @@ export default function AudioPlayer({
     if (!a) return;
 
     if (isPlaying) {
+      track("audio_pause_pressed", {
+        playback_position_seconds: Math.round(a.currentTime || 0),
+        duration_seconds: Math.round(totalDuration || 0),
+      });
       a.pause();
       setIsPlaying(false);
       return;
@@ -295,6 +322,9 @@ export default function AudioPlayer({
 
     try {
       await a.play();
+      track("audio_play_pressed", {
+        playback_position_seconds: Math.round(a.currentTime || 0),
+      });
       setIsPlaying(true);
     } catch {
       setIsPlaying(false);
@@ -304,8 +334,13 @@ export default function AudioPlayer({
   const skip = (seconds) => {
     const a = audioRef.current;
     if (!a) return;
+    const from = Math.round(a.currentTime || 0);
     const next = Math.max(0, Math.min((a.currentTime || 0) + seconds, totalDuration || a.duration || 0));
     a.currentTime = next;
+    track(seconds < 0 ? "audio_rewind" : "audio_forward", {
+      from_position_seconds: from,
+      to_position_seconds: Math.round(next),
+    });
   };
 
   const handleSeek = (value) => {
@@ -321,6 +356,7 @@ export default function AudioPlayer({
     if (!a) return;
     a.muted = !isMuted;
     setIsMuted(!isMuted);
+    track("audio_volume_toggled", { muted: !isMuted });
   };
 
   const changeVolume = (val) => {
@@ -337,6 +373,7 @@ export default function AudioPlayer({
   const changeSpeed = (speed) => {
     setPlaybackRate(speed);
     setShowSpeedMenu(false);
+    track("audio_speed_changed", { speed });
   };
 
   const formatTime = (seconds) => {
@@ -596,7 +633,11 @@ export default function AudioPlayer({
             {transcript.trim() ? (
               <motion.button
                 type="button"
-                onClick={() => setShowTranscript((t) => !t)}
+                onClick={() => {
+                  const next = !showTranscript;
+                  setShowTranscript(next);
+                  track("transcript_toggled", { visible: next });
+                }}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 className="text-[9px] md:text-[10px] font-semibold tracking-wider uppercase text-slate-500 hover:text-slate-700 transition-colors flex items-center gap-1 md:gap-1.5 px-2 py-1 rounded"

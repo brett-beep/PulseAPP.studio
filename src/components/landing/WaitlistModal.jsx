@@ -2,6 +2,7 @@ import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { X, Mail, User, CheckCircle, Loader2, Sparkles } from "lucide-react"
 import { base44 } from "@/api/base44Client"
+import { track } from "@/components/lib/analytics"
 
 export function WaitlistModal({ isOpen, onClose, onSuccess }) {
   const [firstName, setFirstName] = useState("")
@@ -14,7 +15,7 @@ export function WaitlistModal({ isOpen, onClose, onSuccess }) {
   useEffect(() => {
     const handleEscape = (e) => {
       if (e.key === "Escape") {
-        onClose()
+        onClose("esc")
       }
     }
     if (isOpen) {
@@ -68,9 +69,12 @@ export function WaitlistModal({ isOpen, onClose, onSuccess }) {
       })
 
       if (response.data?.success) {
+        track("waitlist_form_submitted", { status: "success" })
+        track("waitlist_conversion", {})
         setIsSuccess(true)
         if (onSuccess) onSuccess()
       } else if (response.data?.alreadyExists) {
+        track("waitlist_form_submitted", { status: "already_exists" })
         setError("This email is already on the waitlist!")
       } else {
         throw new Error(response.data?.error || "Failed to join waitlist")
@@ -90,6 +94,8 @@ export function WaitlistModal({ isOpen, onClose, onSuccess }) {
             signed_up_at: new Date().toISOString(),
             source: "landing_page",
           })
+          track("waitlist_form_submitted", { status: "success" })
+          track("waitlist_conversion", {})
           setIsSuccess(true)
           if (onSuccess) onSuccess()
         } catch (entityErr) {
@@ -110,6 +116,7 @@ export function WaitlistModal({ isOpen, onClose, onSuccess }) {
               if (onSuccess) onSuccess()
             }
           } catch {
+            track("waitlist_form_submitted", { status: "error", error_message: "local_storage_fallback_failed" })
             setError("Something went wrong. Please try again.")
           }
         }
@@ -129,7 +136,7 @@ export function WaitlistModal({ isOpen, onClose, onSuccess }) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            onClick={onClose}
+            onClick={() => onClose("outside_click")}
             className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50"
           />
 
@@ -155,7 +162,7 @@ export function WaitlistModal({ isOpen, onClose, onSuccess }) {
             >
               {/* Close button */}
               <button
-                onClick={onClose}
+                onClick={() => onClose("button")}
                 className="absolute top-4 right-4 p-2 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors z-10"
               >
                 <X className="h-5 w-5" />
@@ -303,7 +310,7 @@ export function WaitlistModal({ isOpen, onClose, onSuccess }) {
                       </div>
 
                       <button
-                        onClick={onClose}
+                        onClick={() => onClose("submitted")}
                         className="text-slate-600 hover:text-slate-900 font-medium transition-colors"
                       >
                         Close

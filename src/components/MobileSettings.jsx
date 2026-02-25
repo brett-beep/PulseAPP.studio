@@ -9,6 +9,7 @@ import {
   User, BarChart3, Shield, Globe, Mic, ChevronRight, ChevronLeft,
   LogOut, Crown, Trash2, Check, X,
 } from "lucide-react";
+import { track } from "@/components/lib/analytics";
 
 /** Touch-only hook: reports drag position and velocity to parent. Parent owns animation and unmount. */
 function useSwipeBack(onDragUpdate, onSwipeComplete, onSwipeCancel) {
@@ -229,9 +230,19 @@ export default function MobileSettings({ isPremium = false, onUpgrade }) {
   const saveDraft = async () => {
     if (!draft || !preferences?.id) return;
     setSaving(true);
+    // Determine which fields changed
+    const updatedFields = [];
+    if (draft.display_name !== preferences.display_name) updatedFields.push("name");
+    if (JSON.stringify(draft.portfolio_holdings) !== JSON.stringify(preferences.portfolio_holdings)) updatedFields.push("portfolio");
+    if (draft.risk_tolerance !== preferences.risk_tolerance) updatedFields.push("risk_tolerance");
+    if (JSON.stringify(draft.investment_goals) !== JSON.stringify(preferences.investment_goals)) updatedFields.push("goals");
+    if (JSON.stringify(draft.investment_interests) !== JSON.stringify(preferences.investment_interests)) updatedFields.push("interests");
+    if (draft.briefing_length !== preferences.briefing_length) updatedFields.push("length");
+    if (draft.preferred_voice !== preferences.preferred_voice) updatedFields.push("voice");
     try {
       await base44.entities.UserPreferences.update(preferences.id, draft);
       queryClient.invalidateQueries({ queryKey: ["userPreferences"] });
+      track("settings_updated", { updated_fields: updatedFields.join(",") });
       toast.success("Saved!");
       closePage();
     } catch {

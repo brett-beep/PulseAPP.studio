@@ -7,6 +7,7 @@ import { Footer } from "./Footer"
 import { WaitlistModal } from "./WaitlistModal"
 import { isNativeApp } from "@/utils/isNativeApp"
 import { base44 } from "@/api/base44Client"
+import { track, trackBeacon, getPlatform } from "@/components/lib/analytics"
 
 /**
  * Extended native-app check:
@@ -33,6 +34,7 @@ export function LandingPage({ onSignIn }) {
   const [hasConverted, setHasConverted] = useState(false)
   // Initialize synchronously — if native app, start as true so landing page NEVER flashes
   const [redirectingNative, setRedirectingNative] = useState(() => shouldSkipLanding())
+  const landingStartRef = useRef(Date.now())
   
   // Refs for section tracking
   const heroRef = useRef(null)
@@ -42,6 +44,7 @@ export function LandingPage({ onSignIn }) {
   const footerRef = useRef(null)
 
   const openWaitlist = (location = 'Unknown') => {
+    track("waitlist_modal_opened", { triggered_by: "button_click", location })
     setIsWaitlistOpen(true)
   }
 
@@ -68,12 +71,73 @@ export function LandingPage({ onSignIn }) {
     console.log("[LandingPage] shouldSkipLanding() = false", debugInfo)
   }, [])
 
+  // ── landing_viewed (fires once on mount) ──
+  useEffect(() => {
+    if (shouldSkipLanding()) return
+    track("landing_viewed", {
+      referrer: document.referrer || "",
+      url: window.location.href,
+    })
+  }, [])
+
+  // ── IntersectionObserver for landing_section_viewed ──
+  useEffect(() => {
+    if (shouldSkipLanding()) return
+    const sections = [
+      { ref: heroRef, name: "Hero" },
+      { ref: valuePropsRef, name: "Value Props" },
+      { ref: howItWorksRef, name: "How It Works" },
+      { ref: ctaRef, name: "CTA Section" },
+      { ref: footerRef, name: "Footer" },
+    ]
+    const seen = new Set()
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const name = entry.target.getAttribute("data-section")
+            if (name && !seen.has(name)) {
+              seen.add(name)
+              const docHeight = document.documentElement.scrollHeight || 1
+              const scrollDepth = Math.round(((window.scrollY + window.innerHeight) / docHeight) * 100)
+              track("landing_section_viewed", {
+                section: name,
+                scroll_depth_percent: scrollDepth,
+              })
+            }
+          }
+        })
+      },
+      { threshold: 0.3 }
+    )
+    sections.forEach(({ ref }) => { if (ref.current) observer.observe(ref.current) })
+    return () => observer.disconnect()
+  }, [])
+
+  // ── landing_exited (unload / SPA leave) ──
+  useEffect(() => {
+    if (shouldSkipLanding()) return
+    const handleExit = () => {
+      const seconds = Math.round((Date.now() - landingStartRef.current) / 1000)
+      trackBeacon("landing_exited", {
+        session_duration_seconds: seconds,
+        converted: hasConverted,
+      })
+    }
+    window.addEventListener("beforeunload", handleExit)
+    return () => {
+      window.removeEventListener("beforeunload", handleExit)
+      handleExit() // fires on SPA unmount too
+    }
+  }, [hasConverted])
+
   // Open waitlist modal when user lands via share link: /#waitlist or ?waitlist=1
   useEffect(() => {
     const hash = window.location.hash?.toLowerCase().replace(/^#/, "")
     const params = new URLSearchParams(window.location.search)
     const fromQuery = params.get("waitlist") === "1" || params.get("open") === "waitlist"
     if (hash === "waitlist" || fromQuery) {
+      track("waitlist_modal_opened", { triggered_by: fromQuery ? "url_query" : "url_hash" })
       setIsWaitlistOpen(true)
       if (fromQuery) {
         params.delete("waitlist")
@@ -84,7 +148,11 @@ export function LandingPage({ onSignIn }) {
     }
   }, [])
 
-  const closeWaitlist = () => {
+  const closeWaitlist = (closeMethod = "button") => {
+    track("waitlist_modal_closed", {
+      close_method: closeMethod,
+      submitted: hasConverted,
+    })
     setIsWaitlistOpen(false)
   }
   
