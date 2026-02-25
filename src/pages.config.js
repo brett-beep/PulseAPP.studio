@@ -48,14 +48,14 @@
  * The mainPage value must match a key in the PAGES object exactly.
  */
 import AdminWaitlist from './pages/AdminWaitlist';
-import Settings from './pages/Settings';
 import Home from './pages/Home';
+import Settings from './pages/Settings';
 
 
 export const PAGES = {
     "AdminWaitlist": AdminWaitlist,
-    "Settings": Settings,
     "Home": Home,
+    "Settings": Settings,
 }
 
 export const pagesConfig = {

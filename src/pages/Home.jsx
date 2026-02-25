@@ -16,6 +16,7 @@ import SettingsPage from "@/pages/Settings";
 import MobileSettings from "@/components/MobileSettings";
 import { useIsMobile } from "@/hooks/use-mobile";
 
+import { isNativeApp } from "@/utils/isNativeApp";
 import { Settings, Headphones, Loader2, RefreshCw, Crown, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
