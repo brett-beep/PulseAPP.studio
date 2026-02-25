@@ -1058,8 +1058,8 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
     return "Good evening";
   };
 
-  // Loading state
-  if (userLoading || prefsLoading) {
+  // Loading state (includes waiting for native auth redirect)
+  if (!nativeAuthChecked || userLoading || prefsLoading) {
     return (
       <div className="min-h-screen p-4 md:p-6" style={{ background: "var(--loading-skeleton-bg)" }}>
         <div className="max-w-4xl mx-auto space-y-6 md:space-y-8">
