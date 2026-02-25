@@ -410,10 +410,29 @@ export default function Home() {
   const [generationStartedAt, setGenerationStartedAt] = useState(null); // Track when generation started
   const [elapsedSecs, setElapsedSecs] = useState(0); // Elapsed seconds since generation started
 
+  // MOBILE APP ONLY: If running in native/standalone mode and user is not authenticated,
+  // redirect to login immediately. Web browser still shows the landing page.
+  const [nativeAuthChecked, setNativeAuthChecked] = useState(false);
+  useEffect(() => {
+    if (!isNativeApp()) {
+      setNativeAuthChecked(true);
+      return;
+    }
+    // Native app: check auth and redirect to login if not authenticated
+    base44.auth.isAuthenticated().then((authed) => {
+      if (!authed) {
+        base44.auth.redirectToLogin(window.location.href);
+      } else {
+        setNativeAuthChecked(true);
+      }
+    });
+  }, []);
+
   // Fetch current user
   const { data: user, isLoading: userLoading } = useQuery({
     queryKey: ["currentUser"],
     queryFn: () => base44.auth.me(),
+    enabled: nativeAuthChecked,
   });
 
   // Fetch user preferences
