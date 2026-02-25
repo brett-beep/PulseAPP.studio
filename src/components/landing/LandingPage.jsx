@@ -9,17 +9,22 @@ import { isNativeApp } from "@/utils/isNativeApp"
 import { base44 } from "@/api/base44Client"
 
 /**
- * Extended native-app check: isNativeApp() + URL-based override (?app=1)
- * Median.co can be configured to load the initial URL with ?app=1.
+ * Extended native-app check:
+ * The Base44 mobile wrapper uses a plain WKWebView with no special UA or standalone flags.
+ * The most reliable signal is: mobile device + loaded from the .base44.app domain.
  */
 function shouldSkipLanding() {
   if (isNativeApp()) return true
-  // Median apps can pass ?app=1 or have "median" in UA (case-insensitive)
   const ua = (navigator.userAgent || "").toLowerCase()
+  // Median / GoNative UA check
   if (ua.includes("median") || ua.includes("gonative")) return true
-  // URL override — lets you force skip from Median config
+  // URL override
   const params = new URLSearchParams(window.location.search)
   if (params.get("app") === "1") return true
+  // Base44 mobile wrapper: mobile UA + .base44.app domain
+  const isMobileUA = /iphone|ipad|ipod|android/i.test(ua)
+  const isBase44Domain = window.location.hostname.endsWith(".base44.app")
+  if (isMobileUA && isBase44Domain) return true
   return false
 }
 
