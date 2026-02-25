@@ -17,6 +17,7 @@ import MobileSettings from "@/components/MobileSettings";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 import { isNativeApp } from "@/utils/isNativeApp";
+import { track, setUserId, resolveUserId } from "@/components/lib/analytics";
 import { Settings, Headphones, Loader2, RefreshCw, Crown, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -444,6 +445,14 @@ export default function Home() {
     enabled: nativeAuthChecked,
   });
 
+  // ── Set analytics user id once user is available ──
+  useEffect(() => {
+    if (user?.id) {
+      setUserId(user.id);
+      track("sign_in_completed", {});
+    }
+  }, [user?.id]);
+
   // Fetch user preferences
   const { data: preferences, isLoading: prefsLoading } = useQuery({
     queryKey: ["userPreferences"],
@@ -535,6 +544,14 @@ export default function Home() {
     
     const isReady = todayBriefing?.status === "ready" || todayBriefing?.status === "script_ready";
     if (!isReady) return;
+
+    // Track briefing_generation_completed once
+    const scriptText = todayBriefing?.script || "";
+    const wordCount = scriptText.split(/\s+/).filter(Boolean).length;
+    track("briefing_generation_completed", {
+      script_word_count: wordCount,
+      duration_seconds: todayBriefing?.duration_minutes ? Math.round(todayBriefing.duration_minutes * 60) : null,
+    });
     
     // Check if this briefing was delivered after we started generating
     const deliveredAt = todayBriefing?.delivered_at || todayBriefing?.updated_date || todayBriefing?.created_date || todayBriefing?.updated_at || todayBriefing?.created_at;
@@ -950,9 +967,13 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
   }, [refreshNewsCards, isLoadingNews, isPullRefreshing, mobileTab]);
 
   const handleMobileTabChange = useCallback((tab) => {
+    const from = mobileTab;
     setMobileTab(tab);
     window.scrollTo(0, 0);
-  }, []);
+    track("tab_changed", { from_tab: from, to_tab: tab });
+    if (tab === "news") track("news_tab_viewed", {});
+    if (tab === "settings") track("settings_viewed", {});
+  }, [mobileTab]);
 
   // Save preferences mutation
   const savePreferencesMutation = useMutation({
@@ -1004,6 +1025,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
     setGenerationStartedAt(startTime);
     setIsGenerating(true);
     console.log("🎬 Starting briefing generation at:", startTime.toISOString());
+    track("briefing_requested", { briefing_date: today });
 
     try {
       console.log("📤 [Generate Briefing] Sending preferences:", preferences);
@@ -1026,6 +1048,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
 
       if (response?.data?.error) {
         console.error("❌ Briefing generation error:", response.data.error);
+        track("briefing_generation_failed", { error_type: String(response.data.error).slice(0, 200) });
         const url = response?.request?.responseURL || response?.config?.url || "generateBriefing";
         const status = response?.status ?? response?.statusCode ?? response?.data?.status;
         const details = [url, status != null ? `HTTP ${status}` : null, response.data.error].filter(Boolean).join(" — ");
@@ -1035,6 +1058,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
       } else {
         console.log("✅ Briefing generation started!");
         console.log("📊 Response data:", response.data);
+        track("briefing_generation_started", {});
 
         await refetchBriefing();
 
@@ -1045,6 +1069,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
       }
     } catch (error) {
       console.error("❌ Error generating briefing:", error);
+      track("briefing_generation_failed", { error_type: String(error?.message || error).slice(0, 200) });
       const url = error?.config?.url ?? error?.request?.responseURL ?? "generateBriefing";
       const status = error?.response?.status ?? error?.status ?? error?.statusCode;
       const bodyMessage = error?.response?.data?.error ?? error?.response?.data?.message ?? error?.data?.error ?? error?.data?.message;
@@ -1079,6 +1104,18 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
       </div>
     );
   }
+
+  // ── app_home_viewed: fires once per mount when data is ready ──
+  const homeViewedRef = useRef(false);
+  useEffect(() => {
+    if (homeViewedRef.current) return;
+    if (user && preferences?.onboarding_completed) {
+      homeViewedRef.current = true;
+      track("app_home_viewed", {
+        has_existing_briefing: !!(todayBriefing && (todayBriefing.status === "ready" || todayBriefing.status === "script_ready")),
+      });
+    }
+  }, [user, preferences?.onboarding_completed, todayBriefing]);
 
   // Show onboarding if not completed
   if (!preferences?.onboarding_completed) {
