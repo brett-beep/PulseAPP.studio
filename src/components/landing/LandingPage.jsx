@@ -6,6 +6,7 @@ import { CTASection } from "./CTASection"
 import { Footer } from "./Footer"
 import { WaitlistModal } from "./WaitlistModal"
 import { isNativeApp } from "@/utils/isNativeApp"
+import { base44 } from "@/api/base44Client"
 
 export function LandingPage({ onSignIn }) {
   const [isWaitlistOpen, setIsWaitlistOpen] = useState(false)
