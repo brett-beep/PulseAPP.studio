@@ -11,6 +11,7 @@ import { base44 } from "@/api/base44Client"
 export function LandingPage({ onSignIn }) {
   const [isWaitlistOpen, setIsWaitlistOpen] = useState(false)
   const [hasConverted, setHasConverted] = useState(false)
+  const [redirectingNative, setRedirectingNative] = useState(false)
   
   // Refs for section tracking
   const heroRef = useRef(null)
@@ -26,7 +27,8 @@ export function LandingPage({ onSignIn }) {
   // Skip landing page in native app — go straight to login
   useEffect(() => {
     if (isNativeApp()) {
-      base44.auth.redirectToLogin(window.location.href)
+      setRedirectingNative(true)
+      base44.auth.redirectToLogin(window.location.origin)
     }
   }, [])
 
