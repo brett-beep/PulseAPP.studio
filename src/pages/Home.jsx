@@ -453,6 +453,9 @@ export default function Home() {
     }
   }, [user?.id]);
 
+  // ── app_home_viewed ref (must be before any early returns to satisfy Rules of Hooks) ──
+  const homeViewedRef = useRef(false);
+
   // Fetch user preferences
   const { data: preferences, isLoading: prefsLoading } = useQuery({
     queryKey: ["userPreferences"],
