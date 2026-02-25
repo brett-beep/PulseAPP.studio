@@ -3,6 +3,7 @@ import { Zap, ArrowRight } from "lucide-react"
 import { AudioPlayerPreview } from "./AudioPlayerPreview"
 import { MarketTicker } from "./MarketTicker"
 import { base44 } from "@/api/base44Client"
+import { track } from "@/components/lib/analytics"
 
 export function Hero({ onSignIn, onJoinWaitlist }) {
   return (
@@ -35,7 +36,11 @@ export function Hero({ onSignIn, onJoinWaitlist }) {
           </div>
           <button
             type="button"
-            onClick={onSignIn}
+            onClick={() => {
+              track("cta_clicked", { location: "hero_nav_signin" })
+              track("sign_in_started", { method: "nav_signin" })
+              onSignIn()
+            }}
             className="glass-card rounded-full px-4 md:px-6 py-2 md:py-2.5 text-xs md:text-sm font-medium text-foreground transition-all hover:bg-white/80 hover:shadow-lg whitespace-nowrap"
           >
             Sign In
@@ -90,10 +95,8 @@ export function Hero({ onSignIn, onJoinWaitlist }) {
               <button
                 type="button"
                 onClick={() => {
-                  base44.analytics.track({
-                    eventName: "cta_button_clicked",
-                    properties: { location: "hero_top" }
-                  })
+                  track("cta_clicked", { location: "hero_top" })
+                  track("sign_in_started", { method: "cta_button" })
                   onSignIn()
                 }}
                 className="group flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-primary to-accent px-8 py-4 text-base font-semibold text-primary-foreground shadow-xl glow-primary transition-all hover:shadow-2xl hover:scale-[1.02] sm:w-auto whitespace-nowrap"

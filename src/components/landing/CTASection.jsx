@@ -1,6 +1,7 @@
 import { motion } from "framer-motion"
 import { ArrowRight, Sparkles } from "lucide-react"
 import { base44 } from "@/api/base44Client"
+import { track } from "@/components/lib/analytics"
 
 export function CTASection({ onSignIn, onJoinWaitlist }) {
   return (
@@ -34,10 +35,8 @@ export function CTASection({ onSignIn, onJoinWaitlist }) {
           <motion.button
             type="button"
             onClick={() => {
-              base44.analytics.track({
-                eventName: "cta_button_clicked",
-                properties: { location: "cta_section_bottom" }
-              })
+              track("cta_clicked", { location: "cta_section_bottom" })
+              track("sign_in_started", { method: "cta_button" })
               onSignIn()
             }}
             whileHover={{ scale: 1.03 }}

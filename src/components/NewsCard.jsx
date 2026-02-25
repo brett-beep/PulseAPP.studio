@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Badge } from "@/components/ui/badge";
+import { track } from "@/components/lib/analytics";
 
 const categoryColors = {
     'markets': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
@@ -83,6 +84,12 @@ export default function NewsCard({ story, index }) {
                         onClick={(e) => {
                             e.stopPropagation();
                             e.preventDefault();
+                            if (!isExpanded) {
+                              track("news_card_clicked", {
+                                story_id: story.id || `story_${index}`,
+                                story_type: story.category || "unknown",
+                              });
+                            }
                             setIsExpanded(!isExpanded);
                         }}
                         className="text-xs md:text-sm font-medium text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 transition-colors mt-1.5 md:mt-2 inline-flex items-center gap-1"
