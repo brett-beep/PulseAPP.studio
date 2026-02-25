@@ -3904,30 +3904,35 @@ Deno.serve(async (req) => {
       }
       console.log(`🎤 [Voice] User preference: "${preferences?.preferred_voice ?? ""}" → normalized: "${userVoicePreference3}"`);
 
-      // ── Build Scriptwriter Prompt ──
-      const scriptwriterPrompt = buildScriptwriterPrompt({
-        analyzedBrief,
-        name,
-        naturalDate: naturalDate3,
-        timeGreeting: timeGreeting3,
-        holidayGreeting: holidayGreeting3,
-        isWeekend: isWeekend3,
-        isMonday: isMonday3,
-        isFriday: isFriday3,
-        userHoldingsStr: userHoldingsStr3,
-        userSectorInterests: userInterests,
-        marketSnapshot: marketSnapshot3,
-        userVoicePreference: userVoicePreference3,
-        dayName: dayName3,
-        skipped_tickers: skippedTickers,
-        briefingLength: preferences?.briefing_length ?? "",
-      });
+      // ── Build Scriptwriter Prompt + LLM (try/catch so 3B prompt or schema issues fall back to legacy, not 500) ──
+      let scriptwriterResult: any = null;
+      try {
+        const scriptwriterPrompt = buildScriptwriterPrompt({
+          analyzedBrief,
+          name,
+          naturalDate: naturalDate3,
+          timeGreeting: timeGreeting3,
+          holidayGreeting: holidayGreeting3,
+          isWeekend: isWeekend3,
+          isMonday: isMonday3,
+          isFriday: isFriday3,
+          userHoldingsStr: userHoldingsStr3,
+          userSectorInterests: userInterests,
+          marketSnapshot: marketSnapshot3,
+          userVoicePreference: userVoicePreference3,
+          dayName: dayName3,
+          skipped_tickers: skippedTickers,
+          briefingLength: preferences?.briefing_length ?? "",
+        });
 
-      console.log(`📝 [Stage 3] Scriptwriter prompt built (voice=${userVoicePreference3}, weekend=${isWeekend3})`);
-      console.log(`   Input: ${analyzedBrief.macro_selections.length} macro selections, ${analyzedBrief.portfolio_selections.length} portfolio selections`);
+        console.log(`📝 [Stage 3] Scriptwriter prompt built (voice=${userVoicePreference3}, weekend=${isWeekend3})`);
+        console.log(`   Input: ${analyzedBrief.macro_selections.length} macro selections, ${analyzedBrief.portfolio_selections.length} portfolio selections`);
 
-      // ── LLM Call ──
-      const scriptwriterResult = await invokeLLM(base44, scriptwriterPrompt, false, SCRIPTWRITER_OUTPUT_SCHEMA);
+        scriptwriterResult = await invokeLLM(base44, scriptwriterPrompt, false, SCRIPTWRITER_OUTPUT_SCHEMA);
+      } catch (stage3LLMErr: any) {
+        console.error(`❌ [Stage 3] Scriptwriter LLM failed (falling back to legacy):`, stage3LLMErr?.message ?? stage3LLMErr);
+        scriptwriterResult = null;
+      }
 
       // ── Fix 3 Step C: validate required output fields; fallback if LLM returned "unknown"
       if (scriptwriterResult) {
@@ -3965,9 +3970,10 @@ Deno.serve(async (req) => {
       console.log(`   highlights: ${uiHighlights3.length} items`);
       console.log(`   sentiment: ${uiSentiment3.label} — ${(uiSentiment3.description || "").slice(0, 80)}`);
 
-      // ── Word count guard ──
-      if (wc3 < 50) {
-        console.error(`❌ [Stage 3] Script too short (${wc3} words). Falling through to legacy prompt.`);
+      // ── Word count guard (also catches null result from failed LLM) ──
+      if (!scriptwriterResult || wc3 < 50) {
+        if (!scriptwriterResult) console.error(`❌ [Stage 3] No scriptwriter result (LLM failed or null). Falling through to legacy prompt.`);
+        else console.error(`❌ [Stage 3] Script too short (${wc3} words). Falling through to legacy prompt.`);
       } else {
         // ── Build UI stories from Analyzed Brief ──
         const allowedCats3 = new Set(["markets", "crypto", "economy", "technology", "real estate", "commodities", "default"]);
