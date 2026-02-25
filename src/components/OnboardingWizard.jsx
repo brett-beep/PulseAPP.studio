@@ -81,7 +81,6 @@ function WebOnboardingWizard({ onComplete }) {
     risk_tolerance: 'moderate',
     investment_interests: [],
     portfolio_holdings: [],
-    briefing_length: 'medium',
     preferred_voice: 'professional',
   });
 
@@ -279,31 +278,6 @@ function WebOnboardingWizard({ onComplete }) {
       case 'preferences':
         return (
           <div className="space-y-8">
-            <div className="space-y-4">
-              <Label className="text-slate-700">Briefing Length</Label>
-              <div className="grid grid-cols-3 gap-3">
-                {[
-                  { value: 'short', label: '~5 min', desc: 'Quick highlights' },
-                  { value: 'medium', label: '~8 min', desc: 'Balanced coverage' },
-                  { value: 'long', label: '~12 min', desc: 'Deep dive' },
-                ].map(opt => (
-                  <motion.button
-                    key={opt.value}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setPreferences(prev => ({ ...prev, briefing_length: opt.value }))}
-                    className={`p-4 rounded-xl border-2 transition-all ${
-                      preferences.briefing_length === opt.value
-                        ? 'border-amber-500 bg-amber-50'
-                        : 'border-slate-200 hover:border-slate-300'
-                    }`}
-                  >
-                    <div className="font-semibold text-slate-900">{opt.label}</div>
-                    <div className="text-xs text-slate-500">{opt.desc}</div>
-                  </motion.button>
-                ))}
-              </div>
-            </div>
-
             <div className="space-y-4">
               <Label className="text-slate-700">Voice Style</Label>
               <div className="grid grid-cols-3 gap-3">

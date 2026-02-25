@@ -1016,7 +1016,6 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
           investment_goals: preferences?.investment_goals,
           investment_interests: preferences?.investment_interests,
           portfolio_holdings: preferences?.portfolio_holdings,
-          briefing_length: preferences?.briefing_length,
           preferred_voice: preferences?.preferred_voice,
         },
         date: today,

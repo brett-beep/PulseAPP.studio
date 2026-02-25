@@ -2952,8 +2952,6 @@ interface ScriptwriterInput {
   dayName: string;
   /** Tickers excluded from briefing (unsupported + no coverage). Script says one neutral line. */
   skipped_tickers?: string[];
-  /** User's briefing length preference (~5 min, ~8 min, ~12 min). Drives word target in prompt. */
-  briefingLength?: string;
 }
 
 function buildScriptwriterPrompt(input: ScriptwriterInput): string {
@@ -2961,18 +2959,12 @@ function buildScriptwriterPrompt(input: ScriptwriterInput): string {
     analyzedBrief, name, naturalDate, timeGreeting, holidayGreeting,
     isWeekend, isMonday, isFriday, userHoldingsStr, userSectorInterests,
     marketSnapshot, userVoicePreference, dayName, skipped_tickers = [],
-    briefingLength = "",
   } = input;
 
-  let wordTarget: string;
-  if (briefingLength === "~8 min") {
-    wordTarget = "800-1000 words (~6-7 minutes)";
-  } else if (briefingLength === "~12 min") {
-    wordTarget = "1200-1500 words (~10-11 minutes)";
-  } else {
-    wordTarget = "450-600 words (~3-4 minutes)";
-  }
+  // Single default word target (briefing length option removed from product)
+  const wordTarget = "450-600 words (~3-4 minutes)";
 
+  // Briefing style (voice) is linked to generation: userVoicePreference drives tone blocks below
   console.log(`📝 [Stage 3] Voice mode block injected: ${userVoicePreference}`);
 
   // Watch item history — not yet implemented; will be wired in a future stage
@@ -3539,7 +3531,6 @@ Deno.serve(async (req) => {
     console.log(`   holdings: ${JSON.stringify(prefProfile?.holdings ?? preferences?.portfolio_holdings)}`);
     console.log(`   interests: ${JSON.stringify(prefProfile?.interests ?? preferences?.investment_interests)}`);
     console.log(`   voice: "${preferences?.preferred_voice ?? ""}" → normalized: "${voicePreferenceForLog}"`);
-    console.log(`   briefing_length: "${preferences?.briefing_length ?? ""}"`);
     console.log(`   risk_tolerance: "${preferences?.risk_tolerance ?? ""}"`);
     console.log(`   investment_goals: "${preferences?.investment_goals ?? prefProfile?.goals ?? ""}"`);
     console.log(`══════════════════════════════════════`);
@@ -4090,7 +4081,7 @@ Deno.serve(async (req) => {
       const dayNames3 = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
       const dayName3 = dayNames3[dayOfWeek3];
 
-      // ── Voice preference (from user preferences); normalize legacy "energetic" → "hybrid" ──
+      // ── Briefing style (Voice Style in app): preferred_voice drives script tone; normalize legacy "energetic" → "hybrid" ──
       let userVoicePreference3 = safeText(preferences?.preferred_voice, "professional");
       if (userVoicePreference3 === "energetic") {
         userVoicePreference3 = "hybrid";
@@ -4115,7 +4106,6 @@ Deno.serve(async (req) => {
           userVoicePreference: userVoicePreference3,
           dayName: dayName3,
           skipped_tickers: skippedTickers,
-          briefingLength: preferences?.briefing_length ?? "",
         });
 
         console.log(`📝 [Stage 3] Scriptwriter prompt built (voice=${userVoicePreference3}, weekend=${isWeekend3})`);

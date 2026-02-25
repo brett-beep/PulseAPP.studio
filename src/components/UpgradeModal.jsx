@@ -74,7 +74,6 @@ export default function UpgradeModal({ isOpen, onClose }) {
                   { icon: Zap, text: 'Unlimited daily briefings (no 3/day limit)' },
                   { icon: TrendingUp, text: 'Advanced portfolio tracking & insights' },
                   { icon: Bell, text: 'Priority news updates & alerts' },
-                  { icon: Check, text: 'Extended briefing lengths (up to 20 min)' },
                 ].map((feature, i) => (
                   <motion.div
                     key={i}

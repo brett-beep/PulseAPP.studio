@@ -26,7 +26,6 @@ import {
     Shield, 
     Briefcase, 
     Mic,
-    Clock,
     Save,
     Check,
     TrendingUp,
@@ -382,30 +381,6 @@ export default function Settings() {
                     </div>
 
                     <div className="space-y-6">
-                        <div>
-                            <Label className="text-slate-700 mb-3 block">Briefing Length</Label>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
-                                {[
-                                    { value: 'short', label: '~5 min' },
-                                    { value: 'medium', label: '~8 min' },
-                                    { value: 'long', label: '~12 min' },
-                                ].map(opt => (
-                                    <button
-                                        key={opt.value}
-                                        onClick={() => setEditedPrefs(prev => ({ ...prev, briefing_length: opt.value }))}
-                                        className={`p-3 rounded-xl border-2 transition-all flex items-center justify-center gap-2 ${
-                                            editedPrefs.briefing_length === opt.value
-                                                ? 'border-amber-500 bg-amber-50 dark:border-amber-400 dark:bg-amber-400/12'
-                                                : 'border-slate-200 hover:border-slate-300 dark:border-neutral-700 dark:hover:border-neutral-600'
-                                        }`}
-                                    >
-                                        <Clock className="h-4 w-4 text-slate-400 dark:text-neutral-500 shrink-0" />
-                                        <span className="font-medium text-slate-900 dark:text-neutral-100 text-sm sm:text-base">{opt.label}</span>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
                         <div>
                             <Label className="text-slate-700 mb-3 block">Voice Style</Label>
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">

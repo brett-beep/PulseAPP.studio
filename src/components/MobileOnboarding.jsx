@@ -44,7 +44,6 @@ export default function MobileOnboarding({ onComplete }) {
     risk_tolerance: "moderate",
     investment_interests: [],
     portfolio_holdings: [],
-    briefing_length: "medium",
     preferred_voice: "professional",
     onboarding_completed: true,
   });
@@ -339,11 +338,6 @@ function PortfolioStep({ preferences, setPreferences }) {
 }
 
 function PreferencesStep({ preferences, setPreferences }) {
-  const BRIEFING_OPTS = [
-    { value: "short", label: "~5 min", desc: "Quick highlights" },
-    { value: "medium", label: "~8 min", desc: "Balanced" },
-    { value: "long", label: "~12 min", desc: "Deep dive" },
-  ];
   const VOICE_OPTS = [
     { value: "professional", label: "Professional", desc: "News anchor" },
     { value: "conversational", label: "Conversational", desc: "Friendly" },
@@ -352,29 +346,7 @@ function PreferencesStep({ preferences, setPreferences }) {
 
   return (
     <div style={styles.stepContent}>
-      <label style={styles.label}>Briefing length</label>
-      <p style={styles.hint}>How long would you like your daily briefings?</p>
-      <div style={styles.preferencesGrid}>
-        {BRIEFING_OPTS.map((opt) => (
-          <button
-            key={opt.value}
-            type="button"
-            onClick={() => setPreferences((p) => ({ ...p, briefing_length: opt.value }))}
-            style={{
-              ...styles.preferenceCard,
-              ...(preferences.briefing_length === opt.value ? styles.preferenceCardSelected : {}),
-            }}
-            className="mobile-onboarding-chip"
-          >
-            <span style={{ fontWeight: 600, fontSize: 15, color: preferences.briefing_length === opt.value ? "#c85d1e" : "#222" }}>
-              {opt.label}
-            </span>
-            <span style={{ fontSize: 12, color: "#888", marginTop: 2 }}>{opt.desc}</span>
-          </button>
-        ))}
-      </div>
-
-      <label style={{ ...styles.label, marginTop: 24 }}>Voice style</label>
+      <label style={styles.label}>Voice style</label>
       <p style={styles.hint}>Choose how your briefings will sound</p>
       <div style={styles.preferencesGrid}>
         {VOICE_OPTS.map((opt) => (

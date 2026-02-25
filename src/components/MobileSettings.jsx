@@ -265,7 +265,7 @@ export default function MobileSettings({ isPremium = false, onUpgrade }) {
     { id: "portfolio", icon: BarChart3, color: "#eab308", bg: "rgba(234,179,8,0.1)", label: "Portfolio", desc: `${tickerCount} tickers tracked` },
     { id: "investment", icon: Shield, color: "#22c55e", bg: "rgba(34,197,94,0.1)", label: "Investment Profile", desc: "Risk tolerance & goals" },
     { id: "sectors", icon: Globe, color: "#a855f7", bg: "rgba(168,85,247,0.1)", label: "Sector Interests", desc: "Industries you follow" },
-    { id: "briefing", icon: Mic, color: "#06b6d4", bg: "rgba(6,182,212,0.1)", label: "Briefing & Voice", desc: "Length, tone, and voice style" },
+    { id: "briefing", icon: Mic, color: "#06b6d4", bg: "rgba(6,182,212,0.1)", label: "Briefing & Voice", desc: "Tone and voice style" },
   ];
 
   // Parent content shown underneath when swiping back from sub-page (Prompt F §3)
@@ -577,25 +577,6 @@ export default function MobileSettings({ isPremium = false, onUpgrade }) {
             )}
             {page === "briefing" && (
               <div className="space-y-7">
-          <div>
-            <SectionLabel>Briefing Length</SectionLabel>
-            <div className="flex flex-col gap-2">
-              {[
-                { value: "short", label: "~5 min", sub: "Quick catch-up" },
-                { value: "medium", label: "~8 min", sub: "Standard" },
-                { value: "long", label: "~12 min", sub: "Deep dive" },
-              ].map((opt) => (
-                <ChoiceCard
-                  key={opt.value}
-                  label={opt.label}
-                  subtitle={opt.sub}
-                  active={draft.briefing_length === opt.value}
-                  onClick={() => setDraft((d) => ({ ...d, briefing_length: opt.value }))}
-                />
-              ))}
-            </div>
-          </div>
-
           <div>
             <SectionLabel>Voice Style</SectionLabel>
             <div className="flex flex-col gap-2">
