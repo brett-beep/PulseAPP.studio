@@ -56,6 +56,19 @@ export function LandingPage({ onSignIn }) {
     setHasConverted(true)
   }
 
+  // While redirecting native app users, show nothing (prevent landing page flash)
+  if (redirectingNative) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#faf7f2" }}>
+        <div className="flex gap-2">
+          <div className="splash-dot" style={{ animationDelay: "0s" }} />
+          <div className="splash-dot" style={{ animationDelay: "0.2s" }} />
+          <div className="splash-dot" style={{ animationDelay: "0.4s" }} />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="landing-theme">
       <main className="min-h-screen bg-background text-foreground">
