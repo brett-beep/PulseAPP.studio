@@ -59,9 +59,6 @@ export function LandingPage({ onSignIn }) {
       urlApp: new URLSearchParams(window.location.search).get("app"),
     }
 
-    // TEMPORARY DEBUG: Show alert on mobile so we can see what's happening
-    alert("DEBUG native detection:\n\n" + JSON.stringify(debugInfo, null, 2))
-
     if (shouldSkipLanding()) {
       console.log("[LandingPage] Native app detected, redirecting to login...", debugInfo)
       setRedirectingNative(true)
