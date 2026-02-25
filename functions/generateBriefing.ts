@@ -1,6 +1,6 @@
 // generateBriefing function - synced Jan 26, 2026 (redeploy for env vars)
 // Uses secrets: FINNHUB_API_KEY, FINLIGHT_API_KEY, MARKETAUX_API_KEY, NEWSAPI_API_KEY. Names must match Base44 exactly (no MARKETAUX_KEY / NEWSAPI_KEY). If missing after GitHub deploy → Base44: edit this file (e.g. add newline), Save & Deploy (see DEPLOY.md).
-// Adding this line V4 ________________ to manually redeploy on Base44
+// Adding this line V5 ________________ to manually redeploy on Base44
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
 import { en as numToWords } from "npm:n2words@3.1.0";
 // ─── Inlined from staticEconomicCalendar.ts (Base44: no cross-file imports) ───
