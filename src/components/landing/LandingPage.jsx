@@ -42,25 +42,28 @@ export function LandingPage({ onSignIn }) {
 
   // Skip landing page in native app — go straight to login
   useEffect(() => {
-    if (shouldSkipLanding()) {
-      console.log("[LandingPage] Native app detected, redirecting to login...", {
-        ua: navigator.userAgent,
-        standalone: window.navigator?.standalone,
-        displayMode: window.matchMedia?.("(display-mode: standalone)")?.matches,
-      })
-      setRedirectingNative(true)
-      // Use onSignIn (Base44 auth redirect) to go to login
-      onSignIn()
-      return
-    }
-    // Log why detection failed (for debugging in TestFlight)
-    console.log("[LandingPage] shouldSkipLanding() = false", {
+    const debugInfo = {
+      shouldSkip: shouldSkipLanding(),
+      isNativeApp: isNativeApp(),
       ua: navigator.userAgent,
       standalone: window.navigator?.standalone,
       displayMode: window.matchMedia?.("(display-mode: standalone)")?.matches,
       protocol: window.location?.protocol,
+      href: window.location?.href,
       capacitor: !!window.Capacitor,
-    })
+      urlApp: new URLSearchParams(window.location.search).get("app"),
+    }
+
+    // TEMPORARY DEBUG: Show alert on mobile so we can see what's happening
+    alert("DEBUG native detection:\n\n" + JSON.stringify(debugInfo, null, 2))
+
+    if (shouldSkipLanding()) {
+      console.log("[LandingPage] Native app detected, redirecting to login...", debugInfo)
+      setRedirectingNative(true)
+      onSignIn()
+      return
+    }
+    console.log("[LandingPage] shouldSkipLanding() = false", debugInfo)
   }, [])
 
   // Open waitlist modal when user lands via share link: /#waitlist or ?waitlist=1
