@@ -4372,7 +4372,7 @@ Deno.serve(async (req) => {
         // ── Save Briefing Memory & Story Tracker (blocking: await before response so isolate doesn't exit) ──
         console.log("💾 [Memory] Saving briefing memory...");
         try {
-          await base44.functions.invoke("briefingMemory", {
+          await base44.asServiceRole.functions.invoke("briefingMemory", {
             userId: userEmail,
             briefingDate: date,
             analyzedBrief,
