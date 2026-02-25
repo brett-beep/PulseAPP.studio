@@ -8,11 +8,26 @@ import { WaitlistModal } from "./WaitlistModal"
 import { isNativeApp } from "@/utils/isNativeApp"
 import { base44 } from "@/api/base44Client"
 
+/**
+ * Extended native-app check: isNativeApp() + URL-based override (?app=1)
+ * Median.co can be configured to load the initial URL with ?app=1.
+ */
+function shouldSkipLanding() {
+  if (isNativeApp()) return true
+  // Median apps can pass ?app=1 or have "median" in UA (case-insensitive)
+  const ua = (navigator.userAgent || "").toLowerCase()
+  if (ua.includes("median") || ua.includes("gonative")) return true
+  // URL override — lets you force skip from Median config
+  const params = new URLSearchParams(window.location.search)
+  if (params.get("app") === "1") return true
+  return false
+}
+
 export function LandingPage({ onSignIn }) {
   const [isWaitlistOpen, setIsWaitlistOpen] = useState(false)
   const [hasConverted, setHasConverted] = useState(false)
   // Initialize synchronously — if native app, start as true so landing page NEVER flashes
-  const [redirectingNative, setRedirectingNative] = useState(() => isNativeApp())
+  const [redirectingNative, setRedirectingNative] = useState(() => shouldSkipLanding())
   
   // Refs for section tracking
   const heroRef = useRef(null)
