@@ -2550,6 +2550,28 @@ const ANALYST_OUTPUT_SCHEMA = {
   required: ["macro_selections", "portfolio_selections", "watch_items", "data_quality_flags", "market_energy"],
 };
 
+// Fix 3C: Schemas for parallel Stage 2 (macro-only and portfolio-only) so we can run two LLM calls in parallel.
+const ANALYST_MACRO_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    macro_selections: ANALYST_OUTPUT_SCHEMA.properties.macro_selections,
+    market_energy: ANALYST_OUTPUT_SCHEMA.properties.market_energy,
+    watch_items: ANALYST_OUTPUT_SCHEMA.properties.watch_items,
+  },
+  required: ["macro_selections", "market_energy", "watch_items"],
+};
+
+const ANALYST_PORTFOLIO_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    portfolio_selections: ANALYST_OUTPUT_SCHEMA.properties.portfolio_selections,
+    data_quality_flags: ANALYST_OUTPUT_SCHEMA.properties.data_quality_flags,
+  },
+  required: ["portfolio_selections", "data_quality_flags"],
+};
+
 // Build the Analyst prompt from the Raw Intelligence Package
 function buildAnalystPrompt(
   rawIntelligence: RawIntelligencePackage,
@@ -2788,6 +2810,118 @@ TASK
 Analyze this intelligence package for listener "${userCtx.user_name}" who holds
 ${holdings.join(", ")} with sector interests in ${interests.join(", ")}.
 Select stories and extract insights now. Return valid JSON only.`;
+}
+
+// Fix 3C: Macro-only Analyst prompt (for parallel Stage 2). Output: macro_selections, market_energy, watch_items.
+function buildAnalystPromptMacro(
+  rawIntelligence: RawIntelligencePackage,
+  isWeekend: boolean,
+  marketSnapshot?: { sp500_pct: string; nasdaq_pct: string; dow_pct: string } | null,
+): string {
+  const userCtx = rawIntelligence.user_context;
+  const holdings = userCtx.holdings;
+  const interests = userCtx.interests;
+
+  const weekendBlock = `
+WEEKEND MODE: Markets are closed. Do NOT select stories framed as live market moves. Select 2-3 biggest stories of the WEEK; frame as recap. WEEK AHEAD: Identify upcoming events from calendar. Do NOT report Friday's close as fresh news.
+`;
+
+  const weekdayBlock = `
+HARD RULE — macro_selections must be TRUE MACRO news, NOT portfolio-company stories. Do NOT select stories about ${holdings.join(", ")}.
+DEDUPLICATION: Merge stories covering the same event into one; pick different stories for remaining slots.
+STORY_KEY: For each macro selection output story_key (snake_case, e.g. "fed_rate_path", "tariff_consumer_impact").
+Story 1: Biggest market-moving headline — Fed, inflation, indices, regulatory. Must NOT be about a portfolio holding.
+Story 2: Second macro story — rates, sector rotation. Story 3: Sector-interest story (macro-level). User interests: ${interests.join(", ")}. Never put portfolio-company news in macro_selections.
+`;
+
+  const upcomingBlock = (() => {
+    const ue = (rawIntelligence as any).upcoming_events;
+    const hasEarnings = ue?.earnings?.length > 0;
+    const hasEconomic = ue?.economic?.length > 0;
+    if (!ue || (!hasEarnings && !hasEconomic)) return "\n(No calendar data. Set watch_items.primary and .secondary to null if nothing to watch.)\n";
+    const earningsBlock = hasEarnings
+      ? "EARNINGS:\n" + (ue.earnings || []).map((e: any) =>
+          `${e.ticker}: ${e.date} (${e.hour === "bmo" ? "BMO" : e.hour === "amc" ? "AMC" : e.hour || "TBD"})`
+        ).join("\n")
+      : "";
+    const economicBlock = hasEconomic
+      ? (earningsBlock ? "\n" : "") + "ECONOMIC:\n" + (ue.economic || []).map((e: any) => {
+          const daysStr = e.business_days_until != null ? ` (in ${e.business_days_until} bdays)` : "";
+          const cadence = e.within_3_business_days ? " — ALWAYS mention" : " — Mention selectively";
+          return `${e.date}: ${e.event} [${e.impact || "—"}]${daysStr}${cadence}`;
+        }).join("\n")
+      : "";
+    return `UPCOMING EVENTS (use for watch_items):\n${earningsBlock}${economicBlock}\n\nFill primary and secondary from these; respect 3-business-day rule. At most 2 items.`;
+  })();
+
+  return `You are a senior financial analyst. This call is MACRO ONLY. Your output must contain ONLY:
+1. macro_selections — exactly 3 macro/market stories (use macro_candidates in the package; ignore ticker_packages).
+2. market_energy — one of: volatile_up, volatile_down, mixed_calm, breakout, quiet (use index data below).
+3. watch_items — { primary, secondary } from the upcoming events; null if none.
+
+Do NOT output portfolio_selections or data_quality_flags.
+
+═══════════════════════════════════════
+${isWeekend ? "WEEKEND" : "RAPID FIRE (3 stories)"}
+═══════════════════════════════════════
+${isWeekend ? weekendBlock : weekdayBlock}
+
+GENERAL: Market-moving impact > noise; macro themes > single-stock; fresh > stale. DROP pure politics, weak macro.
+
+EXTRACTION PER MACRO STORY: hook, facts (2-3), so_what, plain_english_bridge, confidence (high/medium/low), transition_suggestion, story_key, is_sector_personalized if applicable.
+
+═══════════════════════════════════════
+MARKET ENERGY (use index data only)
+═══════════════════════════════════════
+volatile_up: all indices UP 1%+. volatile_down: all DOWN 1%+. mixed_calm: split or all <0.5%. quiet: all <0.3%. breakout: any index 2%+ or major event.
+${!isWeekend && marketSnapshot ? `Today: S&P ${marketSnapshot.sp500_pct} | Nasdaq ${marketSnapshot.nasdaq_pct} | Dow ${marketSnapshot.dow_pct}. Classify market_energy accordingly.` : "Weekend/unavailable → market_energy: quiet or mixed_calm."}
+
+${upcomingBlock}
+
+═══════════════════════════════════════
+RAW INTELLIGENCE PACKAGE (use macro_candidates and user_context; ignore ticker_packages for this task)
+═══════════════════════════════════════
+${JSON.stringify(rawIntelligence)}
+
+TASK: For listener "${userCtx.user_name}" (holdings: ${holdings.join(", ")}, interests: ${interests.join(", ")}), select 3 macro stories, set market_energy, fill watch_items. Return valid JSON only.`;
+}
+
+// Fix 3C: Portfolio-only Analyst prompt (for parallel Stage 2). Output: portfolio_selections, data_quality_flags.
+function buildAnalystPromptPortfolio(
+  rawIntelligence: RawIntelligencePackage,
+  isWeekend: boolean,
+): string {
+  const userCtx = rawIntelligence.user_context;
+  const holdings = userCtx.holdings;
+  const interests = userCtx.interests;
+
+  return `You are a senior financial analyst. This call is PORTFOLIO ONLY. Your output must contain ONLY:
+1. portfolio_selections — one selection per holding in the package (use ticker_packages; ignore macro_candidates).
+2. data_quality_flags — any holdings with insufficient coverage or data gaps.
+
+Do NOT output macro_selections, market_energy, or watch_items.
+
+═══════════════════════════════════════
+PORTFOLIO STORY SELECTION
+═══════════════════════════════════════
+- Specific news with numbers > vague commentary. Analyst actions (upgrades/downgrades/price targets) = high priority.
+- Prefer relevance_type "direct" over "tangential" or "sector". If NO news, use quote data for "market_data_only" angle.
+- is_sector_level: true → frame at sector level, connect to holding. NEVER fabricate news.
+- story_key per selection: ticker-prefixed snake_case (e.g. "amzn_antitrust_california", "nvda_q4_earnings").
+
+FACTS: Every "facts" item must be a verifiable data point from the provided articles or market data. No speculation or filler. If you cannot find 2-3 specific facts, set confidence to "low" and only include verifiable points.
+CROSS-REFERENCE: Combine specific data from ALL articles for each holding; use most authoritative or most recent when numbers differ. Flag discrepancies in data_gap_note.
+
+DATA DEPTH (from each ticker_package): daily → brief (price + one insight). weekly → week-in-review. monthly → full review. earnings_ramp/earnings_day/earnings_aftermath → focus on earnings. weekend → light.
+
+EXTRACTION PER HOLDING: ticker, company_name, data_depth, source_type (news|market_data_only), source_id, hook, facts (1-4), so_what, confidence, quote_context (current_price, change_today_pct), data_gap_note, transition_suggestion, story_key.
+
+═══════════════════════════════════════
+RAW INTELLIGENCE PACKAGE (use ticker_packages and user_context; ignore macro_candidates for this task)
+═══════════════════════════════════════
+${JSON.stringify(rawIntelligence)}
+
+TASK: For listener "${userCtx.user_name}" (holdings: ${holdings.join(", ")}), select one story/angle per holding and flag data quality. Return valid JSON only.`;
 }
 
 // =========================================================
@@ -3779,18 +3913,50 @@ Deno.serve(async (req) => {
     const marketSnapshotPromise = Promise.resolve(marketSnapshotForAnalyst);
 
     let analyzedBrief: AnalyzedBrief | null = null;
+    const analystStartMs = Date.now();
     try {
-      console.log(`\n🧠 [Stage 2] Analyst Desk: analyzing intelligence package...`);
-      const analystStartMs = Date.now();
-      const analystPrompt = buildAnalystPrompt(rawIntelligence, isWeekendDay, marketSnapshotForAnalyst);
-      const analystResult = await invokeLLM(base44, analystPrompt, false, ANALYST_OUTPUT_SCHEMA);
+      // Fix 3C: Run macro and portfolio Analyst calls in parallel, then merge. Fall back to single call on failure.
+      let parallelOk = false;
+      try {
+        console.log(`\n🧠 [Stage 2] Analyst Desk (3C parallel): macro + portfolio...`);
+        const macroPrompt = buildAnalystPromptMacro(rawIntelligence, isWeekendDay, marketSnapshotForAnalyst);
+        const portfolioPrompt = buildAnalystPromptPortfolio(rawIntelligence, isWeekendDay);
+        const [macroResult, portfolioResult] = await Promise.all([
+          invokeLLM(base44, macroPrompt, false, ANALYST_MACRO_SCHEMA),
+          invokeLLM(base44, portfolioPrompt, false, ANALYST_PORTFOLIO_SCHEMA),
+        ]);
+        if (macroResult?.macro_selections && Array.isArray(portfolioResult?.portfolio_selections)) {
+          analyzedBrief = {
+            macro_selections: macroResult.macro_selections,
+            market_energy: (macroResult.market_energy as MarketEnergy) || "quiet",
+            watch_items: macroResult.watch_items ?? { primary: null, secondary: null },
+            portfolio_selections: portfolioResult.portfolio_selections,
+            data_quality_flags: Array.isArray(portfolioResult.data_quality_flags) ? portfolioResult.data_quality_flags : [],
+          };
+          parallelOk = true;
+          console.log(`✅ [Stage 2] Parallel (3C) complete (${Date.now() - analystStartMs}ms)`);
+        } else {
+          console.warn(`⚠️ [Stage 2] Parallel (3C) returned invalid shape — falling back to single call.`);
+        }
+      } catch (parallelErr: any) {
+        console.warn(`⚠️ [Stage 2] Parallel (3C) failed: ${parallelErr?.message}. Falling back to single Analyst call.`);
+      }
 
-      if (analystResult && analystResult.macro_selections) {
-        analyzedBrief = analystResult as AnalyzedBrief;
-        analyzedBrief.watch_items = analyzedBrief.watch_items ?? { primary: null, secondary: null };
+      if (!analyzedBrief) {
+        console.log(`\n🧠 [Stage 2] Analyst Desk: single-call analysis...`);
+        const analystPrompt = buildAnalystPrompt(rawIntelligence, isWeekendDay, marketSnapshotForAnalyst);
+        const analystResult = await invokeLLM(base44, analystPrompt, false, ANALYST_OUTPUT_SCHEMA);
+        if (analystResult && analystResult.macro_selections) {
+          analyzedBrief = analystResult as AnalyzedBrief;
+        } else {
+          console.warn(`⚠️ [Stage 2] Analyst returned unexpected format, skipping`);
+        }
+      }
+
+      if (analyzedBrief) {
         const analystMs = Date.now() - analystStartMs;
-
-        // Guard: LLM sometimes omits market_energy — infer from market snapshot
+        console.log(`✅ [Stage 2] Analyst Desk complete (${analystMs}ms)`);
+        analyzedBrief.watch_items = analyzedBrief.watch_items ?? { primary: null, secondary: null };
         if (!analyzedBrief.market_energy) {
           const snap = await marketSnapshotPromise;
           const pcts = [snap.sp500_pct, snap.nasdaq_pct, snap.dow_pct].map(
@@ -3804,8 +3970,6 @@ Deno.serve(async (req) => {
           else analyzedBrief.market_energy = "quiet";
           console.log(`⚠️ [Stage 2] market_energy was missing — inferred as "${analyzedBrief.market_energy}" from index data`);
         }
-
-        console.log(`✅ [Stage 2] Analyst Desk complete (${analystMs}ms)`);
         console.log(`   market_energy: ${analyzedBrief.market_energy}`);
         console.log(`   macro_selections: ${analyzedBrief.macro_selections.length}`);
         analyzedBrief.macro_selections.forEach((s, i) => {
@@ -3830,8 +3994,6 @@ Deno.serve(async (req) => {
         if (analyzedBrief.data_quality_flags.length > 0) {
           console.log(`   data_quality_flags: ${analyzedBrief.data_quality_flags.map((f) => `${f.ticker}: ${f.issue}`).join(", ")}`);
         }
-      } else {
-        console.warn(`⚠️ [Stage 2] Analyst returned unexpected format, skipping`);
       }
     } catch (analystErr: any) {
       console.error(`❌ [Stage 2] Analyst Desk failed: ${analystErr.message}`);
