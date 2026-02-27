@@ -3771,29 +3771,11 @@ Deno.serve(async (req) => {
       fetchEarningsCalendar(briefingTickers, finnhubKey),
     ]);
 
-    console.log(`\n🧪 [Stage 1A] Full market data for ${briefingTickers.length} holdings:`);
-    for (const [sym, data] of Object.entries(tickerMarketMap)) {
-      const q = data.quote;
-      console.log(
-        `   ${sym} (${data.company_name}): ` +
-        `price=${q.current_price != null ? `$${q.current_price.toFixed(2)}` : "N/A"}, ` +
-        `change=${q.change_pct >= 0 ? "+" : ""}${q.change_pct.toFixed(2)}% ($${q.change_dollar.toFixed(2)}), ` +
-        `high=$${q.daily_high?.toFixed(2) ?? "N/A"}, low=$${q.daily_low?.toFixed(2) ?? "N/A"}, ` +
-        `open=$${q.open?.toFixed(2) ?? "N/A"}, prev_close=$${q.previous_close?.toFixed(2) ?? "N/A"}, ` +
-        `provider=${data.provider}`
-      );
-    }
-    console.log(""); // blank line separator
-
-    console.log(`\n🧪 [Stage 1B] ${macroCandidates.length} macro candidates:`);
-    macroCandidates.slice(0, 8).forEach((c, i) => {
-      console.log(
-        `   ${i + 1}. [${c.source_query}] [${c.age_hours}h] [${c.category}] ` +
-        `[${c.source}] ${c.matches_user_sector ? "⭐sector " : ""}` +
-        `${c.title.slice(0, 70)}...`
-      );
+    console.log(`📊 [Stage 1A] Got market data for ${briefingTickers.length} holdings`);
+    console.log(`📰 [Stage 1B] ${macroCandidates.length} macro candidates`);
+    macroCandidates.slice(0, 5).forEach((c, i) => {
+      console.log(`   ${i + 1}. [${c.source_query}] [${c.age_hours}h] ${c.title.slice(0, 65)}...`);
     });
-    console.log(""); // blank line separator
 
     // =========================================================
     // STAGE 1C TEST: Build per-ticker data packages
