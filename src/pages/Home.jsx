@@ -732,7 +732,12 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
       const cached = localStorage.getItem(CACHE_KEY);
       const cacheTimestamp = localStorage.getItem(TIMESTAMP_KEY);
       const cacheAge = cacheTimestamp ? now - parseInt(cacheTimestamp) : Infinity;
-      const cacheValid = cacheAge < CACHE_DURATION;
+
+      // Daily force-refresh: if this is the first load of a new calendar day, force fresh data
+      const todayStr = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD
+      const lastRefreshDate = localStorage.getItem(LAST_REFRESH_DATE_KEY);
+      const isNewDay = lastRefreshDate !== todayStr;
+      const cacheValid = !isNewDay && cacheAge < CACHE_DURATION;
 
       if (cacheValid && cached) {
         try {
