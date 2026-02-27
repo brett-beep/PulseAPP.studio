@@ -775,48 +775,26 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
         });
 
         if (resp?.data?.success) {
-          // New shape: market_news + portfolio_news
           const market = resp.data.market_news;
           const portfolio = resp.data.portfolio_news;
+          const refreshedAt = resp.data.refreshed_at || new Date().toISOString();
 
           if (market || portfolio) {
             setMarketNews(market ?? { summary: "Market News", stories: [], updated_at: null });
             setPortfolioNews(portfolio ?? { summary: "Your Portfolio", stories: [], updated_at: null });
+            setLastRefreshTime(new Date(refreshedAt));
             localStorage.setItem(
               CACHE_KEY,
-              JSON.stringify({ market_news: market, portfolio_news: portfolio })
+              JSON.stringify({ market_news: market, portfolio_news: portfolio, refreshed_at: refreshedAt })
             );
             localStorage.setItem(TIMESTAMP_KEY, now.toString());
+            localStorage.setItem(LAST_REFRESH_DATE_KEY, todayStr);
             console.log(
               "✅ Loaded news: market",
               market?.stories?.length ?? 0,
               "portfolio",
               portfolio?.stories?.length ?? 0
             );
-          } else {
-            // Legacy shape: flat stories array
-            const stories = Array.isArray(resp.data.stories) ? resp.data.stories : [];
-            if (stories.length > 0) {
-              const half = Math.ceil(stories.length / 2);
-              setMarketNews({
-                summary: "Market News",
-                stories: stories.slice(0, half),
-                updated_at: resp.data.cache_age || null,
-              });
-              setPortfolioNews({
-                summary: "Your Portfolio",
-                stories: stories.slice(half),
-                updated_at: resp.data.cache_age || null,
-              });
-              localStorage.setItem(
-                CACHE_KEY,
-                JSON.stringify({
-                  market_news: { summary: "Market News", stories: stories.slice(0, half) },
-                  portfolio_news: { summary: "Your Portfolio", stories: stories.slice(half) },
-                })
-              );
-              localStorage.setItem(TIMESTAMP_KEY, now.toString());
-            }
           }
         } else {
           console.error("Failed to load news:", resp?.data?.error);
