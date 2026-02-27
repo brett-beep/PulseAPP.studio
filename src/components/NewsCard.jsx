@@ -108,7 +108,7 @@ export default function NewsCard({ story, index }) {
                 <div className="pt-2 md:pt-3 border-t border-slate-100/80 dark:border-neutral-700/50 space-y-1.5">
                     {bullCase && (
                         <div className="flex items-start gap-2">
-                            <span className="text-[11px] md:text-xs mt-[1px] flex-shrink-0 select-none">🟢</span>
+                            <TrendingUp className="w-3.5 h-3.5 mt-[1px] flex-shrink-0 text-emerald-500 dark:text-emerald-400" />
                             <p className="text-[11px] md:text-xs text-slate-600 dark:text-neutral-400 leading-relaxed">
                                 <span className="font-semibold text-emerald-600 dark:text-emerald-400">Bull: </span>
                                 {bullCase}
@@ -117,7 +117,7 @@ export default function NewsCard({ story, index }) {
                     )}
                     {bearCase && (
                         <div className="flex items-start gap-2">
-                            <span className="text-[11px] md:text-xs mt-[1px] flex-shrink-0 select-none">🔴</span>
+                            <TrendingDown className="w-3.5 h-3.5 mt-[1px] flex-shrink-0 text-red-500 dark:text-red-400" />
                             <p className="text-[11px] md:text-xs text-slate-600 dark:text-neutral-400 leading-relaxed">
                                 <span className="font-semibold text-red-500 dark:text-red-400">Bear: </span>
                                 {bearCase}
