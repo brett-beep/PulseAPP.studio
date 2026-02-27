@@ -1052,13 +1052,39 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`✅ [fetchNewsCards] Returning news (0 LLM credits)`);
+    // =========================================================
+    // LLM ENRICHMENT for market news (only when freshly fetched, not from enriched cache)
+    // =========================================================
+    if (marketNews && marketNews.stories && marketNews.stories.length > 0) {
+      // Check if stories already have LLM-quality summaries (>50 words in what_happened)
+      const firstSummary = marketNews.stories[0]?.what_happened || "";
+      const wordCount = firstSummary.split(/\s+/).filter(Boolean).length;
+      if (wordCount < 40) {
+        console.log(`🧠 Market stories have short summaries (${wordCount} words), enriching with LLM...`);
+        marketNews.stories = await enrichStoriesWithLLM(
+          base44, marketNews.stories.slice(0, 5), preferences, "market"
+        );
+      } else {
+        console.log(`✅ Market stories already have rich summaries (${wordCount} words), skipping LLM`);
+      }
+    }
+
+    // Compute the most recent refresh timestamp across both sections
+    const refreshedAt = new Date(
+      Math.max(
+        new Date(marketNews?.updated_at || 0).getTime(),
+        new Date(portfolioNews?.updated_at || 0).getTime()
+      )
+    ).toISOString();
+
+    console.log(`✅ [fetchNewsCards] Returning news`);
 
     return Response.json({
       success: true,
       time_variant: timeVariant,
       portfolio_category: portfolioCategory,
       portfolio_source: portfolioNews?.source || "category",
+      refreshed_at: refreshedAt,
       market_news: marketNews || {
         summary: "Market news unavailable",
         stories: [],
@@ -1069,7 +1095,6 @@ Deno.serve(async (req) => {
         stories: [],
         updated_at: null,
       },
-      credits_used: 0,
     });
   } catch (error: any) {
     console.error("❌ [fetchNewsCards] Error:", error);
