@@ -1,19 +1,13 @@
 // ============================================================
-// fetchNewsCards.ts - Base44 Function (v5 - Ticker-Personalized)
-// STRATEGY: Ticker-specific news via Finlight → UserNewsCache (3h TTL)
+// fetchNewsCards.ts - Base44 Function (v6 - LLM-Enhanced)
+// STRATEGY: Ticker-specific news via Finlight → UserNewsCache (6h TTL)
 //           Falls back to category-based NewsCardCache if ticker fetch fails
-// Uses 0 LLM credits. Per-ticker Finlight calls when UserNewsCache is stale.
-// Returns: { market_news, portfolio_news }
-// Secrets (must match Base44 exactly): FINLIGHT_API_KEY, MARKETAUX_API_KEY, NEWSAPI_API_KEY.
-// MANUALLY REDEPLOY V2 TO INJECT API!! 
-// PORTFOLIO vs MARKET/BREAKING NEWS (different sources):
-// - market_news: from NewsCardCache (MARKET_*) / NewsCache — general market/breaking.
-// - portfolio_news: from UserNewsCache (Finlight ticker:AAPL|GOOGL|...) — holdings-specific.
-//
-// SHARED TICKER CACHE: TickerNewsCache (per-ticker, shared across users). Create in Base44:
-//   - ticker: string (e.g. "AAPL")
-//   - stories: string (JSON array of raw Finlight articles)
-//   - fetched_at: string (ISO date). TTL 3h; Finlight only called when stale or force_refresh.
+//           Single batch LLM call enriches ONLY the final displayed stories
+//           with rich summaries (60-80 words) and insightful investor takeaways.
+// Returns: { market_news, portfolio_news, refreshed_at }
+// Secrets: FINLIGHT_API_KEY, MARKETAUX_API_KEY, NEWSAPI_API_KEY.
+// SHARED TICKER CACHE: TickerNewsCache (per-ticker, shared across users).
+//   TTL 6h; Finlight only called when stale or force_refresh.
 // ============================================================
 
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
