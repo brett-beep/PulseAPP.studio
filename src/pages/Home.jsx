@@ -724,15 +724,8 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
 
     const CACHE_KEY = `newsCards:${user.email}`;
     const TIMESTAMP_KEY = `newsCardsTimestamp:${user.email}`;
-    const MANUAL_REFRESH_KEY = `newsCardsManualRefreshTimestamp:${user.email}`;
-    const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes
-
-    // UI timer should reflect the last time the user manually clicked Refresh.
-    const manualRefreshTs = localStorage.getItem(MANUAL_REFRESH_KEY);
-    if (manualRefreshTs) {
-      const parsed = new Date(parseInt(manualRefreshTs));
-      if (!isNaN(parsed.getTime())) setLastRefreshTime(parsed);
-    }
+    const LAST_REFRESH_DATE_KEY = `newsCardsLastRefreshDate:${user.email}`;
+    const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes local cache for instant load
 
     async function loadNewsCards() {
       const now = Date.now();
