@@ -107,7 +107,7 @@ function determineUserPortfolioCategory(holdings: any[]): string {
 // ============================================================
 
 const FINLIGHT_API_BASE = "https://api.finlight.me";
-const USER_CACHE_TTL_HOURS = 3;
+const USER_CACHE_TTL_HOURS = 6;
 const MARKETAUX_API_BASE = "https://api.marketaux.com/v1/news/all";
 const NEWSAPI_API_BASE = "https://newsapi.org/v2/everything";
 
@@ -491,16 +491,16 @@ async function fetchFallbackTickerNews(
     }
   }
 
-  // Requirement: for fallback providers, keep only 1-2 most important stories per ticker.
+  // Keep top 5 from fallback providers per ticker for broader selection.
   const top = candidates
     .sort((a, b) => fallbackImportanceScore(b, ticker) - fallbackImportanceScore(a, ticker))
-    .slice(0, 2);
+    .slice(0, 5);
 
   return top;
 }
 
-/** Max tickers to query (5 articles each) per user — limits Finlight API calls. */
-const MAX_TICKERS_FOR_FETCH = 5;
+/** Max tickers to query per user — wider search yields better top-5 selection. */
+const MAX_TICKERS_FOR_FETCH = 20;
 const ARTICLES_PER_TICKER = 20;
 
 /**
@@ -546,7 +546,7 @@ async function fetchFinlightTickerNewsPerTicker(
 }
 
 /** TTL for shared TickerNewsCache (per-ticker). Same as user cache. */
-const TICKER_CACHE_TTL_HOURS = 3;
+const TICKER_CACHE_TTL_HOURS = 6;
 
 /**
  * Get portfolio articles using SHARED ticker-level cache so users with the same
