@@ -252,7 +252,7 @@ IMPORTANT: Do NOT write generic statements like "investors should watch" or "cou
 ARTICLES:
 ${JSON.stringify(articleList, null, 2)}
 
-Return a JSON object with a single key "enriched" containing an array of objects, each with "index" (number), "what_happened" (string), and "why_it_matters" (string). Maintain the same order.`;
+Return a JSON object with a single key "enriched" containing an array of objects, each with "index" (number), "what_happened" (string), "bull_case" (string), and "bear_case" (string). Maintain the same order.`;
 
   try {
     console.log(`🧠 [LLM] Enriching ${stories.length} ${sectionType} stories in single batch call...`);
