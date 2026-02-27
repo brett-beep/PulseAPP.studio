@@ -4182,13 +4182,7 @@ Deno.serve(async (req) => {
 
         const saved3 = await base44.entities.DailyBriefing.create(baseRecord3);
 
-        console.log("🔍 [Stage 3] Created briefing with:");
-        console.log("  - ID:", saved3.id);
-        console.log("  - date:", saved3.date);
-        console.log("  - created_by:", saved3.created_by);
-        console.log("  - status:", saved3.status);
-        console.log("  - stories:", allStories3.length, `(${macroStories3.length} macro + ${portfolioStories3.length} portfolio)`);
-        console.log("  - script:", wc3, "words ~", estimatedMinutes3, "min");
+        console.log(`🔍 [Stage 3] Created briefing ${saved3.id}: ${wc3} words, ${allStories3.length} stories`);
 
         // ── Save Briefing Memory & Story Tracker (blocking: await before response so isolate doesn't exit) ──
         console.log("💾 [Memory] Saving briefing memory...");
