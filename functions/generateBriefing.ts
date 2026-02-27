@@ -3525,17 +3525,7 @@ Deno.serve(async (req) => {
 
     let voicePreferenceForLog = safeText(preferences?.preferred_voice, "professional");
     if (voicePreferenceForLog === "energetic") voicePreferenceForLog = "hybrid";
-    console.log(`══════════════════════════════════════`);
-    console.log(`🧑 [Personalization] Pipeline check:`);
-    console.log(`   name: "${name}"`);
-    console.log(`   holdings: ${JSON.stringify(prefProfile?.holdings ?? preferences?.portfolio_holdings)}`);
-    console.log(`   interests: ${JSON.stringify(prefProfile?.interests ?? preferences?.investment_interests)}`);
-    console.log(`   voice: "${preferences?.preferred_voice ?? ""}" → normalized: "${voicePreferenceForLog}"`);
-    console.log(`   risk_tolerance: "${preferences?.risk_tolerance ?? ""}"`);
-    console.log(`   investment_goals: "${preferences?.investment_goals ?? prefProfile?.goals ?? ""}"`);
-    console.log(`══════════════════════════════════════`);
-
-    console.log("🔍 [DEBUG] prefProfile.holdings:", JSON.stringify(prefProfile?.holdings));
+    console.log(`🧑 [Personalization] name="${name}" holdings=${JSON.stringify(prefProfile?.holdings)} voice="${voicePreferenceForLog}"`);
 
     // =========================================================
     // STEP 1: READ FROM NEWSCACHE (0 extra API calls)
