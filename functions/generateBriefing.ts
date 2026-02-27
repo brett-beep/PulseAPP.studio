@@ -3205,20 +3205,21 @@ async function fetchTickerNewsCascade(
   const from24h = new Date(nowMs - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const from48h = new Date(nowMs - 48 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
-  // Step 1 (PRIMARY): Company name text search — works for single-letter and mid-caps
-  try {
-    const step1 = await finlightQuery(apiKey, {
-      query: `"${companyName}"`,
-      from: from24h,
-      pageSize: 10,
-    });
-    step1.forEach((a) => addArticle(a, false));
-    if (step1.length > 0) console.log(`   [${ticker}] Step 1 (company name): ${step1.length} articles`);
-  } catch (e: any) {
-    console.warn(`   [${ticker}] Step 1 failed: ${e.message}`);
-  }
+  // Step 1 + Step 3 in parallel (independent Finlight queries — company name and ticker field)
+  const [step1Result, step3Result] = await Promise.allSettled([
+    finlightQuery(apiKey, { query: `"${companyName}"`, from: from24h, pageSize: 10 }),
+    finlightQuery(apiKey, { query: `ticker:${ticker}`, from: from48h, pageSize: 5 }),
+  ]);
+  const step1 = step1Result.status === "fulfilled" ? step1Result.value : [];
+  const step3 = step3Result.status === "fulfilled" ? step3Result.value : [];
+  if (step1Result.status === "rejected") console.warn(`   [${ticker}] Step 1 failed: ${step1Result.reason?.message ?? step1Result.reason}`);
+  if (step3Result.status === "rejected") console.warn(`   [${ticker}] Step 3 failed: ${step3Result.reason?.message ?? step3Result.reason}`);
+  step1.forEach((a) => addArticle(a, false));
+  step3.forEach((a) => addArticle(a, false));
+  if (step1.length > 0) console.log(`   [${ticker}] Step 1 (company name): ${step1.length} articles`);
+  if (step3.length > 0) console.log(`   [${ticker}] Step 3 (ticker field): ${step3.length} articles`);
 
-  // Step 2: Company name + high-signal financial terms (48h)
+  // Step 2: Company name + high-signal financial terms (48h) — only if still below target
   if (articles.length < MIN_ARTICLES_TARGET) {
     try {
       const nameQuery = `"${companyName}" AND ("earnings" OR "analyst" OR "upgrade" OR "downgrade" OR "price target" OR "revenue" OR "guidance")`;
@@ -3232,19 +3233,6 @@ async function fetchTickerNewsCascade(
     } catch (e: any) {
       console.warn(`   [${ticker}] Step 2 failed: ${e.message}`);
     }
-  }
-
-  // Step 3 (supplement): ticker-field search — catches articles tagged with symbol (e.g. mega-caps)
-  try {
-    const step3 = await finlightQuery(apiKey, {
-      query: `ticker:${ticker}`,
-      from: from48h,
-      pageSize: 5,
-    });
-    step3.forEach((a) => addArticle(a, false));
-    if (step3.length > 0) console.log(`   [${ticker}] Step 3 (ticker field): ${step3.length} articles`);
-  } catch (e: any) {
-    console.warn(`   [${ticker}] Step 3 failed: ${e.message}`);
   }
 
   // Step 4 (optional): Aliases — key people, products (only if still below target)
@@ -3269,8 +3257,13 @@ async function fetchTickerNewsCascade(
     }
   }
 
-  // ── FALLBACK CHAIN (runs until we hit MIN_ARTICLES_TARGET or exhaust all sources) ──
-  if (articles.length < MIN_ARTICLES_TARGET) {
+  // ── FALLBACK CHAIN (skip if we already have enough direct coverage — saves API calls for well-covered tickers) ──
+  const directCount = articles.filter((a) => a.relevance_type === "direct").length;
+  const hasEnoughDirect = directCount >= 3 && articles.length >= 5;
+  if (hasEnoughDirect) {
+    console.log(`   [${ticker}] Skipping fallbacks (${directCount} direct, ${articles.length} total)`);
+  }
+  if (articles.length < MIN_ARTICLES_TARGET && !hasEnoughDirect) {
     const finnhubKey = Deno.env.get("FINNHUB_API_KEY") || FINNHUB_FALLBACK_KEY;
     console.log(`   [${ticker}] ${articles.length} articles after Finlight (target: ${MIN_ARTICLES_TARGET}), running fallbacks...`);
 
@@ -3924,12 +3917,14 @@ Deno.serve(async (req) => {
     // Calendar: earnings only (30d). Economic calendar is Finnhub premium — use static US calendar if needed.
     // =========================================================
     const finnhubKey = Deno.env.get("FINNHUB_API_KEY") || FINNHUB_FALLBACK_KEY;
-    console.log(`\n⚡ [Stage 1A+1B+Calendar] Fetching market data, macro news, and earnings calendar in parallel...`);
-    const [tickerMarketMap, macroCandidates, earningsCalendar] = await Promise.all([
+    console.log(`\n⚡ [Stage 1A+1B+Calendar+Snapshot] Fetching market data, macro news, earnings calendar, and market snapshot in parallel...`);
+    const [tickerMarketMap, macroCandidates, earningsCalendar, marketSnapshotForAnalyst] = await Promise.all([
       fetchAllTickerMarketData(briefingTickers),
       fetchMacroCandidates(userInterests),
       fetchEarningsCalendar(briefingTickers, finnhubKey),
+      fetchMarketSnapshot(),
     ]);
+    const marketSnapshotPromise = Promise.resolve(marketSnapshotForAnalyst);
 
     console.log(`📊 [Stage 1A] Got market data for ${briefingTickers.length} holdings`);
     console.log(`📰 [Stage 1B] ${macroCandidates.length} macro candidates`);
@@ -4050,14 +4045,8 @@ Deno.serve(async (req) => {
     // STAGE 2: THE ANALYST DESK (LLM Call)
     // Analyzes the Raw Intelligence Package: selects stories,
     // extracts insights, flags data gaps, sets market energy.
-    // Runs SIDE-BY-SIDE with existing script generation for now.
-    // Stage 3 will consume this output to replace the combined prompt.
+    // Market snapshot was already fetched in the initial parallel batch.
     // =========================================================
-    // Await market snapshot before Stage 2 so we can inject today's index data into the analyst prompt (correct market_energy).
-    console.log(`📈 [Stage 2] Fetching market snapshot for analyst prompt...`);
-    const marketSnapshotForAnalyst = await fetchMarketSnapshot();
-    const marketSnapshotPromise = Promise.resolve(marketSnapshotForAnalyst);
-
     let analyzedBrief: AnalyzedBrief | null = null;
     const analystStartMs = Date.now();
     try {
