@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Badge } from "@/components/ui/badge";
+import { TrendingUp, TrendingDown } from "lucide-react";
 import { track } from "@/components/lib/analytics";
 
 const categoryColors = {
