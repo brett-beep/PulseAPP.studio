@@ -771,6 +771,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
 
         const resp = await base44.functions.invoke("fetchNewsCards", {
           preferences: preferences,
+          force_refresh: isNewDay, // Force fresh data on first load of new day
         });
 
         if (resp?.data?.success) {
