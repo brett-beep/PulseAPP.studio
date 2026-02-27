@@ -47,7 +47,10 @@ export default function NewsCard({ story, index }) {
     };
 
     const descriptionText = stripLinksAndUrls(story.what_happened || story.summary || '');
-    const whyItMattersText = stripLinksAndUrls(story.why_it_matters || '');
+    const bullCase = stripLinksAndUrls(story.bull_case || '');
+    const bearCase = stripLinksAndUrls(story.bear_case || '');
+    // Legacy fallback for cached stories that still have why_it_matters
+    const legacyTakeaway = !bullCase && !bearCase ? stripLinksAndUrls(story.why_it_matters || '') : '';
 
     const expandedText = descriptionText;
     const needsExpansion = descriptionText.length > 100;
