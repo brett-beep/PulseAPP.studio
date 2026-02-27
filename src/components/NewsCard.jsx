@@ -102,17 +102,38 @@ export default function NewsCard({ story, index }) {
                 )}
             </div>
 
-            {/* Why It Matters */}
-            {whyItMattersText && (
+            {/* Bull / Bear Cases */}
+            {(bullCase || bearCase) ? (
+                <div className="pt-2 md:pt-3 border-t border-slate-100/80 dark:border-neutral-700/50 space-y-1.5">
+                    {bullCase && (
+                        <div className="flex items-start gap-2">
+                            <span className="text-[11px] md:text-xs mt-[1px] flex-shrink-0 select-none">🟢</span>
+                            <p className="text-[11px] md:text-xs text-slate-600 dark:text-neutral-400 leading-relaxed">
+                                <span className="font-semibold text-emerald-600 dark:text-emerald-400">Bull: </span>
+                                {bullCase}
+                            </p>
+                        </div>
+                    )}
+                    {bearCase && (
+                        <div className="flex items-start gap-2">
+                            <span className="text-[11px] md:text-xs mt-[1px] flex-shrink-0 select-none">🔴</span>
+                            <p className="text-[11px] md:text-xs text-slate-600 dark:text-neutral-400 leading-relaxed">
+                                <span className="font-semibold text-red-500 dark:text-red-400">Bear: </span>
+                                {bearCase}
+                            </p>
+                        </div>
+                    )}
+                </div>
+            ) : legacyTakeaway ? (
                 <div className="pt-2 md:pt-3 border-t border-slate-100/80 dark:border-neutral-700/50">
                     <div className="flex items-start gap-2">
                         <div className="w-1 h-1 bg-amber-400 rounded-full mt-[6px] md:mt-[7px] flex-shrink-0" />
                         <p className="text-[11px] md:text-xs text-slate-500 dark:text-neutral-500 leading-relaxed">
-                            {whyItMattersText}
+                            {legacyTakeaway}
                         </p>
                     </div>
                 </div>
-            )}
+            ) : null}
         </article>
     );
 }
