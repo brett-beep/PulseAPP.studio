@@ -6,85 +6,23 @@ import { en as numToWords } from "npm:n2words@3.1.0";
 // ─── Inlined from staticEconomicCalendar.ts (Base44: no cross-file imports) ───
 type StaticEconomicEvent = { event: string; date: string; country?: string; impact?: string; previous?: string; estimate?: string; unit?: string };
 type EconomicEventForBriefing = StaticEconomicEvent & { within_3_business_days: boolean; business_days_until?: number };
-const ECONOMIC_CALENDAR_US: StaticEconomicEvent[] = [
-  { event: "FOMC meeting", date: "2026-03-17", country: "US", impact: "high" },
-  { event: "FOMC meeting", date: "2026-04-28", country: "US", impact: "high" },
-  { event: "FOMC meeting", date: "2026-06-16", country: "US", impact: "high" },
-  { event: "FOMC meeting", date: "2026-07-28", country: "US", impact: "high" },
-  { event: "FOMC meeting", date: "2026-09-15", country: "US", impact: "high" },
-  { event: "FOMC meeting", date: "2026-10-27", country: "US", impact: "high" },
-  { event: "FOMC meeting", date: "2026-12-08", country: "US", impact: "high" },
-  { event: "CPI (Consumer Price Index)", date: "2026-02-11", country: "US", impact: "high" },
-  { event: "CPI (Consumer Price Index)", date: "2026-03-11", country: "US", impact: "high" },
-  { event: "CPI (Consumer Price Index)", date: "2026-04-10", country: "US", impact: "high" },
-  { event: "CPI (Consumer Price Index)", date: "2026-05-12", country: "US", impact: "high" },
-  { event: "CPI (Consumer Price Index)", date: "2026-06-11", country: "US", impact: "high" },
-  { event: "CPI (Consumer Price Index)", date: "2026-07-11", country: "US", impact: "high" },
-  { event: "CPI (Consumer Price Index)", date: "2026-08-12", country: "US", impact: "high" },
-  { event: "CPI (Consumer Price Index)", date: "2026-09-11", country: "US", impact: "high" },
-  { event: "CPI (Consumer Price Index)", date: "2026-10-11", country: "US", impact: "high" },
-  { event: "CPI (Consumer Price Index)", date: "2026-11-12", country: "US", impact: "high" },
-  { event: "CPI (Consumer Price Index)", date: "2026-12-11", country: "US", impact: "high" },
-  { event: "Non-Farm Payrolls (Employment Situation)", date: "2026-02-06", country: "US", impact: "high" },
-  { event: "Non-Farm Payrolls (Employment Situation)", date: "2026-03-06", country: "US", impact: "high" },
-  { event: "Non-Farm Payrolls (Employment Situation)", date: "2026-04-03", country: "US", impact: "high" },
-  { event: "Non-Farm Payrolls (Employment Situation)", date: "2026-05-01", country: "US", impact: "high" },
-  { event: "Non-Farm Payrolls (Employment Situation)", date: "2026-06-05", country: "US", impact: "high" },
-  { event: "Non-Farm Payrolls (Employment Situation)", date: "2026-07-03", country: "US", impact: "high" },
-  { event: "Non-Farm Payrolls (Employment Situation)", date: "2026-08-07", country: "US", impact: "high" },
-  { event: "Non-Farm Payrolls (Employment Situation)", date: "2026-09-04", country: "US", impact: "high" },
-  { event: "Non-Farm Payrolls (Employment Situation)", date: "2026-10-02", country: "US", impact: "high" },
-  { event: "Non-Farm Payrolls (Employment Situation)", date: "2026-11-06", country: "US", impact: "high" },
-  { event: "Non-Farm Payrolls (Employment Situation)", date: "2026-12-04", country: "US", impact: "high" },
-  { event: "GDP (advance)", date: "2026-04-30", country: "US", impact: "high" },
-  { event: "GDP (advance)", date: "2026-07-30", country: "US", impact: "high" },
-  { event: "GDP (advance)", date: "2026-10-29", country: "US", impact: "high" },
-  { event: "GDP (advance)", date: "2027-01-28", country: "US", impact: "high" },
-  { event: "PCE (Personal Consumption Expenditures)", date: "2026-02-27", country: "US", impact: "high" },
-  { event: "PCE (Personal Consumption Expenditures)", date: "2026-03-27", country: "US", impact: "high" },
-  { event: "PCE (Personal Consumption Expenditures)", date: "2026-04-30", country: "US", impact: "high" },
-  { event: "PCE (Personal Consumption Expenditures)", date: "2026-05-29", country: "US", impact: "high" },
-  { event: "PCE (Personal Consumption Expenditures)", date: "2026-06-27", country: "US", impact: "high" },
-  { event: "PCE (Personal Consumption Expenditures)", date: "2026-07-31", country: "US", impact: "high" },
-  { event: "PCE (Personal Consumption Expenditures)", date: "2026-08-28", country: "US", impact: "high" },
-  { event: "PCE (Personal Consumption Expenditures)", date: "2026-09-30", country: "US", impact: "high" },
-  { event: "PCE (Personal Consumption Expenditures)", date: "2026-10-30", country: "US", impact: "high" },
-  { event: "PCE (Personal Consumption Expenditures)", date: "2026-11-25", country: "US", impact: "high" },
-  { event: "PCE (Personal Consumption Expenditures)", date: "2026-12-23", country: "US", impact: "high" },
-  { event: "Consumer Confidence (Conference Board)", date: "2026-02-25", country: "US", impact: "medium" },
-  { event: "Consumer Confidence (Conference Board)", date: "2026-03-25", country: "US", impact: "medium" },
-  { event: "Consumer Confidence (Conference Board)", date: "2026-04-28", country: "US", impact: "medium" },
-  { event: "Consumer Confidence (Conference Board)", date: "2026-05-27", country: "US", impact: "medium" },
-  { event: "Consumer Confidence (Conference Board)", date: "2026-06-25", country: "US", impact: "medium" },
-  { event: "Consumer Confidence (Conference Board)", date: "2026-07-28", country: "US", impact: "medium" },
-  { event: "Consumer Confidence (Conference Board)", date: "2026-08-26", country: "US", impact: "medium" },
-  { event: "Consumer Confidence (Conference Board)", date: "2026-09-30", country: "US", impact: "medium" },
-  { event: "Consumer Confidence (Conference Board)", date: "2026-10-28", country: "US", impact: "medium" },
-  { event: "Consumer Confidence (Conference Board)", date: "2026-11-25", country: "US", impact: "medium" },
-  { event: "Consumer Confidence (Conference Board)", date: "2026-12-30", country: "US", impact: "medium" },
-  { event: "ISM Manufacturing PMI", date: "2026-02-02", country: "US", impact: "medium" },
-  { event: "ISM Manufacturing PMI", date: "2026-03-02", country: "US", impact: "medium" },
-  { event: "ISM Manufacturing PMI", date: "2026-04-01", country: "US", impact: "medium" },
-  { event: "ISM Manufacturing PMI", date: "2026-05-01", country: "US", impact: "medium" },
-  { event: "ISM Manufacturing PMI", date: "2026-06-02", country: "US", impact: "medium" },
-  { event: "ISM Manufacturing PMI", date: "2026-07-01", country: "US", impact: "medium" },
-  { event: "ISM Manufacturing PMI", date: "2026-08-03", country: "US", impact: "medium" },
-  { event: "ISM Manufacturing PMI", date: "2026-09-01", country: "US", impact: "medium" },
-  { event: "ISM Manufacturing PMI", date: "2026-10-01", country: "US", impact: "medium" },
-  { event: "ISM Manufacturing PMI", date: "2026-11-02", country: "US", impact: "medium" },
-  { event: "ISM Manufacturing PMI", date: "2026-12-01", country: "US", impact: "medium" },
-  { event: "Retail Sales", date: "2026-02-13", country: "US", impact: "medium" },
-  { event: "Retail Sales", date: "2026-03-13", country: "US", impact: "medium" },
-  { event: "Retail Sales", date: "2026-04-14", country: "US", impact: "medium" },
-  { event: "Retail Sales", date: "2026-05-14", country: "US", impact: "medium" },
-  { event: "Retail Sales", date: "2026-06-12", country: "US", impact: "medium" },
-  { event: "Retail Sales", date: "2026-07-15", country: "US", impact: "medium" },
-  { event: "Retail Sales", date: "2026-08-14", country: "US", impact: "medium" },
-  { event: "Retail Sales", date: "2026-09-15", country: "US", impact: "medium" },
-  { event: "Retail Sales", date: "2026-10-15", country: "US", impact: "medium" },
-  { event: "Retail Sales", date: "2026-11-16", country: "US", impact: "medium" },
-  { event: "Retail Sales", date: "2026-12-15", country: "US", impact: "medium" },
-];
+// Compact economic calendar — generated from known 2026-2027 dates
+function buildEconCalendar(): StaticEconomicEvent[] {
+  const events: StaticEconomicEvent[] = [];
+  const add = (e: string, dates: string[], impact: string) => {
+    for (const d of dates) events.push({ event: e, date: d, country: "US", impact });
+  };
+  add("FOMC meeting", ["2026-03-17","2026-04-28","2026-06-16","2026-07-28","2026-09-15","2026-10-27","2026-12-08"], "high");
+  add("CPI (Consumer Price Index)", ["2026-02-11","2026-03-11","2026-04-10","2026-05-12","2026-06-11","2026-07-11","2026-08-12","2026-09-11","2026-10-11","2026-11-12","2026-12-11"], "high");
+  add("Non-Farm Payrolls (Employment Situation)", ["2026-02-06","2026-03-06","2026-04-03","2026-05-01","2026-06-05","2026-07-03","2026-08-07","2026-09-04","2026-10-02","2026-11-06","2026-12-04"], "high");
+  add("GDP (advance)", ["2026-04-30","2026-07-30","2026-10-29","2027-01-28"], "high");
+  add("PCE (Personal Consumption Expenditures)", ["2026-02-27","2026-03-27","2026-04-30","2026-05-29","2026-06-27","2026-07-31","2026-08-28","2026-09-30","2026-10-30","2026-11-25","2026-12-23"], "high");
+  add("Consumer Confidence (Conference Board)", ["2026-02-25","2026-03-25","2026-04-28","2026-05-27","2026-06-25","2026-07-28","2026-08-26","2026-09-30","2026-10-28","2026-11-25","2026-12-30"], "medium");
+  add("ISM Manufacturing PMI", ["2026-02-02","2026-03-02","2026-04-01","2026-05-01","2026-06-02","2026-07-01","2026-08-03","2026-09-01","2026-10-01","2026-11-02","2026-12-01"], "medium");
+  add("Retail Sales", ["2026-02-13","2026-03-13","2026-04-14","2026-05-14","2026-06-12","2026-07-15","2026-08-14","2026-09-15","2026-10-15","2026-11-16","2026-12-15"], "medium");
+  return events;
+}
+const ECONOMIC_CALENDAR_US: StaticEconomicEvent[] = buildEconCalendar();
 function getUpcomingEconomicEvents(): EconomicEventForBriefing[] {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
