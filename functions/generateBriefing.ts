@@ -3793,25 +3793,11 @@ Deno.serve(async (req) => {
     if (skippedTickers.length > 0) {
       console.log(`📋 [Stage 1D] Excluding unsupported tickers with no coverage: ${skippedTickers.join(", ")}`);
     }
-    console.log(`\n🧪 [Stage 1C TEST] ${tickerPackages.length} ticker packages:`);
+    console.log(`📦 [Stage 1C] ${tickerPackages.length} ticker packages built`);
     for (const pkg of tickerPackages) {
       const directCount = pkg.news_articles.filter((a) => a.relevance_type === "direct").length;
-      const tangentialCount = pkg.news_articles.filter((a) => a.relevance_type === "tangential").length;
-      const sectorCount = pkg.news_articles.filter((a) => a.relevance_type === "sector").length;
-      console.log(
-        `   ${pkg.ticker} (${pkg.company_name}): depth=${pkg.data_depth}, ` +
-        `coverage=${pkg.news_coverage}, articles=${pkg.news_articles.length} ` +
-        `(${directCount} direct, ${tangentialCount} tangential, ${sectorCount} sector), ` +
-        `fallbacks=[${pkg.fallback_sources_used.join(", ") || "none"}]`
-      );
-      for (const a of pkg.news_articles.slice(0, 4)) {
-        console.log(`      [${a.relevance_type}] [${a.age_hours}h] ${a.title.slice(0, 65)}...`);
-      }
-      if (pkg.news_articles.length > 4) {
-        console.log(`      ... and ${pkg.news_articles.length - 4} more`);
-      }
+      console.log(`   ${pkg.ticker}: coverage=${pkg.news_coverage}, articles=${pkg.news_articles.length} (${directCount} direct)`);
     }
-    console.log(""); // blank line separator
 
     // =========================================================
     // STAGE 1D: Bundle into Raw Intelligence Package
