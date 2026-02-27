@@ -190,6 +190,113 @@ function getCategoryMessage(category: string): string {
   return messages[category] || "Worth monitoring for portfolio implications.";
 }
 
+// ============================================================
+// BATCH LLM ENRICHMENT (single call for all displayed stories)
+// ============================================================
+
+/**
+ * Enriches the final DISPLAYED stories (not all raw articles) with a single
+ * batch LLM call. Produces rich summaries (60-80 words) and insightful
+ * investor takeaways for each story.
+ *
+ * @param base44 - SDK instance
+ * @param stories - The final selected stories to display (max ~10)
+ * @param userPreferences - User's investment context
+ * @param sectionType - "market" or "portfolio"
+ * @returns The same stories array with enriched what_happened and why_it_matters
+ */
+async function enrichStoriesWithLLM(
+  base44: any,
+  stories: any[],
+  userPreferences: any,
+  sectionType: "market" | "portfolio"
+): Promise<any[]> {
+  if (!stories || stories.length === 0) return stories;
+
+  const goals = Array.isArray(userPreferences?.investment_goals)
+    ? userPreferences.investment_goals.join(", ")
+    : "general growth";
+  const risk = userPreferences?.risk_tolerance || "moderate";
+  const interests = Array.isArray(userPreferences?.investment_interests)
+    ? userPreferences.investment_interests.join(", ")
+    : "";
+  const holdings = Array.isArray(userPreferences?.portfolio_holdings)
+    ? userPreferences.portfolio_holdings.slice(0, 10).join(", ")
+    : "";
+
+  const articleList = stories.map((s, i) => ({
+    index: i,
+    title: s.title || "",
+    raw_summary: s.what_happened || s.title || "",
+    outlet: s.outlet || "",
+    category: s.category || "",
+    tickers: (s.matched_tickers || []).join(", ") || "N/A",
+  }));
+
+  const prompt = `You are a senior financial analyst writing for individual investors. You will receive ${stories.length} news articles that will be displayed to a user.
+
+USER CONTEXT:
+- Investment goals: ${goals}
+- Risk tolerance: ${risk}
+- Interests: ${interests}
+- Holdings: ${holdings}
+- Section: ${sectionType === "portfolio" ? "Portfolio-specific news" : "Market-wide news"}
+
+For EACH article below, produce:
+1. "what_happened": A clear, informative summary in exactly 60-80 words. Explain the event, who is involved, and the key facts. Do NOT be vague — provide specific details, numbers, and context. Write in third person, journalistic tone.
+2. "why_it_matters": A concise 1-2 sentence investor takeaway (max 30 words) that explains the practical implication for this specific user given their goals and holdings. Be specific and actionable — avoid generic statements like "worth monitoring" or "could impact markets".
+
+ARTICLES:
+${JSON.stringify(articleList, null, 2)}
+
+Return a JSON object with a single key "enriched" containing an array of objects, each with "index" (number), "what_happened" (string), and "why_it_matters" (string). Maintain the same order.`;
+
+  try {
+    console.log(`🧠 [LLM] Enriching ${stories.length} ${sectionType} stories in single batch call...`);
+
+    const llmResult = await base44.asServiceRole.integrations.Core.InvokeLLM({
+      prompt,
+      response_json_schema: {
+        type: "object",
+        properties: {
+          enriched: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                index: { type: "number" },
+                what_happened: { type: "string" },
+                why_it_matters: { type: "string" },
+              },
+              required: ["index", "what_happened", "why_it_matters"],
+            },
+          },
+        },
+        required: ["enriched"],
+      },
+    });
+
+    const enriched = llmResult?.enriched;
+    if (Array.isArray(enriched)) {
+      for (const item of enriched) {
+        const idx = item.index;
+        if (idx >= 0 && idx < stories.length) {
+          if (item.what_happened) stories[idx].what_happened = item.what_happened;
+          if (item.why_it_matters) stories[idx].why_it_matters = item.why_it_matters;
+        }
+      }
+      console.log(`✅ [LLM] Successfully enriched ${enriched.length} ${sectionType} stories`);
+    } else {
+      console.warn(`⚠️ [LLM] Unexpected response shape, keeping original summaries`);
+    }
+  } catch (llmError: any) {
+    console.error(`❌ [LLM] Enrichment failed for ${sectionType}: ${llmError.message}. Keeping original summaries.`);
+    // Graceful degradation: original summaries remain untouched
+  }
+
+  return stories;
+}
+
 /** Company names for text matching (title/summary) so we surface obviously relevant stories first. */
 const TICKER_TO_NAMES: Record<string, string[]> = {
   AAPL: ["apple"],
