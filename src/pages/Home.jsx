@@ -745,6 +745,8 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
           if (parsed.market_news != null || parsed.portfolio_news != null) {
             setMarketNews(parsed.market_news ?? null);
             setPortfolioNews(parsed.portfolio_news ?? null);
+            // Restore refreshed_at for the "Updated X ago" label
+            if (parsed.refreshed_at) setLastRefreshTime(new Date(parsed.refreshed_at));
           } else if (Array.isArray(parsed)) {
             const half = Math.ceil(parsed.length / 2);
             setMarketNews({ summary: "Market News", stories: parsed.slice(0, half), updated_at: null });
@@ -757,6 +759,10 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
         }
         setIsLoadingNews(false);
         return;
+      }
+
+      if (isNewDay) {
+        console.log("🌅 New day detected — forcing fresh news fetch");
       }
 
       try {
