@@ -3931,8 +3931,7 @@ Deno.serve(async (req) => {
       }
 
       if (analyzedBrief) {
-        const analystMs = Date.now() - analystStartMs;
-        console.log(`✅ [Stage 2] Analyst Desk complete (${analystMs}ms)`);
+        console.log(`✅ [Stage 2] Analyst Desk complete (${Date.now() - analystStartMs}ms)`);
         analyzedBrief.watch_items = analyzedBrief.watch_items ?? { primary: null, secondary: null };
         if (!analyzedBrief.market_energy) {
           const snap = await marketSnapshotPromise;
@@ -3945,32 +3944,8 @@ Deno.serve(async (req) => {
           else if (maxAbsPct > 1.5 && avg < 0) analyzedBrief.market_energy = "volatile_down";
           else if (maxAbsPct > 0.8) analyzedBrief.market_energy = "mixed_calm";
           else analyzedBrief.market_energy = "quiet";
-          console.log(`⚠️ [Stage 2] market_energy was missing — inferred as "${analyzedBrief.market_energy}" from index data`);
         }
-        console.log(`   market_energy: ${analyzedBrief.market_energy}`);
-        console.log(`   macro_selections: ${analyzedBrief.macro_selections.length}`);
-        analyzedBrief.macro_selections.forEach((s, i) => {
-          console.log(`      ${i + 1}. [${s.confidence}] [${s.source_query || "—"}] ${s.hook.slice(0, 70)}...`);
-          console.log(`         facts: ${s.facts.slice(0, 2).join(" | ")}`);
-          console.log(`         so_what: ${s.so_what.slice(0, 80)}...`);
-        });
-        console.log(`   portfolio_selections: ${analyzedBrief.portfolio_selections.length}`);
-        analyzedBrief.portfolio_selections.forEach((s) => {
-          console.log(`      ${s.ticker} (${s.company_name}): [${s.confidence}] [${s.source_type}] [depth=${s.data_depth}]`);
-          console.log(`         hook: ${s.hook.slice(0, 70)}...`);
-          console.log(`         facts: ${s.facts.slice(0, 2).join(" | ")}`);
-          console.log(`         so_what: ${s.so_what.slice(0, 80)}...`);
-          if (s.data_gap_note) console.log(`         ⚠️ gap: ${s.data_gap_note}`);
-        });
-        if (analyzedBrief?.watch_items?.primary) {
-          console.log(`   watch_primary: ${analyzedBrief.watch_items.primary.event} (${analyzedBrief.watch_items.primary.date})`);
-        }
-        if (analyzedBrief?.watch_items?.secondary) {
-          console.log(`   watch_secondary: ${analyzedBrief.watch_items.secondary.event} (${analyzedBrief.watch_items.secondary.date})`);
-        }
-        if (analyzedBrief.data_quality_flags.length > 0) {
-          console.log(`   data_quality_flags: ${analyzedBrief.data_quality_flags.map((f) => `${f.ticker}: ${f.issue}`).join(", ")}`);
-        }
+        console.log(`   energy: ${analyzedBrief.market_energy} | macro: ${analyzedBrief.macro_selections.length} | portfolio: ${analyzedBrief.portfolio_selections.length}`);
       }
     } catch (analystErr: any) {
       console.error(`❌ [Stage 2] Analyst Desk failed: ${analystErr.message}`);
