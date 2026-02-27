@@ -837,15 +837,10 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
 
     const CACHE_KEY = `newsCards:${user.email}`;
     const TIMESTAMP_KEY = `newsCardsTimestamp:${user.email}`;
-    const MANUAL_REFRESH_KEY = `newsCardsManualRefreshTimestamp:${user.email}`;
 
     // Clear ALL local caches to force fresh data
     localStorage.removeItem(CACHE_KEY);
     localStorage.removeItem(TIMESTAMP_KEY);
-    // Timer always reflects the last manual click, even if network request fails.
-    const manualClickTime = new Date();
-    setLastRefreshTime(manualClickTime);
-    localStorage.setItem(MANUAL_REFRESH_KEY, manualClickTime.getTime().toString());
 
     setIsLoadingNews(true);
     try {
