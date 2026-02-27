@@ -4818,13 +4818,7 @@ RETURN FORMAT (JSON)
 
     const saved = await base44.entities.DailyBriefing.create(baseRecord);
 
-    console.log("🔍 [DEBUG] Created briefing with:");
-    console.log("  - ID:", saved.id);
-    console.log("  - date:", saved.date);
-    console.log("  - created_by:", saved.created_by);
-    console.log("  - status:", saved.status);
-    console.log("  - time_zone:", saved.time_zone);
-    console.log("  - delivered_at:", saved.delivered_at);
+    console.log(`🔍 [Legacy] Created briefing ${saved.id}: status=${saved.status}`);
 
     if (skipAudio) {
       return Response.json({
