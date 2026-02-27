@@ -269,9 +269,10 @@ Return a JSON object with a single key "enriched" containing an array of objects
               properties: {
                 index: { type: "number" },
                 what_happened: { type: "string" },
-                why_it_matters: { type: "string" },
+                bull_case: { type: "string" },
+                bear_case: { type: "string" },
               },
-              required: ["index", "what_happened", "why_it_matters"],
+              required: ["index", "what_happened", "bull_case", "bear_case"],
             },
           },
         },
