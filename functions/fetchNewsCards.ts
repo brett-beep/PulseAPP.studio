@@ -943,7 +943,8 @@ Deno.serve(async (req) => {
                   console.warn(`⚠️ UserNewsCache write failed: ${cacheWriteError.message}`);
                 }
 
-                console.log(`✅ Portfolio news: ${storiesForResponse.length} stories (live Finlight, ${hoursAgo}h window)`);
+                const _hoursAgo = getTickerNewsWindowHours();
+                console.log(`✅ Portfolio news: ${storiesForResponse.length} stories (live Finlight, ${_hoursAgo}h window)`);
               } else {
                 console.log(`⚠️ Only ${allStories.length} usable ticker stories, falling back to category`);
               }
