@@ -2206,6 +2206,10 @@ interface TickerNewsArticle {
   is_sector_level: boolean;
   relevance_type: ArticleRelevance;
   href: string;
+  /** 1-10 LLM-assigned material impact (Portfolio Impact Gate). */
+  llm_impact_score?: number;
+  /** Brief reason from LLM (max 8 words). */
+  llm_impact_reason?: string;
 }
 
 // Classify how directly an article relates to a specific ticker.
@@ -2776,11 +2780,24 @@ GENERAL SELECTION CRITERIA:
 PORTFOLIO STORY SELECTION
 ═══════════════════════════════════════
 
+ARTICLE IMPACT SCORES: Each article in ticker_packages may have "llm_impact_score" (1-10) and "llm_impact_reason" from a separate LLM evaluation of material impact on that company.
+PRIORITIZATION: When choosing which article to use for a holding's portfolio_selection:
+- Score 7-10: HIGH PRIORITY — materially significant. Always prefer these.
+- Score 4-6: MODERATE — use if no high-priority articles exist.
+- Score 1-3: LOW — only as last resort; if these are the only articles, treat as "no significant company-specific news" (see QUIET DAY below).
+Do NOT ignore a score-8 article just because relevance_type is "tangential". Impact score overrides relevance_type.
+
+QUIET DAY RULE: If ALL articles for a holding have llm_impact_score 3 or below (or there are no articles), this is a quiet news day for that holding. Then:
+- Set source_type to "news" if there IS an article worth mentioning (even low-impact), or "market_data_only" if truly nothing.
+- In "hook", frame honestly. Examples: "No major headlines for Boeing today, but there's one thing worth flagging…" / "Quiet day for your Shopify position — here's a quick sector note…" / "Nothing market-moving for Disney right now, though…"
+- Pick the BEST available low-scoring article and present it with honest framing. Set confidence to "low" and data_gap_note: "No high-impact news today; surfacing best available."
+- If there is literally zero news AND no meaningful price move, keep it to 1-2 sentences max using market_data_only. The listener appreciates candor over manufactured urgency.
+
 SELECTION CRITERIA:
 - Specific news with numbers > vague commentary
 - Analyst actions (upgrades/downgrades/price targets) = high priority
 - Earnings-related = high priority
-- Articles tagged relevance_type "direct" should be preferred over "tangential" or "sector"
+- Articles tagged relevance_type "direct" should be preferred over "tangential" or "sector" when impact scores are tied.
 - If NO news articles exist for a holding, use the quote data to create a
   "market_data_only" angle. Be explicit that this is data-driven, not news-driven.
 - If articles are flagged is_sector_level: true, frame the insight at the sector
@@ -3023,8 +3040,22 @@ HARD RULE — ONE SELECTION PER HOLDING: For every ticker in ticker_packages you
 ═══════════════════════════════════════
 PORTFOLIO STORY SELECTION
 ═══════════════════════════════════════
+
+ARTICLE IMPACT SCORES: Each article in ticker_packages may have "llm_impact_score" (1-10) and "llm_impact_reason" from a separate LLM evaluation of material impact on that company.
+PRIORITIZATION: When choosing which article to use for a holding's portfolio_selection:
+- Score 7-10: HIGH PRIORITY — materially significant. Always prefer these.
+- Score 4-6: MODERATE — use if no high-priority articles exist.
+- Score 1-3: LOW — only as last resort; if these are the only articles, treat as "no significant company-specific news" (see QUIET DAY below).
+Do NOT ignore a score-8 article just because relevance_type is "tangential". Impact score overrides relevance_type.
+
+QUIET DAY RULE: If ALL articles for a holding have llm_impact_score 3 or below (or there are no articles), this is a quiet news day for that holding. Then:
+- Set source_type to "news" if there IS an article worth mentioning (even low-impact), or "market_data_only" if truly nothing.
+- In "hook", frame honestly. Examples: "No major headlines for Boeing today, but there's one thing worth flagging…" / "Quiet day for your Shopify position — here's a quick sector note…" / "Nothing market-moving for Disney right now, though…"
+- Pick the BEST available low-scoring article and present it with honest framing. Set confidence to "low" and data_gap_note: "No high-impact news today; surfacing best available."
+- If there is literally zero news AND no meaningful price move, keep it to 1-2 sentences max using market_data_only. The listener appreciates candor over manufactured urgency.
+
 - Specific news with numbers > vague commentary. Analyst actions (upgrades/downgrades/price targets) = high priority.
-- Prefer relevance_type "direct" over "tangential" or "sector". When articles exist but none are clearly about the company's own performance/outlook (e.g. only supplier or industry news), still output one selection with source_type: "market_data_only" and data_gap_note explaining.
+- Prefer relevance_type "direct" over "tangential" or "sector" when impact scores are tied. When articles exist but none are clearly about the company's own performance/outlook (e.g. only supplier or industry news), still output one selection with source_type: "market_data_only" and data_gap_note explaining.
 - is_sector_level: true → frame at sector level, connect to holding. NEVER fabricate news.
 - story_key per selection: ticker-prefixed snake_case (e.g. "amzn_antitrust_california", "nvda_q4_earnings", "ba_market_data_only").
 
@@ -3530,6 +3561,95 @@ async function fetchAllTickerPackages(
   return packages;
 }
 
+// Portfolio Impact Gate: one batch LLM call to score all articles across all holdings for material impact.
+const PORTFOLIO_IMPACT_GATE_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    evaluations: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          id: { type: "string" },
+          impact_score: { type: "number" },
+          reason: { type: "string" },
+        },
+        required: ["id", "impact_score", "reason"],
+      },
+    },
+  },
+  required: ["evaluations"],
+};
+
+const PORTFOLIO_IMPACT_SUMMARY_MAX = 220;
+
+/**
+ * One batch LLM call: score every article across all ticker packages for material impact on that company.
+ * On failure returns neutral 5 for all so articles still flow through.
+ */
+async function evaluatePortfolioNewsImpactBatch(
+  base44: any,
+  tickerPackages: TickerPackage[]
+): Promise<Array<{ id: string; impact_score: number; reason: string }>> {
+  const allArticles: Array<{ id: string; ticker: string; company_name: string; title: string; summary: string; source: string; age_hours: number; relevance_type: string }> = [];
+  for (const pkg of tickerPackages) {
+    for (const a of pkg.news_articles) {
+      allArticles.push({
+        id: a.id,
+        ticker: pkg.ticker,
+        company_name: pkg.company_name,
+        title: (a.title || "").slice(0, 120),
+        summary: (a.summary || "").slice(0, PORTFOLIO_IMPACT_SUMMARY_MAX),
+        source: a.source || "",
+        age_hours: Math.round((a.age_hours || 0) * 10) / 10,
+        relevance_type: a.relevance_type || "tangential",
+      });
+    }
+  }
+  if (allArticles.length === 0) return [];
+
+  const prompt = `You are a senior financial analyst at a hedge fund. Score each article below for MATERIAL IMPACT on the specific company it is associated with (ticker + company_name). Think: would this move the stock price or change investor sentiment?
+
+SCORING (1-10, integer):
+10: Fatal accidents involving products, massive fraud, CEO arrested, fleet grounded, bankruptcy.
+8-9: Large lawsuits (class-action, wrongful death), FAA/SEC/DOJ actions, earnings miss/beat >15%, major M&A, product recall, large data breach.
+7-8: Analyst upgrade/downgrade from top bank, meaningful contract win/loss, new product launch, regulatory scrutiny, notable guidance change, workforce reduction >5%.
+4-6: Minor partnerships, industry trends with indirect impact, routine exec changes, competitor moves.
+2-3: Passing mention in broader article, routine updates, analyst reiterations.
+1: No meaningful connection to company.
+
+CRITICAL: A lawsuit from a crash victim's family against the company is 8-9, NOT 2-3. A regulatory investigation is 7-9. When in doubt between two scores, choose the higher if it involves legal, safety, or regulatory risk.
+
+Output one evaluation per article. "reason" = max 8 words.
+
+Articles (each has id, ticker, company_name, title, summary, source, age_hours, relevance_type):
+${JSON.stringify(allArticles)}
+
+Return a single JSON object with key "evaluations": array of { id, impact_score (integer 1-10), reason } in the same order as the articles above.`;
+
+  const startMs = Date.now();
+  try {
+    const result = await invokeLLM(base44, prompt, false, PORTFOLIO_IMPACT_GATE_SCHEMA);
+    const evaluations: Array<{ id: string; impact_score: number; reason: string }> = result?.evaluations || [];
+    const elapsed = Date.now() - startMs;
+    const scores = evaluations.map((e) => e.impact_score);
+    const min = scores.length ? Math.min(...scores) : 0;
+    const max = scores.length ? Math.max(...scores) : 0;
+    const avg = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
+    console.log(`📊 [Portfolio Impact Gate] ${allArticles.length} articles → ${evaluations.length} evals in ${elapsed}ms (min=${min} avg=${avg.toFixed(1)} max=${max})`);
+    const highExample = evaluations.find((e) => e.impact_score >= 7);
+    const lowExample = evaluations.find((e) => e.impact_score <= 3);
+    if (highExample) console.log(`   high example: [${highExample.impact_score}] ${highExample.reason} (id=${highExample.id.slice(0, 20)}...)`);
+    if (lowExample) console.log(`   low example: [${lowExample.impact_score}] ${lowExample.reason} (id=${lowExample.id.slice(0, 20)}...)`);
+    return evaluations;
+  } catch (err: any) {
+    console.warn(`⚠️ [Portfolio Impact Gate] LLM failed (${err?.message ?? err}), using neutral score 5 for all`);
+    return allArticles.map((a) => ({ id: a.id, impact_score: 5, reason: "gate fallback" }));
+  }
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -3902,6 +4022,24 @@ Deno.serve(async (req) => {
     }
 
     // =========================================================
+    // PORTFOLIO IMPACT GATE: one batch LLM call to score all articles for material impact
+    // =========================================================
+    const totalArticles = tickerPackages.reduce((s, p) => s + p.news_articles.length, 0);
+    if (totalArticles > 0) {
+      const impactEvals = await evaluatePortfolioNewsImpactBatch(base44, tickerPackages);
+      const evalMap = new Map(impactEvals.map((e) => [e.id, e]));
+      for (const pkg of tickerPackages) {
+        for (const article of pkg.news_articles) {
+          const ev = evalMap.get(article.id);
+          if (ev) {
+            article.llm_impact_score = ev.impact_score;
+            article.llm_impact_reason = ev.reason;
+          }
+        }
+      }
+    }
+
+    // =========================================================
     // SMART GATE: LLM pre-screen macro candidates for market-moving relevance
     // =========================================================
     const gatedCandidates = await screenMacroCandidates(
@@ -3926,13 +4064,16 @@ Deno.serve(async (req) => {
       console.log(`📉 [Stage 1D] Pre-filter (3A): macro candidates ${gatedCandidates.length} → ${macroForStage2.length} for Stage 2`);
     }
 
-    // Pre-filter 3A: per-ticker articles — prefer direct, then by recency; take top 5 per ticker
+    // Pre-filter 3A: per-ticker articles — prefer LLM impact score (when present), then direct/tangential/sector, then recency; take top 5 per ticker
     const tickerPackagesForStage2 = tickerPackages.map((pkg) => {
       if (pkg.news_articles.length <= STAGE2_ARTICLES_PER_TICKER_CAP) return pkg;
       const relevanceRank = (a: TickerNewsArticle) =>
         a.relevance_type === "direct" ? 0 : a.relevance_type === "tangential" ? 1 : 2;
       const topArticles = [...pkg.news_articles]
         .sort((a, b) => {
+          const scoreA = a.llm_impact_score ?? 0;
+          const scoreB = b.llm_impact_score ?? 0;
+          if (scoreB !== scoreA) return scoreB - scoreA;
           const rA = relevanceRank(a);
           const rB = relevanceRank(b);
           if (rA !== rB) return rA - rB;
