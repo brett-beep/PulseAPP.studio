@@ -286,7 +286,10 @@ Return a JSON object with a single key "enriched" containing an array of objects
         const idx = item.index;
         if (idx >= 0 && idx < stories.length) {
           if (item.what_happened) stories[idx].what_happened = item.what_happened;
-          if (item.why_it_matters) stories[idx].why_it_matters = item.why_it_matters;
+          if (item.bull_case) stories[idx].bull_case = item.bull_case;
+          if (item.bear_case) stories[idx].bear_case = item.bear_case;
+          // Remove old field if present
+          delete stories[idx].why_it_matters;
         }
       }
       console.log(`✅ [LLM] Successfully enriched ${enriched.length} ${sectionType} stories`);
