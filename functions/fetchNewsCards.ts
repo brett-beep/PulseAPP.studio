@@ -244,7 +244,10 @@ USER CONTEXT:
 
 For EACH article below, produce:
 1. "what_happened": A clear, informative summary in exactly 60-80 words. Explain the event, who is involved, and the key facts. Do NOT be vague — provide specific details, numbers, and context. Write in third person, journalistic tone.
-2. "why_it_matters": A concise 1-2 sentence investor takeaway (max 30 words) that explains the practical implication for this specific user given their goals and holdings. Be specific and actionable — avoid generic statements like "worth monitoring" or "could impact markets".
+2. "bull_case": One sentence (max 25 words) giving the BULLISH interpretation — why an optimistic investor would see this as a positive catalyst or opportunity. Be specific about the mechanism (e.g. margin expansion, market share gain, regulatory tailwind).
+3. "bear_case": One sentence (max 25 words) giving the BEARISH interpretation — why a cautious investor would see risk, downside, or cause for concern. Be specific about the threat (e.g. margin compression, competitive pressure, regulatory headwind).
+
+IMPORTANT: Do NOT write generic statements like "investors should watch" or "could impact markets". Each case must name a specific financial mechanism or outcome.
 
 ARTICLES:
 ${JSON.stringify(articleList, null, 2)}
