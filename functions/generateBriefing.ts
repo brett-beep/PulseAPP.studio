@@ -2572,6 +2572,121 @@ const ANALYST_PORTFOLIO_SCHEMA = {
   required: ["portfolio_selections", "data_quality_flags"],
 };
 
+// Smart Gate: LLM pre-screening for macro candidates (market-moving relevance)
+const SMART_GATE_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    evaluations: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          id: { type: "string" },
+          pass: { type: "boolean" },
+          impact: { type: "number" },
+          reason: { type: "string" },
+        },
+        required: ["id", "pass", "impact", "reason"],
+      },
+    },
+  },
+  required: ["evaluations"],
+};
+
+/**
+ * Pre-screen macro candidates with an LLM: keep only stories that have meaningful
+ * potential to move markets, affect investor sentiment, or impact portfolio holdings.
+ * On LLM failure, falls back to hasFinancialRelevance() keyword filter.
+ */
+async function screenMacroCandidates(
+  base44: any,
+  candidates: MacroCandidate[],
+  userInterests: string[],
+  userHoldings: string[]
+): Promise<MacroCandidate[]> {
+  if (!candidates || candidates.length === 0) return [];
+
+  const startMs = Date.now();
+  const SUMMARY_MAX = 180;
+
+  const compact = candidates.map((c) => ({
+    id: c.id,
+    title: (c.title || "").slice(0, 120),
+    summary: (c.summary || "").slice(0, SUMMARY_MAX),
+    source: c.source || "",
+    age_hours: Math.round(c.age_hours * 10) / 10,
+  }));
+
+  const prompt = `You are a financial news gatekeeper. For each story below, decide: Does it have meaningful potential to move markets, affect investor sentiment, or impact portfolio holdings?
+
+PASS (include): Fed/rates, trade policy/tariffs, geopolitical crises with economic impact, sector trends, M&A, political decisions with clear economic consequences (debt ceiling, fiscal policy), major earnings/guidance from bellwethers, inflation/jobs data, regulatory actions affecting markets.
+
+FAIL (exclude): Local news, minor single-company news with no market angle, pure social/political with no economic angle, celebrity gossip, sports, entertainment, human-interest fluff.
+
+For each story output: pass (true/false), impact (1-10; 10 = Fed rate decision, major tariff announcement; 1 = tangential), reason (max 8 words).
+
+User interests (for sector relevance): ${(userInterests || []).slice(0, 5).join(", ") || "general"}.
+User holdings (for context only): ${(userHoldings || []).slice(0, 8).join(", ") || "none"}.
+
+Stories (JSON array):
+${JSON.stringify(compact)}
+
+Return a single JSON object with key "evaluations": an array of objects, one per story in the SAME ORDER, each with keys: id, pass, impact, reason.`;
+
+  try {
+    const result = await invokeLLM(base44, prompt, false, SMART_GATE_SCHEMA);
+    const evaluations: Array<{ id: string; pass: boolean; impact: number; reason: string }> =
+      result?.evaluations || [];
+
+    const byId = new Map(evaluations.map((e) => [e.id, e]));
+    const passedWithImpact: Array<{ c: MacroCandidate; impact: number; reason: string }> = [];
+    for (const c of candidates) {
+      const e = byId.get(c.id);
+      if (e && e.pass) passedWithImpact.push({ c, impact: e.impact, reason: e.reason || "" });
+    }
+    passedWithImpact.sort((a, b) => b.impact - a.impact);
+    const passed = passedWithImpact.map((x) => x.c);
+
+    const failed = candidates.filter((c) => !passed.find((p) => p.id === c.id));
+    const failedWithReasons = failed.map((c) => ({
+      title: c.title,
+      reason: byId.get(c.id)?.reason ?? "no eval",
+    }));
+
+    if (passed.length < 3) {
+      const passedIds = new Set(passed.map((p) => p.id));
+      for (const c of candidates) {
+        if (passedIds.has(c.id)) continue;
+        passed.push(c);
+        passedIds.add(c.id);
+        if (passed.length >= 3) break;
+      }
+      console.log(`🚪 [Smart Gate] Fewer than 3 passed, added fallback from original list → ${passed.length} total`);
+    }
+
+    const elapsed = Date.now() - startMs;
+    console.log(`🚪 [Smart Gate] ${candidates.length} → ${passed.length} passed in ${elapsed}ms`);
+    passedWithImpact.slice(0, 5).forEach(({ c, impact }, i) => {
+      console.log(`   ${i + 1}. [impact:${impact}] ${(c.title || "").slice(0, 55)}...`);
+    });
+    failedWithReasons.slice(-3).forEach((f) => {
+      console.log(`   filtered: "${(f.title || "").slice(0, 45)}..." — ${f.reason}`);
+    });
+
+    return passed;
+  } catch (err: any) {
+    console.warn(`⚠️ [Smart Gate] LLM failed (${err?.message ?? err}), using keyword filter fallback`);
+    const fallback = candidates.filter((c) =>
+      hasFinancialRelevance({ title: c.title, what_happened: c.summary })
+    );
+    const elapsed = Date.now() - startMs;
+    console.log(`🚪 [Smart Gate] Fallback: ${candidates.length} → ${fallback.length} passed (${elapsed}ms)`);
+    return fallback.length >= 3 ? fallback : candidates.slice(0, Math.max(3, candidates.length));
+  }
+}
+
 // Build the Analyst prompt from the Raw Intelligence Package
 function buildAnalystPrompt(
   rawIntelligence: RawIntelligencePackage,
@@ -3787,6 +3902,16 @@ Deno.serve(async (req) => {
     }
 
     // =========================================================
+    // SMART GATE: LLM pre-screen macro candidates for market-moving relevance
+    // =========================================================
+    const gatedCandidates = await screenMacroCandidates(
+      base44,
+      macroCandidates,
+      userInterests,
+      briefingTickers
+    );
+
+    // =========================================================
     // STAGE 1D: Bundle into Raw Intelligence Package
     // Aggregates 1A (market data), 1B (macro news), 1C (ticker
     // packages) into a single object for Stage 2 consumption.
@@ -3795,10 +3920,10 @@ Deno.serve(async (req) => {
     // =========================================================
     const userName = safeText(preferences?.user_name || user?.name, "");
 
-    // Pre-filter 3A: macro — already sorted by premium/sector/recency in fetchMacroCandidates; take top N
-    const macroForStage2 = macroCandidates.slice(0, STAGE2_MACRO_CAP);
-    if (macroCandidates.length > STAGE2_MACRO_CAP) {
-      console.log(`📉 [Stage 1D] Pre-filter (3A): macro candidates ${macroCandidates.length} → ${macroForStage2.length} for Stage 2`);
+    // Pre-filter 3A: macro — use gated candidates (Smart Gate output), then cap to N
+    const macroForStage2 = gatedCandidates.slice(0, STAGE2_MACRO_CAP);
+    if (gatedCandidates.length > STAGE2_MACRO_CAP) {
+      console.log(`📉 [Stage 1D] Pre-filter (3A): macro candidates ${gatedCandidates.length} → ${macroForStage2.length} for Stage 2`);
     }
 
     // Pre-filter 3A: per-ticker articles — prefer direct, then by recency; take top 5 per ticker
@@ -3840,15 +3965,7 @@ Deno.serve(async (req) => {
     };
 
     const meta = rawIntelligence.metadata;
-    console.log("\n🧪 [Stage 1D TEST] Raw Intelligence Package built:");
-    console.log("📅 [Stage 1D] Upcoming events:", earningsCalendar.length, "earnings,", economicCalendar.length, "economic (static US)");
-    console.log("   generated_at:", rawIntelligence.generated_at);
-    console.log("   user:", userName, "| interests:", userInterests.length, "| holdings:", briefingTickers.length);
-    console.log("   ticker_packages:", meta.ticker_count, "(strong=" + meta.tickers_with_strong_coverage + ", moderate=" + meta.tickers_with_moderate_coverage + ", thin=" + meta.tickers_with_thin_coverage + ", none=" + meta.tickers_with_no_coverage + ")");
-    console.log("   total_ticker_articles:", meta.total_ticker_articles, "(avg", meta.avg_articles_per_ticker + "/ticker,", meta.direct_article_pct + "% direct)");
-    console.log("   macro_candidates:", meta.macro_candidate_count);
-    console.log("   pipeline_duration:", meta.pipeline_duration_ms + "ms");
-    console.log("");
+    console.log(`✅ [Stage 1D] Raw Intelligence: user="${userName}" interests=${userInterests.length} holdings=${briefingTickers.length} | tickers=${meta.ticker_count} (strong=${meta.tickers_with_strong_coverage} mod=${meta.tickers_with_moderate_coverage} thin=${meta.tickers_with_thin_coverage} none=${meta.tickers_with_no_coverage}) | macro=${meta.macro_candidate_count} | pipeline=${meta.pipeline_duration_ms}ms`);
 
     // =========================================================
     // STAGE 2: THE ANALYST DESK (LLM Call)
@@ -3911,7 +4028,8 @@ Deno.serve(async (req) => {
             data_quality_flags: Array.isArray(portfolioResult.data_quality_flags) ? portfolioResult.data_quality_flags : [],
           };
           parallelOk = true;
-          console.log(`✅ [Stage 2] Parallel (3C) complete (${Date.now() - analystStartMs}ms)`);
+          const analystMs = Date.now() - analystStartMs;
+        console.log(`✅ [Stage 2] Parallel (3C) complete (${analystMs}ms)`);
         } else {
           console.warn(`⚠️ [Stage 2] Parallel (3C) returned invalid shape — falling back to single call.`);
         }
@@ -3931,7 +4049,7 @@ Deno.serve(async (req) => {
       }
 
       if (analyzedBrief) {
-        console.log(`✅ [Stage 2] Analyst Desk complete (${Date.now() - analystStartMs}ms)`);
+        const stage2Ms = Date.now() - analystStartMs;
         analyzedBrief.watch_items = analyzedBrief.watch_items ?? { primary: null, secondary: null };
         if (!analyzedBrief.market_energy) {
           const snap = await marketSnapshotPromise;
@@ -3945,7 +4063,7 @@ Deno.serve(async (req) => {
           else if (maxAbsPct > 0.8) analyzedBrief.market_energy = "mixed_calm";
           else analyzedBrief.market_energy = "quiet";
         }
-        console.log(`   energy: ${analyzedBrief.market_energy} | macro: ${analyzedBrief.macro_selections.length} | portfolio: ${analyzedBrief.portfolio_selections.length}`);
+        console.log(`✅ [Stage 2] Complete (${stage2Ms}ms) energy=${analyzedBrief.market_energy} macro=${analyzedBrief.macro_selections.length} portfolio=${analyzedBrief.portfolio_selections.length}`);
       }
     } catch (analystErr: any) {
       console.error(`❌ [Stage 2] Analyst Desk failed: ${analystErr.message}`);
@@ -4038,8 +4156,7 @@ Deno.serve(async (req) => {
           skipped_tickers: skippedTickers,
         });
 
-        console.log(`📝 [Stage 3] Scriptwriter prompt built (voice=${userVoicePreference3}, weekend=${isWeekend3})`);
-        console.log(`   Input: ${analyzedBrief.macro_selections.length} macro selections, ${analyzedBrief.portfolio_selections.length} portfolio selections`);
+        console.log(`📝 [Stage 3] Scriptwriter prompt built (voice=${userVoicePreference3}, weekend=${isWeekend3}) — ${analyzedBrief.macro_selections.length} macro, ${analyzedBrief.portfolio_selections.length} portfolio`);
 
         scriptwriterResult = await invokeLLM(base44, scriptwriterPrompt, false, SCRIPTWRITER_OUTPUT_SCHEMA);
       } catch (stage3LLMErr: any) {
@@ -4071,17 +4188,9 @@ Deno.serve(async (req) => {
       const uiSentiment3 = scriptwriterResult?.metadata?.market_sentiment || { label: "neutral", description: "" };
 
       const stage3Ms = Date.now() - stage3StartMs;
-      console.log(`✅ [Stage 3] Scriptwriter complete (${stage3Ms}ms) — ${wc3} words (~${estimatedMinutes3} min)`);
-      console.log(`   voice_mode_applied: ${scriptwriterResult?.voice_mode_applied || "unknown"}`);
-      console.log(`   sign_off_style: ${scriptwriterResult?.sign_off_style || "unknown"}`);
-      if (scriptwriterResult?.watch_items_mentioned?.length > 0) {
-        scriptwriterResult.watch_items_mentioned.forEach((w: any) => {
-          console.log(`   watch_item: ${w.event} (${w.date}) [${w.mention_type}]`);
-        });
-      }
-      console.log(`   summary: ${uiSummary3.slice(0, 120)}...`);
-      console.log(`   highlights: ${uiHighlights3.length} items`);
-      console.log(`   sentiment: ${uiSentiment3.label} — ${(uiSentiment3.description || "").slice(0, 80)}`);
+      const watchItems = scriptwriterResult?.watch_items_mentioned || [];
+      console.log(`✅ [Stage 3] Scriptwriter complete (${stage3Ms}ms) — ${wc3} words (~${estimatedMinutes3} min) voice=${scriptwriterResult?.voice_mode_applied || "?"} sign_off=${scriptwriterResult?.sign_off_style || "?"} highlights=${uiHighlights3.length} sentiment=${uiSentiment3.label}`);
+      watchItems.slice(0, 2).forEach((w: any) => console.log(`   watch_item: ${w.event} (${w.date}) [${w.mention_type}]`));
 
       // ── Word count guard (also catches null result from failed LLM) ──
       if (!scriptwriterResult || wc3 < 50) {
