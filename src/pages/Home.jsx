@@ -853,23 +853,16 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
       if (resp?.data?.success) {
         const market = resp.data.market_news;
         const portfolio = resp.data.portfolio_news;
+        const refreshedAt = resp.data.refreshed_at || new Date().toISOString();
 
         if (market || portfolio) {
           setMarketNews(market ?? { summary: "Market News", stories: [], updated_at: null });
           setPortfolioNews(portfolio ?? { summary: "Your Portfolio", stories: [], updated_at: null });
+          setLastRefreshTime(new Date(refreshedAt));
           localStorage.setItem(
             CACHE_KEY,
-            JSON.stringify({ market_news: market, portfolio_news: portfolio })
+            JSON.stringify({ market_news: market, portfolio_news: portfolio, refreshed_at: refreshedAt })
           );
-          localStorage.setItem(TIMESTAMP_KEY, Date.now().toString());
-        } else if (Array.isArray(resp.data.stories) && resp.data.stories.length > 0) {
-          const stories = resp.data.stories;
-          const half = Math.ceil(stories.length / 2);
-          const mn = { summary: "Market News", stories: stories.slice(0, half), updated_at: resp.data.cache_age };
-          const pn = { summary: "Your Portfolio", stories: stories.slice(half), updated_at: resp.data.cache_age };
-          setMarketNews(mn);
-          setPortfolioNews(pn);
-          localStorage.setItem(CACHE_KEY, JSON.stringify({ market_news: mn, portfolio_news: pn }));
           localStorage.setItem(TIMESTAMP_KEY, Date.now().toString());
         }
       }
