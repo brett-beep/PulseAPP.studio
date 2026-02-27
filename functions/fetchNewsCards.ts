@@ -908,9 +908,14 @@ Deno.serve(async (req) => {
 
               const allStories = deduped;
               const displayCap = 5;
-              const storiesForResponse = allStories.slice(0, displayCap);
+              let storiesForResponse = allStories.slice(0, displayCap);
 
               if (allStories.length >= 2) {
+                // Enrich ONLY the displayed stories with LLM
+                storiesForResponse = await enrichStoriesWithLLM(
+                  base44, storiesForResponse, preferences, "portfolio"
+                );
+
                 portfolioNews = {
                   summary: `Latest on ${userTickers.slice(0, 5).join(", ")}${userTickers.length > 5 ? ` +${userTickers.length - 5} more` : ""}`,
                   stories: storiesForResponse,
