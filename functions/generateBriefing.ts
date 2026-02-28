@@ -4661,9 +4661,7 @@ Generate these fields:
   4. What to watch and why it matters.
   Think: if someone read only this summary, they'd get the full story. No vague filler.
 
-**key_highlights**: 3-5 bullets. Format each as:
-  "**[Bold hook]:** [What happened] — [specific implication for ${userHoldingsStr}]"
-  Rules: Must include numbers and specific company names. Avoid raw ticker symbols when possible. No vague filler. No "could potentially" hedging.
+**key_highlights**: 3-5 bullets. Format: "**[Company or topic]:** [fact] — [implication for ${userHoldingsStr}]". Bold header MUST be a company name or topic (e.g. "Amazon", "Oil prices"), NEVER use "Hook" as the header. Include numbers and company names. No vague filler.
 
 **market_sentiment**: { label: "bullish"|"bearish"|"neutral"|"mixed", description: "one punchy sentence" }
 
