@@ -3083,7 +3083,7 @@ ${skipped_tickers.length > 0 ? `Skipped tickers ${skipped_tickers.join(", ")}: o
 KILL RULES: No invented news; no fabricated ratings/targets/dates. Low confidence→brief. No generic filler; every holding sentence has a specific number. Pick 1-2 narrative techniques; Professional→don't over-explain; Conversational→plain-English bridge for complex concepts.
 TARGET: ${wordTarget} words. Tight but keep personality.
 
-METADATA: **summary** — 4-6 sentences: market moves, breaking news, portfolio developments (with tickers/numbers), what to watch. **key_highlights** — 3-5 bullets: "**Hook:** fact — implication"; numbers and company names; no vague filler. **market_sentiment** — label (bullish|bearish|neutral|mixed) + one punchy sentence (indices + sector).
+METADATA: **summary** — 4-6 sentences: market moves, breaking news, portfolio developments (with tickers/numbers), what to watch. **key_highlights** — 3-5 bullets. Format: "**[Company name or topic]:** [what happened] — [implication]". The bold header MUST be a company name (e.g. "Amazon", "Nvidia", "Boeing") or a topic (e.g. "Fed rates", "Oil prices", "Tech sector"). NEVER use "Hook" as the header — that is an internal field name, not a display label. Include numbers and specific company names; no vague filler. **market_sentiment** — label (bullish|bearish|neutral|mixed) + one punchy sentence (indices + sector).
 
 USER:
 
