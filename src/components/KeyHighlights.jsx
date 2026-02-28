@@ -3,10 +3,20 @@ import { motion } from 'framer-motion';
 import { Zap } from 'lucide-react';
 
 // Parse "**Header:** rest of text" → { header: "Header", rest: "rest of text" }; else null
+// Strips "Hook" as a header since it's an internal field name, not a display label.
 function parseHighlight(highlight) {
     if (typeof highlight !== 'string') return null;
     const match = highlight.match(/^\*\*(.+?)\*\*:\s*(.*)$/s);
-    if (match) return { header: match[1].trim(), rest: match[2].trim() };
+    if (match) {
+        let header = match[1].trim();
+        const rest = match[2].trim();
+        // "Hook" is an internal field name — replace it with a meaningful label or just show the text
+        if (header.toLowerCase() === 'hook') {
+            // Try to extract the company/topic from the rest of the text
+            return null; // Fall through to renderBoldText which shows the full text naturally
+        }
+        return { header, rest };
+    }
     return null;
 }
 
