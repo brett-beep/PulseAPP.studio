@@ -1064,16 +1064,18 @@ Deno.serve(async (req) => {
     // LLM ENRICHMENT for market news (only when freshly fetched, not from enriched cache)
     // =========================================================
     if (marketNews && marketNews.stories && marketNews.stories.length > 0) {
-      // Check if stories already have LLM-quality summaries (>50 words in what_happened)
-      const firstSummary = marketNews.stories[0]?.what_happened || "";
+      // Check if stories already have LLM-quality bull/bear cases
+      const firstStory = marketNews.stories[0] || {};
+      const hasBullBear = Boolean(firstStory.bull_case && firstStory.bear_case);
+      const firstSummary = firstStory.what_happened || "";
       const wordCount = firstSummary.split(/\s+/).filter(Boolean).length;
-      if (wordCount < 40) {
-        console.log(`🧠 Market stories have short summaries (${wordCount} words), enriching with LLM...`);
+      if (!hasBullBear || wordCount < 40) {
+        console.log(`🧠 Market stories need LLM enrichment (hasBullBear=${hasBullBear}, words=${wordCount}), enriching...`);
         marketNews.stories = await enrichStoriesWithLLM(
           base44, marketNews.stories.slice(0, 5), preferences, "market"
         );
       } else {
-        console.log(`✅ Market stories already have rich summaries (${wordCount} words), skipping LLM`);
+        console.log(`✅ Market stories already enriched (bull/bear present, ${wordCount} words), skipping LLM`);
       }
     }
 
