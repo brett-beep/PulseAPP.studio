@@ -3083,7 +3083,7 @@ ${skipped_tickers.length > 0 ? `Skipped tickers ${skipped_tickers.join(", ")}: o
 KILL RULES: No invented news; no fabricated ratings/targets/dates. Low confidence→brief. No generic filler; every holding sentence has a specific number. Pick 1-2 narrative techniques; Professional→don't over-explain; Conversational→plain-English bridge for complex concepts.
 TARGET: ${wordTarget} words. Tight but keep personality.
 
-METADATA: **summary** — 4-6 sentences: market moves, breaking news, portfolio developments (with tickers/numbers), what to watch. **key_highlights** — 3-5 bullets. Format: "**[Company name or topic]:** [what happened] — [implication]". The bold header MUST be a company name (e.g. "Amazon", "Nvidia", "Boeing") or a topic (e.g. "Fed rates", "Oil prices", "Tech sector"). NEVER use "Hook" as the header — that is an internal field name, not a display label. Include numbers and specific company names; no vague filler. **market_sentiment** — label (bullish|bearish|neutral|mixed) + one punchy sentence (indices + sector).
+METADATA: **summary** — 4-6 sentences: market moves, breaking news, portfolio developments (with tickers/numbers), what to watch. **key_highlights** — 3-5 bullets. Format: "**[Short headline]:** [one-sentence summary with numbers]". The bold header is a short, punchy headline (e.g. "Fed holds rates steady", "Amazon tops $717B in sales", "Oil drops on OPEC surprise"). NEVER use "Hook:" or any internal field name as the header. Each bullet must include specific numbers or company names. **market_sentiment** — label (bullish|bearish|neutral|mixed) + one punchy sentence (indices + sector).
 
 USER:
 
@@ -4661,7 +4661,7 @@ Generate these fields:
   4. What to watch and why it matters.
   Think: if someone read only this summary, they'd get the full story. No vague filler.
 
-**key_highlights**: 3-5 bullets. Format: "**[Company or topic]:** [fact] — [implication for ${userHoldingsStr}]". Bold header MUST be a company name or topic (e.g. "Amazon", "Oil prices"), NEVER use "Hook" as the header. Include numbers and company names. No vague filler.
+**key_highlights**: 3-5 bullets. Format: "**[Short headline]:** [one-sentence summary with numbers]". The bold header is a short, punchy headline (e.g. "Fed holds rates steady", "Amazon tops $717B in sales", "Oil drops on OPEC surprise"). NEVER use "Hook:" or any internal field name as the header. Each bullet must include specific numbers or company names.
 
 **market_sentiment**: { label: "bullish"|"bearish"|"neutral"|"mixed", description: "one punchy sentence" }
 

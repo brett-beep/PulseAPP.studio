@@ -8,12 +8,11 @@ function parseHighlight(highlight) {
     if (typeof highlight !== 'string') return null;
     const match = highlight.match(/^\*\*(.+?)\*\*:\s*(.*)$/s);
     if (match) {
-        let header = match[1].trim();
+        const header = match[1].trim();
         const rest = match[2].trim();
-        // "Hook" is an internal field name — replace it with a meaningful label or just show the text
+        // "Hook" is an internal field name — skip it so the text renders naturally without "Hook:" prefix
         if (header.toLowerCase() === 'hook') {
-            // Try to extract the company/topic from the rest of the text
-            return null; // Fall through to renderBoldText which shows the full text naturally
+            return null;
         }
         return { header, rest };
     }
