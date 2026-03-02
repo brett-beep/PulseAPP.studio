@@ -2309,6 +2309,209 @@ function buildRawIntelligencePackage(
 }
 
 // =========================================================
+// STAGE 0: PERSONALIZATION CONTEXT — Memory + Story Tracker
+// Loaded before pipeline starts. Provides continuity data
+// for Stage 2 (story classification) and Stage 3 (scripting).
+// =========================================================
+
+interface StoryTrackerEntry {
+  story_key: string;
+  first_mentioned: string;
+  last_mentioned: string;
+  mention_count: number;
+  status: string;
+  event_type: string;
+  big_event: boolean;
+  related_ticker: string | null;
+  mentions: Array<{ date: string; angle: string; key_fact: string }>;
+}
+
+interface BriefingMemoryRecord {
+  date: string;
+  macro_stories: Array<{ story_key: string; headline: string; key_fact: string }>;
+  portfolio_stories: Record<string, { story_key: string; headline: string; key_fact: string; price_at_briefing: number | null; change_at_briefing: string | null }>;
+  watch_items_mentioned: string[];
+  holdings_at_time: string[];
+}
+
+interface PersonalizationContext {
+  last_briefings: BriefingMemoryRecord[];
+  active_stories: StoryTrackerEntry[];
+  holdings_changed: { added: string[]; removed: string[] };
+  user_day_count: number;
+  days_since_last: number;
+  user_listened_last: boolean;
+}
+
+async function loadPersonalizationContext(
+  base44: any,
+  userId: string,
+  todayStr: string,
+  currentHoldings: string[]
+): Promise<PersonalizationContext> {
+  const empty: PersonalizationContext = {
+    last_briefings: [],
+    active_stories: [],
+    holdings_changed: { added: [], removed: [] },
+    user_day_count: 0,
+    days_since_last: 999,
+    user_listened_last: true,
+  };
+
+  try {
+    const [memoryRecords, trackerRecords, deliveryRecords] = await Promise.all([
+      base44.asServiceRole.entities.BriefingMemory.filter({ user_id: userId }),
+      base44.asServiceRole.entities.StoryTracker.filter({ user_id: userId }),
+      base44.asServiceRole.entities.BriefingDelivery.filter({ user_id: userId }),
+    ]);
+
+    const memories = (Array.isArray(memoryRecords) ? memoryRecords : []) as Array<Record<string, any>>;
+    const trackers = (Array.isArray(trackerRecords) ? trackerRecords : []) as Array<Record<string, any>>;
+    const deliveries = (Array.isArray(deliveryRecords) ? deliveryRecords : []) as Array<Record<string, any>>;
+
+    const user_day_count = new Set(deliveries.map((d) => String(d.date || "").slice(0, 10))).size;
+
+    const parsedMemories: BriefingMemoryRecord[] = memories
+      .map((m) => {
+        const parseJson = (v: unknown, fallback: unknown) => {
+          if (typeof v === "string") { try { return JSON.parse(v); } catch { return fallback; } }
+          return v ?? fallback;
+        };
+        return {
+          date: String(m.date || ""),
+          macro_stories: parseJson(m.macro_stories, []) as BriefingMemoryRecord["macro_stories"],
+          portfolio_stories: parseJson(m.portfolio_stories, {}) as BriefingMemoryRecord["portfolio_stories"],
+          watch_items_mentioned: parseJson(m.watch_items_mentioned, []) as string[],
+          holdings_at_time: parseJson(m.holdings_at_time, []) as string[],
+        };
+      })
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 3);
+
+    const activeStories: StoryTrackerEntry[] = trackers
+      .filter((t) => t.status === "active" || t.status === "fading")
+      .map((t) => {
+        let mentionsArr: StoryTrackerEntry["mentions"] = [];
+        if (typeof t.mentions === "string") { try { mentionsArr = JSON.parse(t.mentions); } catch { /* */ } }
+        else if (Array.isArray(t.mentions)) { mentionsArr = t.mentions; }
+        return {
+          story_key: String(t.story_key || ""),
+          first_mentioned: String(t.first_mentioned || ""),
+          last_mentioned: String(t.last_mentioned || ""),
+          mention_count: Number(t.mention_count) || 0,
+          status: String(t.status || "active"),
+          event_type: String(t.event_type || "breaking"),
+          big_event: Boolean(t.big_event),
+          related_ticker: t.related_ticker ?? null,
+          mentions: mentionsArr,
+        };
+      });
+
+    const lastBriefing = parsedMemories[0];
+    const previousHoldings = lastBriefing?.holdings_at_time || [];
+    const currentSet = new Set(currentHoldings.map((t) => t.toUpperCase()));
+    const previousSet = new Set(previousHoldings.map((t) => String(t).toUpperCase()));
+    const added = currentHoldings.filter((t) => !previousSet.has(t.toUpperCase()));
+    const removed = previousHoldings.filter((t) => !currentSet.has(String(t).toUpperCase()));
+
+    let days_since_last = 999;
+    if (lastBriefing?.date) {
+      const lastDate = new Date(lastBriefing.date);
+      const today = new Date(todayStr);
+      if (!isNaN(lastDate.getTime()) && !isNaN(today.getTime())) {
+        days_since_last = Math.max(0, Math.round((today.getTime() - lastDate.getTime()) / (24 * 60 * 60 * 1000)));
+      }
+    }
+
+    console.log(`🧠 [Stage 0] Personalization: ${user_day_count} briefings total, ${parsedMemories.length} recent memories, ${activeStories.length} active stories, ${days_since_last}d since last`);
+    if (added.length > 0) console.log(`   Holdings added: ${added.join(", ")}`);
+    if (removed.length > 0) console.log(`   Holdings removed: ${removed.join(", ")}`);
+
+    return {
+      last_briefings: parsedMemories,
+      active_stories: activeStories,
+      holdings_changed: { added, removed },
+      user_day_count,
+      days_since_last,
+      user_listened_last: lastBriefing ? true : true,
+    };
+  } catch (err: any) {
+    console.warn(`⚠️ [Stage 0] Failed to load personalization context: ${err?.message ?? err}`);
+    return empty;
+  }
+}
+
+/**
+ * Format personalization context into a compact prompt block for Stage 2 analyst prompts.
+ * Includes story tracker, recent briefing summaries, and classification rules.
+ */
+function buildPersonalizationPromptBlock(ctx: PersonalizationContext): string {
+  if (ctx.user_day_count === 0 && ctx.active_stories.length === 0) {
+    return `
+═══════════════════════════════════════
+PERSONALIZATION CONTEXT
+═══════════════════════════════════════
+NEW USER — no prior briefings. Classify all stories as "breaking" (give full context on every story). Set big_event: true for any dominating multi-day event.
+`;
+  }
+
+  const storyTrackerLines = ctx.active_stories
+    .filter((s) => s.status === "active" || s.status === "fading")
+    .map((s) => {
+      const lastMention = s.mentions.length > 0 ? s.mentions[s.mentions.length - 1] : null;
+      return `  ${s.story_key} | mentions=${s.mention_count} | last=${s.last_mentioned} | type=${s.event_type}${s.big_event ? " | BIG_EVENT" : ""} | last_angle="${(lastMention?.angle || "").slice(0, 80)}"`;
+    })
+    .join("\n");
+
+  const lastBriefingSummary = ctx.last_briefings.length > 0
+    ? ctx.last_briefings.map((b) => {
+        const macroKeys = b.macro_stories.map((s) => s.story_key).join(", ");
+        const portKeys = Object.entries(b.portfolio_stories).map(([t, s]) => `${t}:${s.story_key}`).join(", ");
+        const watchStr = b.watch_items_mentioned.slice(0, 3).join("; ");
+        return `  ${b.date}: macro=[${macroKeys}] portfolio=[${portKeys}]${watchStr ? ` watch=[${watchStr}]` : ""}`;
+      }).join("\n")
+    : "  (none)";
+
+  const holdingsChangedStr = (ctx.holdings_changed.added.length > 0 || ctx.holdings_changed.removed.length > 0)
+    ? `\nHOLDINGS CHANGES: added=[${ctx.holdings_changed.added.join(",")}] removed=[${ctx.holdings_changed.removed.join(",")}]`
+    : "";
+
+  return `
+═══════════════════════════════════════
+PERSONALIZATION CONTEXT
+═══════════════════════════════════════
+User briefings to date: ${ctx.user_day_count} | Days since last briefing: ${ctx.days_since_last}${holdingsChangedStr}
+
+ACTIVE STORY TRACKER (stories mentioned in recent briefings — use these to classify event_type):
+${storyTrackerLines || "  (no tracked stories)"}
+
+RECENT BRIEFING SUMMARIES (what was covered):
+${lastBriefingSummary}
+
+═══════════════════════════════════════
+STORY CLASSIFICATION RULES
+═══════════════════════════════════════
+For EACH story you select (macro or portfolio), you MUST assign an event_type and optionally big_event:
+
+1. Check the ACTIVE STORY TRACKER above. If a story_key matching this event already exists:
+   - If the tracker shows mention_count 1-2 AND there is new information → "developing"
+   - If mention_count 3+ AND there is genuinely new information → "developing"
+   - If mention_count 3+ AND there is NO new information → "recurring"
+   - ESCALATION: If a tracked story has a DRAMATIC new development that fundamentally changes the story (military escalation, market crash, major policy reversal, company crisis, threshold crossed like oil >$100 or circuit breaker hit), classify as "escalation" regardless of mention_count. This is the SAME story but it just got much bigger.
+
+2. If no matching story_key exists in the tracker:
+   - The user has NEVER heard about this → "breaking" (regardless of how old the article is)
+   - If it's a one-time announcement unlikely to have follow-ups → "one_off"
+   - Default → "breaking" (better to over-explain than under-explain for a new listener)
+
+3. STORY_KEY STABILITY: Reuse existing story_keys from the tracker when covering the same event.
+   Same underlying event = same key. Example: if the tracker has "iran_military_conflict", use that EXACT key — not "iran_us_strikes" or "middle_east_tensions".
+
+4. big_event: Set to true for events that will dominate markets for days/weeks (war, financial crisis, major policy shift, pandemic). Once a story has big_event=true in the tracker, keep it true. Only use for genuinely transformative events, not routine earnings or data releases.
+`;
+}
+
+// =========================================================
 // STAGE 2: THE ANALYST DESK — Interfaces & Schema
 // A dedicated LLM call that thinks about the data: selects
 // stories, extracts insights, flags gaps, and sets market energy.
@@ -2319,6 +2522,8 @@ function buildRawIntelligencePackage(
 interface MacroSelection {
   rank: number;
   story_key?: string;
+  event_type?: "breaking" | "developing" | "recurring" | "one_off" | "escalation";
+  big_event?: boolean;
   source_id: string;
   source_query: string;
   hook: string;
@@ -2334,6 +2539,8 @@ interface MacroSelection {
 interface PortfolioSelection {
   ticker: string;
   story_key?: string;
+  event_type?: "breaking" | "developing" | "recurring" | "one_off" | "escalation";
+  big_event?: boolean;
   company_name: string;
   data_depth: string;
   source_type: "news" | "market_data_only";
@@ -2393,6 +2600,8 @@ const ANALYST_OUTPUT_SCHEMA = {
         properties: {
           rank: { type: "number" },
           story_key: { type: "string" },
+          event_type: { type: "string", enum: ["breaking", "developing", "recurring", "one_off", "escalation"] },
+          big_event: { type: "boolean" },
           source_id: { type: "string" },
           source_query: { type: "string" },
           hook: { type: "string" },
@@ -2404,7 +2613,7 @@ const ANALYST_OUTPUT_SCHEMA = {
           is_sector_personalized: { type: "boolean" },
           matched_sector: { type: "string" },
         },
-        required: ["rank", "source_id", "hook", "facts", "so_what", "plain_english_bridge", "confidence", "transition_suggestion"],
+        required: ["rank", "source_id", "hook", "facts", "so_what", "plain_english_bridge", "confidence", "transition_suggestion", "event_type"],
       },
     },
     portfolio_selections: {
@@ -2415,6 +2624,8 @@ const ANALYST_OUTPUT_SCHEMA = {
         properties: {
           ticker: { type: "string" },
           story_key: { type: "string" },
+          event_type: { type: "string", enum: ["breaking", "developing", "recurring", "one_off", "escalation"] },
+          big_event: { type: "boolean" },
           company_name: { type: "string" },
           data_depth: { type: "string" },
           source_type: { type: "string", enum: ["news", "market_data_only"] },
@@ -2435,7 +2646,7 @@ const ANALYST_OUTPUT_SCHEMA = {
           data_gap_note: { type: "string" },
           transition_suggestion: { type: "string" },
         },
-        required: ["ticker", "company_name", "data_depth", "source_type", "hook", "facts", "so_what", "confidence", "quote_context", "transition_suggestion"],
+        required: ["ticker", "company_name", "data_depth", "source_type", "hook", "facts", "so_what", "confidence", "quote_context", "transition_suggestion", "event_type"],
       },
     },
     watch_items: {
@@ -2634,6 +2845,7 @@ function buildAnalystPrompt(
   rawIntelligence: RawIntelligencePackage,
   isWeekend: boolean,
   marketSnapshot?: { sp500_pct: string; nasdaq_pct: string; dow_pct: string } | null,
+  pContext?: PersonalizationContext | null,
 ): string {
   const userCtx = rawIntelligence.user_context;
   const holdings = userCtx.holdings;
@@ -2867,6 +3079,7 @@ WATCH ITEMS RANKING (strict — you have exactly 2 slots: primary and secondary)
 `;
 })()}
 
+${pContext ? buildPersonalizationPromptBlock(pContext) : ""}
 ═══════════════════════════════════════
 RAW INTELLIGENCE PACKAGE
 ═══════════════════════════════════════
@@ -2879,7 +3092,7 @@ TASK
 
 Analyze this intelligence package for listener "${userCtx.user_name}" who holds
 ${holdings.join(", ")} with sector interests in ${interests.join(", ")}.
-Select stories and extract insights now. Return valid JSON only.`;
+Select stories and extract insights now. For EACH story (macro and portfolio), you MUST include event_type and optionally big_event per the classification rules above. Return valid JSON only.`;
 }
 
 // Fix 3C: Macro-only Analyst prompt (for parallel Stage 2). Output: macro_selections, market_energy, watch_items.
@@ -2887,6 +3100,7 @@ function buildAnalystPromptMacro(
   rawIntelligence: RawIntelligencePackage,
   isWeekend: boolean,
   marketSnapshot?: { sp500_pct: string; nasdaq_pct: string; dow_pct: string } | null,
+  pContext?: PersonalizationContext | null,
 ): string {
   const userCtx = rawIntelligence.user_context;
   const holdings = userCtx.holdings;
@@ -2948,18 +3162,20 @@ ${!isWeekend && marketSnapshot ? `Today: S&P ${marketSnapshot.sp500_pct} | Nasda
 
 ${upcomingBlock}
 
+${pContext ? buildPersonalizationPromptBlock(pContext) : ""}
 ═══════════════════════════════════════
 RAW INTELLIGENCE PACKAGE (use macro_candidates and user_context; ignore ticker_packages for this task)
 ═══════════════════════════════════════
 ${JSON.stringify(rawIntelligence)}
 
-TASK: For listener "${userCtx.user_name}" (holdings: ${holdings.join(", ")}, interests: ${interests.join(", ")}), select 3 macro stories, set market_energy, fill watch_items. Return valid JSON only.`;
+TASK: For listener "${userCtx.user_name}" (holdings: ${holdings.join(", ")}, interests: ${interests.join(", ")}), select 3 macro stories, set market_energy, fill watch_items. For EACH macro story, include event_type and optionally big_event per the classification rules above. Return valid JSON only.`;
 }
 
 // Fix 3C: Portfolio-only Analyst prompt (for parallel Stage 2). Output: portfolio_selections, data_quality_flags.
 function buildAnalystPromptPortfolio(
   rawIntelligence: RawIntelligencePackage,
   isWeekend: boolean,
+  pContext?: PersonalizationContext | null,
 ): string {
   const userCtx = rawIntelligence.user_context;
   const holdings = userCtx.holdings;
@@ -3004,12 +3220,13 @@ DATA DEPTH (from each ticker_package): daily → brief (price + one insight). we
 
 EXTRACTION PER HOLDING: ticker, company_name, data_depth, source_type (news|market_data_only), source_id, hook, facts (1-4), so_what, confidence, quote_context (current_price, change_today_pct), data_gap_note, transition_suggestion, story_key.
 
+${pContext ? buildPersonalizationPromptBlock(pContext) : ""}
 ═══════════════════════════════════════
 RAW INTELLIGENCE PACKAGE (use ticker_packages and user_context; ignore macro_candidates for this task)
 ═══════════════════════════════════════
 ${JSON.stringify(rawIntelligence)}
 
-TASK: For listener "${userCtx.user_name}" (holdings: ${holdings.join(", ")}), output exactly ${requiredTickers.length} portfolio_selections — one per ticker. For holdings with no company-specific news, use market_data_only. Then add any data_quality_flags. Return valid JSON only.`;
+TASK: For listener "${userCtx.user_name}" (holdings: ${holdings.join(", ")}), output exactly ${requiredTickers.length} portfolio_selections — one per ticker. For holdings with no company-specific news, use market_data_only. Then add any data_quality_flags. For EACH portfolio selection, include event_type and optionally big_event per the classification rules above. Return valid JSON only.`;
 }
 
 // =========================================================
@@ -3034,8 +3251,8 @@ interface ScriptwriterInput {
   marketSnapshot: { sp500_pct: string; nasdaq_pct: string; dow_pct: string; sector_hint?: string };
   userVoicePreference: string;
   dayName: string;
-  /** Tickers excluded from briefing (unsupported + no coverage). Script says one neutral line. */
   skipped_tickers?: string[];
+  personalizationContext?: PersonalizationContext | null;
 }
 
 function buildScriptwriterPrompt(input: ScriptwriterInput): string {
@@ -3043,16 +3260,155 @@ function buildScriptwriterPrompt(input: ScriptwriterInput): string {
     analyzedBrief, name, naturalDate, timeGreeting, holidayGreeting,
     isWeekend, isMonday, isFriday, userHoldingsStr, userSectorInterests,
     marketSnapshot, userVoicePreference, dayName, skipped_tickers = [],
+    personalizationContext: pCtx,
   } = input;
 
-  // Single default word target (briefing length option removed from product)
   const wordTarget = "450-600 words (~3-4 minutes)";
 
-  // Briefing style (voice) is linked to generation: userVoicePreference drives tone blocks below
   console.log(`📝 [Stage 3] Voice mode block injected: ${userVoicePreference}`);
 
-  // Watch item history — not yet implemented; will be wired in a future stage
-  const watchItemHistory = {};
+  // Build watch item history from personalization context
+  const watchItemHistory = (() => {
+    if (!pCtx || pCtx.last_briefings.length === 0) return {};
+    const allWatchItems: string[] = [];
+    for (const b of pCtx.last_briefings) {
+      allWatchItems.push(...(b.watch_items_mentioned || []));
+    }
+    return { recent_watch_items: allWatchItems.slice(0, 6) };
+  })();
+
+  // Build continuity context for the scriptwriter
+  const continuityBlock = (() => {
+    if (!pCtx || pCtx.user_day_count === 0) return "";
+
+    const lines: string[] = [];
+    lines.push(`
+═══════════════════════════════════════
+CONTINUITY & PERSONALIZATION
+═══════════════════════════════════════
+You are NOT a news reader. You are a personal financial assistant who has been briefing ${name} daily. You remember what you told them.`);
+
+    // Price-since-last-briefing for each portfolio holding
+    const lastBriefing = pCtx.last_briefings[0];
+    if (lastBriefing && Object.keys(lastBriefing.portfolio_stories).length > 0) {
+      lines.push(`\nPRICE SINCE LAST BRIEFING (${lastBriefing.date}):`);
+      for (const sel of analyzedBrief.portfolio_selections) {
+        const prev = lastBriefing.portfolio_stories[sel.ticker];
+        if (prev?.price_at_briefing != null && sel.quote_context?.current_price != null) {
+          const diff = sel.quote_context.current_price - prev.price_at_briefing;
+          const diffPct = prev.price_at_briefing !== 0 ? ((diff / prev.price_at_briefing) * 100).toFixed(2) : "N/A";
+          lines.push(`  ${sel.ticker}: was $${prev.price_at_briefing.toFixed(2)} → now $${sel.quote_context.current_price.toFixed(2)} (${Number(diffPct) >= 0 ? "+" : ""}${diffPct}% since last briefing)`);
+        }
+      }
+      lines.push(`Use this to frame movements: "Since we last spoke, Nvidia is up 3.4%" — not just today's change.`);
+    }
+
+    // Portfolio changes
+    if (pCtx.holdings_changed.added.length > 0) {
+      lines.push(`\nNEW HOLDINGS: ${pCtx.holdings_changed.added.join(", ")} — acknowledge briefly: "I see you added [X] to your portfolio. Let me catch you up."`);
+    }
+    if (pCtx.holdings_changed.removed.length > 0) {
+      lines.push(`REMOVED HOLDINGS: ${pCtx.holdings_changed.removed.join(", ")} — one line: "Looks like you moved on from [X]. I'll drop it from future briefings."`);
+    }
+
+    lines.push(`
+SCRIPTING RULES BY EVENT TYPE (from analyzed_brief — each story has event_type):
+
+=== BREAKING (event_type = "breaking") ===
+This is the FIRST TIME ${name} is hearing about this event. Do NOT assume they know.
+1. CONTEXT FIRST (2-3 sentences): What happened, in plain terms. Give backstory.
+2. WHY IT MATTERS FOR MARKETS (2-3 sentences): Financial implications.
+3. WHAT IT MEANS FOR YOU (1-2 sentences): Connect to portfolio if possible.
+NEVER jump straight into financial consequences without explaining WHAT HAPPENED first.
+
+=== DEVELOPING (event_type = "developing") ===
+${name} has heard about this before. Do NOT reintroduce from scratch.
+1. BRIEF CALLBACK (1 sentence): Reference what was said before. "That [story] I flagged yesterday has escalated." / "Quick update on [topic] we've been tracking —"
+2. WHAT'S NEW (2-3 sentences): Focus ONLY on what changed since last mention.
+3. UPDATED IMPLICATIONS (1 sentence): If implications changed, note it.
+Key: if they heard about this yesterday, they don't need the backstory again.
+
+=== ESCALATION (event_type = "escalation") ===
+A tracked story just had a DRAMATIC new development. Treat like a hybrid:
+1. Acknowledge existing story (1 sentence): "That [story] just took a dramatic turn —"
+2. Full explanation of the NEW development (as if breaking — what happened, who's involved).
+3. Updated implications (these have likely changed significantly).
+
+=== RECURRING (event_type = "recurring") ===
+Mentioned 3+ times, nothing major changed.
+1. Brief acknowledgment (1 sentence max): "[Topic] continues — [metric] holding steady."
+2. ONLY if something changed: one sentence on the development.
+3. If nothing changed: move on. No filler.
+If 5+ mentions with no development, SKIP ENTIRELY unless something genuinely new happens.
+
+=== ONE_OFF (event_type = "one_off") ===
+Standard treatment. Full explanation, no follow-up expected.
+
+WATCH ITEM PROGRESSION:
+Check the watch_history below. If you mentioned an event in a previous briefing:
+- If the event date is TODAY: "That [event] I've been flagging? It comes out today."
+- If the event date is TOMORROW: "[Event] is tomorrow — I'll have the breakdown for you."
+- If mentioned 3+ days ago and still days away: skip until 1-2 days before.
+NEVER reintroduce a watch item from scratch if it was already mentioned. Always reference the continuity.
+`);
+
+    // Relationship progression based on user tenure
+    const dayCount = pCtx.user_day_count;
+    if (dayCount <= 3) {
+      lines.push(`
+RELATIONSHIP STAGE: NEW USER (briefing #${dayCount + 1})
+- Be slightly more explanatory on financial concepts.
+- Introduce features naturally: "I'll be tracking this story for you."
+- Give more backstory on events — don't assume familiarity with ongoing themes.
+- If a major event is happening (big_event=true), spend extra time on context since this user has no prior briefings to reference.`);
+    } else if (dayCount <= 14) {
+      lines.push(`
+RELATIONSHIP STAGE: GETTING COMFORTABLE (briefing #${dayCount + 1})
+- Start using callbacks: "As we discussed yesterday..."
+- Reduce backstory on developing stories — they've heard the setup.
+- More confident tone, fewer hedges.
+- Can reference patterns: "Third day in a row the market's been flat."`);
+    } else {
+      lines.push(`
+RELATIONSHIP STAGE: ESTABLISHED (briefing #${dayCount + 1})
+- Assume shared history: "Oil's back in the news."
+- Minimal backstory on familiar themes.
+- Can be more direct: "Not much new today. Quick one."
+- Can acknowledge streaks: "You've been tuning in every day this week."`);
+    }
+
+    // Missed briefing handling
+    if (pCtx.days_since_last >= 5) {
+      lines.push(`
+MISSED BRIEFINGS: ${name} hasn't had a briefing in ${pCtx.days_since_last} days. Treat as near-fresh:
+- Full context on major stories. Acknowledge the gap: "Welcome back, ${name}. A lot has happened since [last date]. Let me catch you up."
+- For any story with big_event=true, give the FULL backstory regardless of mention_count.`);
+    } else if (pCtx.days_since_last >= 2) {
+      lines.push(`
+MISSED BRIEFINGS: ${name} missed ${pCtx.days_since_last - 1} day(s). Brief catch-up:
+- "It's been a couple days since we last talked. Quick recap:" + top 1-2 developments.
+- For developing stories, include slightly more context than a normal day.`);
+    }
+
+    // Big Event Protocol
+    const bigEventStories = pCtx.active_stories.filter((s) => s.big_event);
+    if (bigEventStories.length > 0) {
+      const bigLines = bigEventStories.map((s) => {
+        const daysSinceFirst = (() => {
+          const first = new Date(s.first_mentioned);
+          const now = new Date();
+          return isNaN(first.getTime()) ? 0 : Math.max(0, Math.round((now.getTime() - first.getTime()) / (24 * 60 * 60 * 1000)));
+        })();
+        if (daysSinceFirst <= 1) return `  ${s.story_key}: BIG EVENT DAY 1 — lead story, 40-50% of rapid fire. Full backstory. Set expectations: "This is going to be a story for weeks."`;
+        if (daysSinceFirst <= 3) return `  ${s.story_key}: BIG EVENT DAY ${daysSinceFirst + 1} — still lead. Brief callback + new developments. Track cumulative portfolio impact.`;
+        if (daysSinceFirst <= 7) return `  ${s.story_key}: BIG EVENT DAY ${daysSinceFirst + 1} — only lead if major new development. Otherwise 1-2 sentences. Track cumulative impact: "Since the [event] started, [ticker] is up/down X%."`;
+        return `  ${s.story_key}: BIG EVENT DAY ${daysSinceFirst + 1} — only mention if genuinely new developments. Acknowledge duration: "We're now ${Math.ceil(daysSinceFirst / 7)} weeks into..."`;
+      });
+      lines.push(`\nBIG EVENT PROTOCOL:\n${bigLines.join("\n")}`);
+    }
+
+    return lines.join("\n");
+  })();
 
   const prompt = `SYSTEM: You host "Pulse" — a personalized financial audio briefing for ONE person (name, portfolio, interests). Pre-analyzed brief is provided; turn it into a compelling 3-4 min audio script that sounds natural. Useful + enjoyable.
 
@@ -3064,9 +3420,9 @@ ${userVoicePreference === "professional" ? `Professional: sharp friend in financ
 ${userVoicePreference === "conversational" ? `Conversational: translate jargon with a one-line "what that means for you." Use plain_english_bridge for 1-2 macro stories only. Warm, clear; not bubbly or uncertain.` : ""}
 ${userVoicePreference === "hybrid" ? `Hybrid: lead with terminology, quick plain-English bridge for concepts that need it. Natural aside, not a lesson.` : ""}
 
-PERSONALITY: Talk to ${name}; use name 2-3x (opening, mid, sign-off). Reference reminder_context naturally. Match energy: volatile_up→celebratory, volatile_down→reassuring, mixed_calm→efficient, breakout→urgent, quiet→brief. "We're watching" not "investors should watch." Show personality 1-2x (surprise, humor, emphasis, candor).
+PERSONALITY: Talk to ${name}; use name 2-3x (opening, mid, sign-off). Match energy: volatile_up→celebratory, volatile_down→reassuring, mixed_calm→efficient, breakout→urgent, quiet→brief. "We're watching" not "investors should watch." Show personality 1-2x (surprise, humor, emphasis, candor).
 VOICE & TTS: Contractions; short sentences + dashes; opinions not hedging; no filler; "your [COMPANY] position"; company names. Spell abbreviations first; "$X billion", "1.9 percent"; no exchange-prefixed tickers.
-
+${continuityBlock}
 SCRIPT STRUCTURE
 ${isWeekend ? `
 WEEKEND: 350-450 words. No live markets. 1) Opening: warm, acknowledge weekend; no index numbers. 2) Week in review: one cohesive theme + 1-2 portfolio highlights. 3) Week ahead: calendar (earnings, CPI, Fed); use watch_items. 4) One interesting thing (optional). 5) Sign-off: relaxed, see you Monday.
@@ -3917,12 +4273,13 @@ Deno.serve(async (req) => {
     // Calendar: earnings only (30d). Economic calendar is Finnhub premium — use static US calendar if needed.
     // =========================================================
     const finnhubKey = Deno.env.get("FINNHUB_API_KEY") || FINNHUB_FALLBACK_KEY;
-    console.log(`\n⚡ [Stage 1A+1B+Calendar+Snapshot] Fetching market data, macro news, earnings calendar, and market snapshot in parallel...`);
-    const [tickerMarketMap, macroCandidates, earningsCalendar, marketSnapshotForAnalyst] = await Promise.all([
+    console.log(`\n⚡ [Stage 0+1A+1B+Calendar+Snapshot] Loading memory + fetching market data, macro news, earnings calendar, and market snapshot in parallel...`);
+    const [tickerMarketMap, macroCandidates, earningsCalendar, marketSnapshotForAnalyst, personalizationContext] = await Promise.all([
       fetchAllTickerMarketData(briefingTickers),
       fetchMacroCandidates(userInterests),
       fetchEarningsCalendar(briefingTickers, finnhubKey),
       fetchMarketSnapshot(),
+      loadPersonalizationContext(base44, userEmail, date, briefingTickers),
     ]);
     const marketSnapshotPromise = Promise.resolve(marketSnapshotForAnalyst);
 
@@ -4054,8 +4411,8 @@ Deno.serve(async (req) => {
       let parallelOk = false;
       try {
         console.log(`\n🧠 [Stage 2] Analyst Desk (3C parallel): macro + portfolio...`);
-        const macroPrompt = buildAnalystPromptMacro(rawIntelligence, isWeekendDay, marketSnapshotForAnalyst);
-        const portfolioPrompt = buildAnalystPromptPortfolio(rawIntelligence, isWeekendDay);
+        const macroPrompt = buildAnalystPromptMacro(rawIntelligence, isWeekendDay, marketSnapshotForAnalyst, personalizationContext);
+        const portfolioPrompt = buildAnalystPromptPortfolio(rawIntelligence, isWeekendDay, personalizationContext);
         const [macroResult, portfolioResult] = await Promise.all([
           invokeLLM(base44, macroPrompt, false, ANALYST_MACRO_SCHEMA),
           invokeLLM(base44, portfolioPrompt, false, ANALYST_PORTFOLIO_SCHEMA),
@@ -4107,7 +4464,7 @@ Deno.serve(async (req) => {
 
       if (!analyzedBrief) {
         console.log(`\n🧠 [Stage 2] Analyst Desk: single-call analysis...`);
-        const analystPrompt = buildAnalystPrompt(rawIntelligence, isWeekendDay, marketSnapshotForAnalyst);
+        const analystPrompt = buildAnalystPrompt(rawIntelligence, isWeekendDay, marketSnapshotForAnalyst, personalizationContext);
         const analystResult = await invokeLLM(base44, analystPrompt, false, ANALYST_OUTPUT_SCHEMA);
         if (analystResult && analystResult.macro_selections) {
           analyzedBrief = analystResult as AnalyzedBrief;
@@ -4222,6 +4579,7 @@ Deno.serve(async (req) => {
           userVoicePreference: userVoicePreference3,
           dayName: dayName3,
           skipped_tickers: skippedTickers,
+          personalizationContext,
         });
 
         console.log(`📝 [Stage 3] Scriptwriter prompt built (voice=${userVoicePreference3}, weekend=${isWeekend3}) — ${analyzedBrief.macro_selections.length} macro, ${analyzedBrief.portfolio_selections.length} portfolio`);
@@ -4345,6 +4703,7 @@ Deno.serve(async (req) => {
             analyzedBrief,
             tickerMarketMap,
             scriptwriterResult,
+            holdingsAtTime: briefingTickers,
           });
         } catch (memoryErr: any) {
           console.error("⚠️ [Memory] Failed:", memoryErr?.message, memoryErr?.stack ?? memoryErr);

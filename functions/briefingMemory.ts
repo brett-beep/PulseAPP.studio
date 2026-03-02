@@ -11,6 +11,7 @@
  *    - macro_stories: string (JSON array of { story_key, headline, key_fact })
  *    - portfolio_stories: string (JSON object keyed by ticker: { story_key, headline, key_fact, price_at_briefing, change_at_briefing })
  *    - watch_items_mentioned: string (JSON array of strings)
+ *    - holdings_at_time: string (JSON array of ticker strings — snapshot of portfolio when briefing was generated)
  *    - created_at: string (ISO date)
  *
  * 2) StoryTracker
@@ -20,6 +21,8 @@
  *    - last_mentioned: string (YYYY-MM-DD)
  *    - mention_count: number
  *    - status: string ("active" | "fading" | "resolved")
+ *    - event_type: string ("breaking" | "developing" | "recurring" | "one_off" | "escalation")
+ *    - big_event: boolean (true if this is a major multi-day event — persists once set)
  *    - related_ticker: string | null
  *    - mentions: string (JSON array of { date, angle, key_fact })
  *    - created_at: string (ISO date)
@@ -61,6 +64,7 @@ export interface BriefingMemoryPayload {
   macro_stories: MacroStoryMemory[];
   portfolio_stories: Record<string, PortfolioStoryMemory>;
   watch_items_mentioned: string[];
+  holdings_at_time: string[];
   created_at: string;
 }
 
@@ -131,6 +135,7 @@ export async function saveBriefingMemory(
     macro_stories: JSON.stringify(memory.macro_stories),
     portfolio_stories: JSON.stringify(memory.portfolio_stories),
     watch_items_mentioned: JSON.stringify(memory.watch_items_mentioned),
+    holdings_at_time: JSON.stringify(memory.holdings_at_time),
   };
   const existing = await base44.asServiceRole.entities.BriefingMemory.filter({
     user_id: memory.user_id,
@@ -180,6 +185,8 @@ interface StoryTrackerRecord {
   last_mentioned: string;
   mention_count: number;
   status: string;
+  event_type: string;
+  big_event: boolean;
   related_ticker: string | null;
   mentions: string;
   created_at: string;
@@ -207,7 +214,7 @@ export async function upsertStoryTracker(
   user_id: string,
   story_key: string,
   mention: { date: string; angle: string; key_fact: string },
-  options: { related_ticker?: string | null } = {}
+  options: { related_ticker?: string | null; event_type?: string; big_event?: boolean } = {}
 ): Promise<void> {
   const today = mention.date.slice(0, 10);
   const existingList = await base44.asServiceRole.entities.StoryTracker.filter({
@@ -231,27 +238,26 @@ export async function upsertStoryTracker(
     }
     const alreadyMentionedToday = mentionsArr.some((m) => isSameCalendarDay(m.date, today));
     if (alreadyMentionedToday) {
-      // Same-day subsequent: do NOT increment. Optionally append a brief "intra-day" mention for history.
       mentionsArr.push({ ...newMention, angle: "[intra-day] " + (mention.angle || "").slice(0, 80) });
-      await base44.asServiceRole.entities.StoryTracker.update(existing.id, {
-        last_mentioned: today,
-        mentions: JSON.stringify(mentionsArr),
-      });
+      const intraUpdate: Record<string, unknown> = { last_mentioned: today, mentions: JSON.stringify(mentionsArr) };
+      if (options.event_type) intraUpdate.event_type = options.event_type;
+      if (options.big_event && !existing.big_event) intraUpdate.big_event = true;
+      await base44.asServiceRole.entities.StoryTracker.update(existing.id, intraUpdate);
       return;
     }
     if (isNewCycle(existing.first_mentioned, today)) {
-      // New 7-day cycle: reset to mention_count = 1.
       mentionsArr = [newMention];
       await base44.asServiceRole.entities.StoryTracker.update(existing.id, {
         first_mentioned: today,
         last_mentioned: today,
         mention_count: 1,
         status: "active",
+        event_type: options.event_type || existing.event_type || "breaking",
+        big_event: existing.big_event || options.big_event || false,
         mentions: JSON.stringify(mentionsArr),
       });
       return;
     }
-    // New day, same cycle: increment (cap at 3 for display; we store actual count).
     const newCount = Math.min((existing.mention_count || 0) + 1, 99);
     let status = existing.status || "active";
     if (newCount >= 6) status = "fading";
@@ -260,12 +266,13 @@ export async function upsertStoryTracker(
       last_mentioned: today,
       mention_count: newCount,
       status,
+      event_type: options.event_type || existing.event_type || "developing",
+      big_event: existing.big_event || options.big_event || false,
       mentions: JSON.stringify(mentionsArr),
     });
     return;
   }
 
-  // Create new tracker.
   await base44.asServiceRole.entities.StoryTracker.create({
     user_id,
     story_key,
@@ -273,6 +280,8 @@ export async function upsertStoryTracker(
     last_mentioned: today,
     mention_count: 1,
     status: "active",
+    event_type: options.event_type || "breaking",
+    big_event: options.big_event || false,
     related_ticker: options.related_ticker ?? null,
     mentions: JSON.stringify([newMention]),
   });
@@ -290,15 +299,16 @@ export async function saveBriefingMemoryComplete(
   userId: string,
   briefingDate: string,
   analyzedBrief: {
-    macro_selections?: Array<{ story_key?: string; hook?: string; facts?: unknown[] }>;
-    portfolio_selections?: Array<{ ticker?: string; story_key?: string; hook?: string; facts?: unknown[] }>;
+    macro_selections?: Array<{ story_key?: string; hook?: string; facts?: unknown[]; event_type?: string; big_event?: boolean }>;
+    portfolio_selections?: Array<{ ticker?: string; story_key?: string; hook?: string; facts?: unknown[]; event_type?: string; big_event?: boolean }>;
     watch_items?: {
       primary?: { event?: string; date?: string; why_it_matters?: string } | null;
       secondary?: { event?: string; date?: string; why_it_matters?: string } | null;
     };
   },
   tickerMarketMap: Record<string, { quote?: { current_price?: number; change_pct?: number } }>,
-  scriptwriterResult: { watch_items_mentioned?: Array<{ event?: string; date?: string }> } | null | undefined
+  scriptwriterResult: { watch_items_mentioned?: Array<{ event?: string; date?: string }> } | null | undefined,
+  holdingsAtTime: string[] = []
 ): Promise<void> {
   const macroStories = (analyzedBrief.macro_selections || []).map((s) => ({
     story_key: s.story_key || generateFallbackKey(s.hook || ""),
@@ -328,20 +338,34 @@ export async function saveBriefingMemoryComplete(
     macro_stories: macroStories,
     portfolio_stories: portfolioStories,
     watch_items_mentioned: watchItemsList,
+    holdings_at_time: holdingsAtTime,
     created_at: new Date().toISOString(),
   });
   console.log("💾 [Memory] Briefing memory saved for", userId, "—", macroStories.length, "macro,", Object.keys(portfolioStories).length, "portfolio stories");
+
+  const macroSelectionsRaw = analyzedBrief.macro_selections || [];
+  const portfolioSelectionsRaw = analyzedBrief.portfolio_selections || [];
+  const eventTypeLookup = new Map<string, { event_type?: string; big_event?: boolean }>();
+  for (const s of macroSelectionsRaw) {
+    const key = s.story_key || generateFallbackKey(s.hook || "");
+    eventTypeLookup.set(key, { event_type: s.event_type, big_event: s.big_event });
+  }
+  for (const s of portfolioSelectionsRaw) {
+    const key = s.story_key || generateFallbackKey((s.ticker || "") + "_" + (s.hook || ""));
+    eventTypeLookup.set(key, { event_type: s.event_type, big_event: s.big_event });
+  }
 
   const allStoriesForTracker = [
     ...macroStories.map((s) => ({ ...s, related_ticker: null as string | null })),
     ...Object.entries(portfolioStories).map(([ticker, s]) => ({ ...s, related_ticker: ticker })),
   ];
   for (const story of allStoriesForTracker) {
+    const meta = eventTypeLookup.get(story.story_key);
     await upsertStoryTracker(base44, userId, story.story_key, {
       date: briefingDate,
       angle: story.headline,
       key_fact: story.key_fact,
-    }, { related_ticker: story.related_ticker ?? null });
+    }, { related_ticker: story.related_ticker ?? null, event_type: meta?.event_type, big_event: meta?.big_event });
   }
   const primary = analyzedBrief.watch_items?.primary;
   const secondary = analyzedBrief.watch_items?.secondary;
@@ -369,8 +393,8 @@ export async function saveBriefingMemoryComplete(
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const body = await req.json() as { userId?: string; briefingDate?: string; analyzedBrief?: unknown; tickerMarketMap?: unknown; scriptwriterResult?: unknown };
-    const { userId, briefingDate, analyzedBrief, tickerMarketMap, scriptwriterResult } = body;
+    const body = await req.json() as { userId?: string; briefingDate?: string; analyzedBrief?: unknown; tickerMarketMap?: unknown; scriptwriterResult?: unknown; holdingsAtTime?: string[] };
+    const { userId, briefingDate, analyzedBrief, tickerMarketMap, scriptwriterResult, holdingsAtTime } = body;
     if (!userId || !briefingDate) {
       return Response.json({ error: "userId and briefingDate required" }, { status: 400 });
     }
@@ -380,7 +404,8 @@ Deno.serve(async (req) => {
       briefingDate,
       (analyzedBrief ?? {}) as Parameters<typeof saveBriefingMemoryComplete>[3],
       (tickerMarketMap ?? {}) as Parameters<typeof saveBriefingMemoryComplete>[4],
-      scriptwriterResult as Parameters<typeof saveBriefingMemoryComplete>[5]
+      scriptwriterResult as Parameters<typeof saveBriefingMemoryComplete>[5],
+      Array.isArray(holdingsAtTime) ? holdingsAtTime : []
     );
     return Response.json({ success: true });
   } catch (err) {
