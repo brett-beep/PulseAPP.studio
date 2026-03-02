@@ -3,10 +3,19 @@ import { motion } from 'framer-motion';
 import { Zap } from 'lucide-react';
 
 // Parse "**Header:** rest of text" → { header: "Header", rest: "rest of text" }; else null
+// Strips "Hook" as a header since it's an internal field name, not a display label.
 function parseHighlight(highlight) {
     if (typeof highlight !== 'string') return null;
     const match = highlight.match(/^\*\*(.+?)\*\*:\s*(.*)$/s);
-    if (match) return { header: match[1].trim(), rest: match[2].trim() };
+    if (match) {
+        const header = match[1].trim();
+        const rest = match[2].trim();
+        // "Hook" is an internal field name — skip it so the text renders naturally without "Hook:" prefix
+        if (header.toLowerCase() === 'hook') {
+            return null;
+        }
+        return { header, rest };
+    }
     return null;
 }
 
