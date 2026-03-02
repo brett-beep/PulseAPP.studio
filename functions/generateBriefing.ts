@@ -2509,6 +2509,22 @@ For EACH story you select (macro or portfolio), you MUST assign an event_type an
    UMBRELLA: Sub-events of the same crisis (US–Iran strikes, Israel–Hezbollah, Gulf shipping, oil spikes from the same war) all belong under ONE key. Check the tracker for an existing umbrella key and reuse it.
 
 4. big_event: Set to true for events that will dominate markets for days/weeks (war, financial crisis, major policy shift, pandemic). Once a story has big_event=true in the tracker, keep it true. Only use for genuinely transformative events, not routine earnings or data releases.
+
+5. big_event_tier (set ONLY when big_event=true):
+   - Tier 1: GLOBAL CRISIS — active military conflict involving major power, financial system crisis, pandemic declaration. Affects ALL asset classes. Must be rank=1.
+   - Tier 2: MAJOR DISRUPTION — significant geopolitical event, major central bank surprise, sector-wide crisis (e.g. banking contagion). Affects multiple sectors/indices.
+   - Tier 3: SIGNIFICANT EVENT — important but contained. A single company crisis, regional conflict, or policy shift with broad but not systemic market impact.
+   If big_event=true, you MUST set big_event_tier. If big_event_tier=1, the story MUST have rank=1.
+
+BIG EVENT DETECTION RULES:
+- A story qualifies as big_event=true if it meets ANY of these:
+  a) Multiple major indices move 2%+ in the same direction because of it
+  b) Multiple asset classes affected (equities + commodities + bonds)
+  c) Geopolitical event involving military action by a major world power
+  d) Central bank emergency action or surprise rate move > 50bps
+  e) Systemic risk event (major financial institution failure, sovereign debt crisis)
+  f) The SAME story_key appears in the tracker with big_event=true already
+- Routine events are NEVER big_event: regular earnings, scheduled data releases, analyst upgrades, sector rotations, trade disputes without escalation.
 `;
 }
 
@@ -2525,6 +2541,7 @@ interface MacroSelection {
   story_key?: string;
   event_type?: "breaking" | "developing" | "recurring" | "one_off" | "escalation";
   big_event?: boolean;
+  big_event_tier?: 1 | 2 | 3;
   source_id: string;
   source_query: string;
   hook: string;
@@ -2603,6 +2620,7 @@ const ANALYST_OUTPUT_SCHEMA = {
           story_key: { type: "string" },
           event_type: { type: "string", enum: ["breaking", "developing", "recurring", "one_off", "escalation"] },
           big_event: { type: "boolean" },
+          big_event_tier: { type: "number", enum: [1, 2, 3] },
           source_id: { type: "string" },
           source_query: { type: "string" },
           hook: { type: "string" },
@@ -2892,13 +2910,24 @@ UMBRELLA RULE: Stories that stem from the SAME underlying conflict, crisis, or e
 - One earnings season theme across multiple companies → one key if it's a macro story.
 When selecting macro stories, treat the umbrella as ONE story and dedicate ONE selection slot to it. Use the remaining slots for genuinely different themes.
 
-Story 1: ALWAYS the biggest market-moving headline of the day — Fed, inflation, indices, regulatory.
-Prefer "editorial_net" or "targeted_macro". Must NOT be about a portfolio holding.
+GEOGRAPHIC PRIORITY — CRITICAL:
+Prioritize US / North America macro news. Only include non-US stories if they have a CLEAR, DIRECT, and SPECIFIC impact on US markets or the listener's portfolio.
+- YES: "RBA signals inflation risk from Middle East tensions → impacts global bond yields" (global impact, actionable)
+- NO: "Australian airline Qantas shares fall 10%" (Australian domestic, no US portfolio impact)
+- NO: "Canadian housing fund halts redemptions" (Canadian domestic — UNLESS the listener explicitly has Canadian real estate exposure)
+When in doubt, prefer the US-centric story. The listener is a US investor. International stories must EARN their slot by demonstrating concrete US market relevance.
 
-Story 2: Second macro story — rates, sector rotation, broad market theme.
+MACRO STORY ORDERING — CRITICAL:
+Rank macro_selections strictly by URGENCY / IMPORTANCE — the most critical market-moving story MUST have rank=1, the second most critical rank=2, etc.
+The scriptwriter will present stories in rank order. Story rank=1 will open with "First up..." — it MUST be the single most important story.
+Do NOT rank by topic (e.g. "Fed always first"). Rank by TODAY'S urgency. A military conflict escalation can outrank a routine Fed comment.
+
+Story 1 (rank=1): ALWAYS today's single biggest market-moving headline. Prefer "editorial_net" or "targeted_macro". Must NOT be about a portfolio holding.
+
+Story 2 (rank=2): Second most urgent macro story — rates, sector rotation, broad market theme.
 Check matches_user_sector: true for sector relevance, but still macro (not single-holding news).
 
-Story 3: Sector-interest story that is macro-level (e.g. "AI sector resilience", "credit market convergence").
+Story 3 (rank=3): Third most urgent story, sector-interest if possible (e.g. "AI sector resilience", "credit market convergence").
 User interests: ${interests.join(", ")}.
 If the best sector story is about a portfolio company, skip it — pick true macro instead.
 Never put portfolio-company news (Amazon, Nvidia, etc.) in macro_selections.
@@ -3099,7 +3128,9 @@ TASK
 
 Analyze this intelligence package for listener "${userCtx.user_name}" who holds
 ${holdings.join(", ")} with sector interests in ${interests.join(", ")}.
-Select stories and extract insights now. For EACH story (macro and portfolio), you MUST include event_type and optionally big_event per the classification rules above. Return valid JSON only.`;
+Select stories and extract insights now. For EACH story (macro and portfolio), you MUST include event_type and optionally big_event per the classification rules above.
+${holdings.length < 3 ? `PORTFOLIO MINIMUM: The listener has only ${holdings.length} holding(s). Output at least 3 portfolio_selections total — at least one per holding, then fill remaining slots with next-best stories from any holdings.` : ''}
+Return valid JSON only.`;
 }
 
 // Fix 3C: Macro-only Analyst prompt (for parallel Stage 2). Output: macro_selections, market_energy, watch_items.
@@ -3122,8 +3153,11 @@ HARD RULE — macro_selections must be TRUE MACRO news, NOT portfolio-company st
 DEDUPLICATION: Merge stories covering the same event into one; pick different stories for remaining slots.
 STORY_KEY: For each macro selection output story_key (snake_case, e.g. "fed_rate_path", "tariff_consumer_impact").
 UMBRELLA RULE: Stories from the SAME underlying conflict/crisis/event MUST use ONE story_key. E.g. US–Iran strikes, Israel–Hezbollah, Gulf shipping disruptions, oil spikes from the same conflict → all ONE key (e.g. "middle_east_conflict"). Do NOT split sub-events of the same crisis into separate selections. One umbrella = one slot; use remaining slots for genuinely different themes.
-Story 1: Biggest market-moving headline — Fed, inflation, indices, regulatory. Must NOT be about a portfolio holding.
-Story 2: Second macro story — rates, sector rotation. Story 3: Sector-interest story (macro-level). User interests: ${interests.join(", ")}. Never put portfolio-company news in macro_selections.
+GEOGRAPHIC PRIORITY: Prioritize US/North America macro news. Only include non-US stories if they have CLEAR, DIRECT, and SPECIFIC impact on US markets. NO Australian domestic news (e.g. "Qantas shares fall"), NO Canadian domestic news — UNLESS there is a direct US impact. The listener is a US investor.
+URGENCY ORDERING: Rank all 3 macro_selections strictly by URGENCY. rank=1 is the most critical market-moving story TODAY; rank=2 second; rank=3 third. Do NOT rank by topic. A military conflict escalation outranks a routine data release if it moves more markets.
+Story 1 (rank=1): Today's single biggest market-moving headline. Must NOT be about a portfolio holding.
+Story 2 (rank=2): Second most urgent macro story — rates, sector rotation.
+Story 3 (rank=3): Third most urgent, sector-interest if possible. User interests: ${interests.join(", ")}. Never put portfolio-company news in macro_selections.
 `;
 
   const upcomingBlock = (() => {
@@ -3191,13 +3225,18 @@ function buildAnalystPromptPortfolio(
   const tickerPackages = rawIntelligence.ticker_packages || [];
   const requiredTickers = tickerPackages.map((p: TickerPackage) => p.ticker);
 
+  const minPortfolioStories = Math.max(3, requiredTickers.length);
+  const portfolioCountRule = requiredTickers.length < 3
+    ? `MINIMUM PORTFOLIO COVERAGE: The listener has only ${requiredTickers.length} holding(s). To ensure a substantive portfolio section, output at least ${minPortfolioStories} portfolio_selections total. You MUST output at least one selection per ticker, then fill the remaining slots with the NEXT-BEST stories from any of the same holdings (different articles/angles). Each selection must cover a genuinely different story or angle for that ticker — do not duplicate the same article. If a holding only has one relevant article, use market_data_only for the second angle with a different insight.`
+    : `Output exactly ${requiredTickers.length} portfolio_selections — one per ticker.`;
+
   return `You are a senior financial analyst. This call is PORTFOLIO ONLY. Your output must contain ONLY:
-1. portfolio_selections — you MUST output exactly ${requiredTickers.length} selection(s), one for EACH of these tickers: ${requiredTickers.join(", ")}. Never omit a holding.
+1. portfolio_selections — ${portfolioCountRule} Never omit a holding.
 2. data_quality_flags — flag any holding where coverage is thin or articles are not company-specific (optional; can be empty).
 
 Do NOT output macro_selections, market_energy, or watch_items.
 
-HARD RULE — ONE SELECTION PER HOLDING: For every ticker in ticker_packages you must output one portfolio_selection. If a holding has no suitable company-specific news (e.g. only tangential/sector/supplier articles), output one selection with source_type: "market_data_only", hook/facts from the quote data only, so_what brief, confidence: "low", and data_gap_note: "Insufficient company-specific news; using price data." That way the listener still gets a segment for that holding.
+HARD RULE — AT LEAST ONE PER HOLDING: For every ticker in ticker_packages you MUST output at least one portfolio_selection. If a holding has no suitable company-specific news (e.g. only tangential/sector/supplier articles), output one selection with source_type: "market_data_only", hook/facts from the quote data only, so_what brief, confidence: "low", and data_gap_note: "Insufficient company-specific news; using price data." That way the listener still gets a segment for that holding.
 
 ═══════════════════════════════════════
 PORTFOLIO STORY SELECTION
@@ -3234,7 +3273,7 @@ RAW INTELLIGENCE PACKAGE (use ticker_packages and user_context; ignore macro_can
 ═══════════════════════════════════════
 ${JSON.stringify(rawIntelligence)}
 
-TASK: For listener "${userCtx.user_name}" (holdings: ${holdings.join(", ")}), output exactly ${requiredTickers.length} portfolio_selections — one per ticker. For holdings with no company-specific news, use market_data_only. Then add any data_quality_flags. For EACH portfolio selection, include event_type and optionally big_event per the classification rules above. Return valid JSON only.`;
+TASK: For listener "${userCtx.user_name}" (holdings: ${holdings.join(", ")}), output at least ${minPortfolioStories} portfolio_selections — at least one per ticker${requiredTickers.length < 3 ? ` (fill to ${minPortfolioStories} with the best stories across all holdings)` : ''}. For holdings with no company-specific news, use market_data_only. Then add any data_quality_flags. For EACH portfolio selection, include event_type and optionally big_event per the classification rules above. Return valid JSON only.`;
 }
 
 // =========================================================
@@ -3399,19 +3438,23 @@ MISSED BRIEFINGS: ${name} missed ${pCtx.days_since_last - 1} day(s). Brief catch
 - For developing stories, include slightly more context than a normal day.`);
     }
 
-    // Big Event Protocol
+    // Big Event Protocol — now includes tier-based scripting
     const bigEventStories = pCtx.active_stories.filter((s) => s.big_event);
     if (bigEventStories.length > 0) {
+      const macroSelections = analyzedBrief?.macro_selections || [];
       const bigLines = bigEventStories.map((s) => {
+        const matchedSelection = macroSelections.find((ms) => ms.story_key === s.story_key);
+        const tier = matchedSelection?.big_event_tier || 2;
         const daysSinceFirst = (() => {
           const first = new Date(s.first_mentioned);
           const now = new Date();
           return isNaN(first.getTime()) ? 0 : Math.max(0, Math.round((now.getTime() - first.getTime()) / (24 * 60 * 60 * 1000)));
         })();
-        if (daysSinceFirst <= 1) return `  ${s.story_key}: BIG EVENT DAY 1 — lead story, 40-50% of rapid fire. Full backstory. Set expectations: "This is going to be a story for weeks."`;
-        if (daysSinceFirst <= 3) return `  ${s.story_key}: BIG EVENT DAY ${daysSinceFirst + 1} — still lead. Brief callback + new developments. Track cumulative portfolio impact.`;
-        if (daysSinceFirst <= 7) return `  ${s.story_key}: BIG EVENT DAY ${daysSinceFirst + 1} — only lead if major new development. Otherwise 1-2 sentences. Track cumulative impact: "Since the [event] started, [ticker] is up/down X%."`;
-        return `  ${s.story_key}: BIG EVENT DAY ${daysSinceFirst + 1} — only mention if genuinely new developments. Acknowledge duration: "We're now ${Math.ceil(daysSinceFirst / 7)} weeks into..."`;
+        const tierLabel = tier === 1 ? "GLOBAL CRISIS" : tier === 2 ? "MAJOR DISRUPTION" : "SIGNIFICANT EVENT";
+        if (daysSinceFirst <= 1) return `  ${s.story_key} [${tierLabel}]: BIG EVENT DAY 1 — lead story, ${tier === 1 ? '40-50%' : '25-35%'} of rapid fire. Full backstory. Set expectations: "This is going to be a story for ${tier === 1 ? 'weeks' : 'a while'}."`;
+        if (daysSinceFirst <= 3) return `  ${s.story_key} [${tierLabel}]: BIG EVENT DAY ${daysSinceFirst + 1} — ${tier <= 2 ? 'still lead' : 'prominent mention'}. Brief callback + new developments. Track cumulative portfolio impact.`;
+        if (daysSinceFirst <= 7) return `  ${s.story_key} [${tierLabel}]: BIG EVENT DAY ${daysSinceFirst + 1} — ${tier === 1 ? 'still lead if new developments, otherwise prominent update' : 'only lead if major new development. Otherwise 1-2 sentences'}. Track cumulative impact: "Since the [event] started, [ticker] is up/down X%."`;
+        return `  ${s.story_key} [${tierLabel}]: BIG EVENT DAY ${daysSinceFirst + 1} — only mention if genuinely new developments. Acknowledge duration: "We're now ${Math.ceil(daysSinceFirst / 7)} weeks into..."`;
       });
       lines.push(`\nBIG EVENT PROTOCOL:\n${bigLines.join("\n")}`);
     }
@@ -4292,6 +4335,20 @@ Deno.serve(async (req) => {
     ]);
     const marketSnapshotPromise = Promise.resolve(marketSnapshotForAnalyst);
 
+    // ── Section 1A: Detailed diagnostic logging for personalization context ──
+    console.log(`📋 [Stage 0] Personalization context built:`);
+    console.log(`  - Recent memories: ${personalizationContext.last_briefings?.length || 0}`);
+    console.log(`  - Active stories: ${personalizationContext.active_stories?.length || 0}`);
+    console.log(`  - Days since last: ${personalizationContext.days_since_last}`);
+    console.log(`  - Holdings added: ${personalizationContext.holdings_changed?.added?.join(', ') || 'none'}`);
+    console.log(`  - Holdings removed: ${personalizationContext.holdings_changed?.removed?.join(', ') || 'none'}`);
+    console.log(`  - User day count: ${personalizationContext.user_day_count || 0}`);
+    if (personalizationContext.active_stories?.length > 0) {
+      personalizationContext.active_stories.slice(0, 5).forEach((s) => {
+        console.log(`  - Story: "${s.story_key}" mentions=${s.mention_count} type=${s.event_type}${s.big_event ? ' BIG_EVENT' : ''} last=${s.last_mentioned}`);
+      });
+    }
+
     console.log(`📊 [Stage 1A] Got market data for ${briefingTickers.length} holdings`);
     console.log(`📰 [Stage 1B] ${macroCandidates.length} macro candidates`);
     macroCandidates.slice(0, 5).forEach((c, i) => {
@@ -4427,6 +4484,7 @@ Deno.serve(async (req) => {
       let parallelOk = false;
       try {
         console.log(`\n🧠 [Stage 2] Analyst Desk (3C parallel): macro + portfolio...`);
+        console.log(`🧩 [Stage 2] Personalization injected: ${personalizationContext ? `YES (${personalizationContext.active_stories?.length || 0} active stories, day_count=${personalizationContext.user_day_count})` : 'NO (null context)'}`);
         const macroPrompt = buildAnalystPromptMacro(rawIntelligence, isWeekendDay, marketSnapshotForAnalyst, personalizationContext);
         const portfolioPrompt = buildAnalystPromptPortfolio(rawIntelligence, isWeekendDay, personalizationContext);
         const [macroResult, portfolioResult] = await Promise.all([
@@ -4480,6 +4538,7 @@ Deno.serve(async (req) => {
 
       if (!analyzedBrief) {
         console.log(`\n🧠 [Stage 2] Analyst Desk: single-call analysis...`);
+        console.log(`🧩 [Stage 2] Personalization injected: ${personalizationContext ? `YES (${personalizationContext.active_stories?.length || 0} active stories, day_count=${personalizationContext.user_day_count})` : 'NO (null context)'}`);
         const analystPrompt = buildAnalystPrompt(rawIntelligence, isWeekendDay, marketSnapshotForAnalyst, personalizationContext);
         const analystResult = await invokeLLM(base44, analystPrompt, false, ANALYST_OUTPUT_SCHEMA);
         if (analystResult && analystResult.macro_selections) {
@@ -4505,6 +4564,56 @@ Deno.serve(async (req) => {
           else analyzedBrief.market_energy = "quiet";
         }
         console.log(`✅ [Stage 2] Complete (${stage2Ms}ms) energy=${analyzedBrief.market_energy} macro=${analyzedBrief.macro_selections.length} portfolio=${analyzedBrief.portfolio_selections.length}`);
+
+        // ── Section 6B: Validate new fields + fill safe defaults ──
+        for (const ms of analyzedBrief.macro_selections || []) {
+          if (!ms.story_key) {
+            ms.story_key = (ms.hook || "unknown_macro").toLowerCase().replace(/[^a-z0-9\s]/g, "").trim().split(/\s+/).slice(0, 5).join("_").substring(0, 40);
+            console.log(`⚠️ [Stage 2] Missing story_key for macro story, generated: "${ms.story_key}"`);
+          }
+          if (!ms.event_type) { ms.event_type = "breaking"; console.log(`⚠️ [Stage 2] Missing event_type for "${ms.story_key}", defaulting to "breaking"`); }
+          if (ms.rank === undefined) { console.log(`⚠️ [Stage 2] Missing rank for "${ms.story_key}"`); }
+          if (ms.big_event === undefined) { ms.big_event = false; }
+        }
+        for (const ps of analyzedBrief.portfolio_selections || []) {
+          if (!ps.story_key) {
+            ps.story_key = ((ps.ticker || "") + "_" + (ps.hook || "unknown")).toLowerCase().replace(/[^a-z0-9\s]/g, "").trim().split(/\s+/).slice(0, 5).join("_").substring(0, 40);
+            console.log(`⚠️ [Stage 2] Missing story_key for ${ps.ticker} portfolio story, generated: "${ps.story_key}"`);
+          }
+          if (!ps.event_type) { ps.event_type = "breaking"; console.log(`⚠️ [Stage 2] Missing event_type for "${ps.story_key}", defaulting to "breaking"`); }
+        }
+
+        // ── Section 3C: Enforce big_event story MUST be rank 1 ──
+        const bigEventStory = analyzedBrief.macro_selections?.find((s) => s.big_event);
+        if (bigEventStory && bigEventStory.rank !== 1) {
+          console.log(`⚠️ [Stage 2] big_event "${bigEventStory.story_key}" was rank ${bigEventStory.rank} — forcing to rank 1`);
+          const oldRank = bigEventStory.rank || 99;
+          analyzedBrief.macro_selections.forEach((s) => {
+            if (s !== bigEventStory && (s.rank || 99) <= oldRank) { s.rank = (s.rank || 1) + 1; }
+          });
+          bigEventStory.rank = 1;
+        }
+
+        // ── Section 2C: Sort macro_selections by rank (ascending) to guarantee urgency order ──
+        if (analyzedBrief.macro_selections && analyzedBrief.macro_selections.length > 1) {
+          analyzedBrief.macro_selections.sort((a, b) => {
+            if (a.big_event && !b.big_event) return -1;
+            if (!a.big_event && b.big_event) return 1;
+            return (a.rank || 99) - (b.rank || 99);
+          });
+          console.log(`📊 [Stage 2] Macro order enforced: ${analyzedBrief.macro_selections.map((s, i) =>
+            `${i + 1}. "${s.story_key}" (rank=${s.rank}, event_type=${s.event_type}, big_event=${!!s.big_event}${s.big_event_tier ? ` tier=${s.big_event_tier}` : ''})`
+          ).join(', ')}`);
+        }
+
+        // ── Section 5B: Portfolio count safeguard ──
+        const portfolioCount = analyzedBrief.portfolio_selections?.length || 0;
+        if (portfolioCount < 3 && briefingTickers.length < 3) {
+          console.log(`⚠️ [Stage 2] Only ${portfolioCount} portfolio stories for ${briefingTickers.length} holdings. Expected at least 3 if quality articles available.`);
+        }
+        for (const ps of analyzedBrief.portfolio_selections || []) {
+          console.log(`📊 [Stage 2] Portfolio: ${ps.ticker} — "${ps.story_key}" (event_type=${ps.event_type})`);
+        }
       }
     } catch (analystErr: any) {
       console.error(`❌ [Stage 2] Analyst Desk failed: ${analystErr.message}`);
@@ -4599,6 +4708,11 @@ Deno.serve(async (req) => {
         });
 
         console.log(`📝 [Stage 3] Scriptwriter prompt built (voice=${userVoicePreference3}, weekend=${isWeekend3}) — ${analyzedBrief.macro_selections.length} macro, ${analyzedBrief.portfolio_selections.length} portfolio`);
+        console.log(`🧩 [Stage 3] Personalization injected: ${personalizationContext ? `YES (day_count=${personalizationContext.user_day_count}, days_since_last=${personalizationContext.days_since_last}, active_stories=${personalizationContext.active_stories?.length || 0})` : 'NO (null context)'}`);
+        if (personalizationContext && personalizationContext.holdings_changed) {
+          const { added, removed } = personalizationContext.holdings_changed;
+          if (added.length > 0 || removed.length > 0) console.log(`🧩 [Stage 3] Holdings changes: added=[${added.join(',')}] removed=[${removed.join(',')}]`);
+        }
 
         scriptwriterResult = await invokeLLM(base44, scriptwriterPrompt, false, SCRIPTWRITER_OUTPUT_SCHEMA);
       } catch (stage3LLMErr: any) {
