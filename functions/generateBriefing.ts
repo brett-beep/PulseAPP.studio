@@ -2504,8 +2504,9 @@ For EACH story you select (macro or portfolio), you MUST assign an event_type an
    - If it's a one-time announcement unlikely to have follow-ups → "one_off"
    - Default → "breaking" (better to over-explain than under-explain for a new listener)
 
-3. STORY_KEY STABILITY: Reuse existing story_keys from the tracker when covering the same event.
-   Same underlying event = same key. Example: if the tracker has "iran_military_conflict", use that EXACT key — not "iran_us_strikes" or "middle_east_tensions".
+3. STORY_KEY STABILITY + UMBRELLA: Reuse existing story_keys from the tracker when covering the same event.
+   Same underlying event = same key. Example: if the tracker has "middle_east_conflict", use that EXACT key — not "iran_us_strikes" or "israel_hezbollah" or "oil_surge_iran".
+   UMBRELLA: Sub-events of the same crisis (US–Iran strikes, Israel–Hezbollah, Gulf shipping, oil spikes from the same war) all belong under ONE key. Check the tracker for an existing umbrella key and reuse it.
 
 4. big_event: Set to true for events that will dominate markets for days/weeks (war, financial crisis, major policy shift, pandemic). Once a story has big_event=true in the tracker, keep it true. Only use for genuinely transformative events, not routine earnings or data releases.
 `;
@@ -2885,6 +2886,12 @@ two stories about the same event is a critical failure.
 
 STORY_KEY (required for each macro and portfolio selection): For each story you select, output a "story_key" — a short snake_case identifier (max 40 chars) for the underlying EVENT, not the article. Macro: use the theme (e.g. "fed_rate_path", "tariff_consumer_impact"). Portfolio: prefix with ticker (e.g. "ba_vietnam_orders", "nvda_q4_earnings"). The key must be STABLE: if tomorrow's story is about the same Boeing Vietnam deal, use the same key "ba_vietnam_orders". Different events, different keys: "ba_vietnam_orders" vs "ba_starliner_issues" vs "ba_q4_earnings".
 
+UMBRELLA RULE: Stories that stem from the SAME underlying conflict, crisis, or event MUST use the SAME story_key. Do NOT create separate keys for sub-events of the same crisis. Examples:
+- US–Iran strikes, Israel–Hezbollah escalation, Gulf shipping disruptions, oil price spikes from the same conflict → all ONE key (e.g. "middle_east_conflict"), not separate keys like "us_iran_strikes" and "israel_hezbollah" and "oil_surge_iran".
+- Fed rate decision + follow-up commentary from officials → one key "fed_rate_path", not separate keys per speaker.
+- One earnings season theme across multiple companies → one key if it's a macro story.
+When selecting macro stories, treat the umbrella as ONE story and dedicate ONE selection slot to it. Use the remaining slots for genuinely different themes.
+
 Story 1: ALWAYS the biggest market-moving headline of the day — Fed, inflation, indices, regulatory.
 Prefer "editorial_net" or "targeted_macro". Must NOT be about a portfolio holding.
 
@@ -3114,6 +3121,7 @@ WEEKEND MODE: Markets are closed. Do NOT select stories framed as live market mo
 HARD RULE — macro_selections must be TRUE MACRO news, NOT portfolio-company stories. Do NOT select stories about ${holdings.join(", ")}.
 DEDUPLICATION: Merge stories covering the same event into one; pick different stories for remaining slots.
 STORY_KEY: For each macro selection output story_key (snake_case, e.g. "fed_rate_path", "tariff_consumer_impact").
+UMBRELLA RULE: Stories from the SAME underlying conflict/crisis/event MUST use ONE story_key. E.g. US–Iran strikes, Israel–Hezbollah, Gulf shipping disruptions, oil spikes from the same conflict → all ONE key (e.g. "middle_east_conflict"). Do NOT split sub-events of the same crisis into separate selections. One umbrella = one slot; use remaining slots for genuinely different themes.
 Story 1: Biggest market-moving headline — Fed, inflation, indices, regulatory. Must NOT be about a portfolio holding.
 Story 2: Second macro story — rates, sector rotation. Story 3: Sector-interest story (macro-level). User interests: ${interests.join(", ")}. Never put portfolio-company news in macro_selections.
 `;
@@ -3322,23 +3330,24 @@ This is the FIRST TIME ${name} is hearing about this event. Do NOT assume they k
 NEVER jump straight into financial consequences without explaining WHAT HAPPENED first.
 
 === DEVELOPING (event_type = "developing") ===
-${name} has heard about this before. Do NOT reintroduce from scratch.
-1. BRIEF CALLBACK (1 sentence): Reference what was said before. "That [story] I flagged yesterday has escalated." / "Quick update on [topic] we've been tracking —"
-2. WHAT'S NEW (2-3 sentences): Focus ONLY on what changed since last mention.
-3. UPDATED IMPLICATIONS (1 sentence): If implications changed, note it.
-Key: if they heard about this yesterday, they don't need the backstory again.
+${name} has heard about this before. Do NOT reintroduce from scratch, but DO give context.
+1. NAME THE EVENT (1 sentence): Clearly state what this story is about using its proper name — e.g. "the US–Iran conflict," "the Boeing labor dispute," "the Fed rate path." Don't say vague phrases like "tensions in the Middle East" or "disruptions in energy markets" — be specific.
+2. WHAT DEVELOPED (1-3 sentences): The concrete new development — who did what, where, to whom. This can be non-financial (military action, political decision, regulatory filing, etc.). Be specific with facts, names, actions. Do NOT start with financial implications. Example: "Iran has called on Hezbollah to strike Israeli military bases, and maritime insurers have pulled war risk coverage from the Gulf" — not "oil prices are being affected by tensions."
+3. FINANCIAL IMPLICATIONS (1-2 sentences): Now connect it to markets, oil, inflation, portfolios, etc.
+Key principle: name the event clearly, tell what concretely happened (even if it's geopolitical, not financial), THEN connect to money. If the story is important enough, it's okay to spend more words here — don't over-compress the biggest story of the day.
 
 === ESCALATION (event_type = "escalation") ===
 A tracked story just had a DRAMATIC new development. Treat like a hybrid:
 1. Acknowledge existing story (1 sentence): "That [story] just took a dramatic turn —"
-2. Full explanation of the NEW development (as if breaking — what happened, who's involved).
-3. Updated implications (these have likely changed significantly).
+2. Full explanation of the NEW development (as if breaking — who did what, what happened, who's involved). Be concrete and specific.
+3. Updated financial implications (these have likely changed significantly).
+Don't compress this — if it's a major escalation, give it the space it needs.
 
 === RECURRING (event_type = "recurring") ===
-Mentioned 3+ times, nothing major changed.
-1. Brief acknowledgment (1 sentence max): "[Topic] continues — [metric] holding steady."
-2. ONLY if something changed: one sentence on the development.
-3. If nothing changed: move on. No filler.
+Mentioned 3+ times. Still name the event clearly (don't be vague).
+1. Name the event + brief status (1-2 sentences): "The US–Iran conflict — [specific metric or status update]." Be concrete even when brief.
+2. ONLY if something developed: 1-2 sentences on what's new, with specifics.
+3. If genuinely nothing changed: one sentence acknowledging it and move on. No filler.
 If 5+ mentions with no development, SKIP ENTIRELY unless something genuinely new happens.
 
 === ONE_OFF (event_type = "one_off") ===
@@ -4331,10 +4340,17 @@ Deno.serve(async (req) => {
 
     // =========================================================
     // SMART GATE: LLM pre-screen macro candidates for market-moving relevance
+    // Cap input to top 20 (already sorted by premium source + recency + sector relevance)
+    // to keep the LLM call fast (~14s vs ~30s for 42 candidates).
     // =========================================================
+    const SMART_GATE_INPUT_CAP = 20;
+    const macroCandidatesForGate = macroCandidates.slice(0, SMART_GATE_INPUT_CAP);
+    if (macroCandidates.length > SMART_GATE_INPUT_CAP) {
+      console.log(`🚪 [Smart Gate] Capping input: ${macroCandidates.length} → ${macroCandidatesForGate.length} (top by source+recency+sector)`);
+    }
     const gatedCandidates = await screenMacroCandidates(
       base44,
-      macroCandidates,
+      macroCandidatesForGate,
       userInterests,
       briefingTickers
     );
