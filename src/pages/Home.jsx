@@ -14,6 +14,7 @@ import UpgradeModal from "@/components/UpgradeModal";
 import MobileTabBar from "@/components/MobileTabBar";
 import SettingsPage from "@/pages/Settings";
 import MobileSettings from "@/components/MobileSettings";
+import MouseflowTracker from "@/components/MouseflowTracker";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 import { isNativeApp } from "@/utils/isNativeApp";
