@@ -1501,6 +1501,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
       )}
 
       <UpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
+      <MouseflowTracker user={user} />
     </div>
   );
 }
