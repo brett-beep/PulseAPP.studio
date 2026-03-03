@@ -27,6 +27,7 @@ function useSwipeBack(onDragUpdate, onSwipeComplete, onSwipeCancel) {
       onTouchStart: (e) => {
         const touch = e.touches[0];
         if (touch.clientX > 25) return;
+        e.stopPropagation();
         startXRef.current = touch.clientX;
         startYRef.current = touch.clientY;
         lastXRef.current = touch.clientX;
@@ -53,6 +54,7 @@ function useSwipeBack(onDragUpdate, onSwipeComplete, onSwipeCancel) {
         if (!directionLockedRef.current || !isHorizontalRef.current) return;
         const clampedX = Math.max(0, deltaX);
         e.preventDefault();
+        e.stopPropagation();
         const now = Date.now();
         const dt = now - lastTimeRef.current;
         if (dt > 0) velocityRef.current = (touch.clientX - lastXRef.current) / dt;
@@ -60,7 +62,8 @@ function useSwipeBack(onDragUpdate, onSwipeComplete, onSwipeCancel) {
         lastTimeRef.current = now;
         onDragUpdate(clampedX);
       },
-      onTouchEnd: () => {
+      onTouchEnd: (e) => {
+        if (isDraggingRef.current && isHorizontalRef.current) e.stopPropagation();
         if (!isDraggingRef.current || !isHorizontalRef.current) {
           isDraggingRef.current = false;
           return;
@@ -73,7 +76,8 @@ function useSwipeBack(onDragUpdate, onSwipeComplete, onSwipeCancel) {
         if (shouldGoBack) onSwipeComplete(currentX, velocity);
         else onSwipeCancel();
       },
-      onTouchCancel: () => {
+      onTouchCancel: (e) => {
+        if (isDraggingRef.current) e.stopPropagation();
         isDraggingRef.current = false;
         onSwipeCancel();
       },
@@ -175,6 +179,9 @@ export default function MobileSettings({ isPremium = false, onUpgrade }) {
       setDragX(0);
       setIsAnimating(false);
       setExitTarget(null);
+      if (typeof window !== "undefined" && window.history.state?.mobileSettingsSubPage) {
+        window.history.back();
+      }
     }, duration);
   }, []);
 
@@ -189,6 +196,18 @@ export default function MobileSettings({ isPremium = false, onUpgrade }) {
   }, []);
 
   const swipeHandlers = useSwipeBack(handleDragUpdate, handleSwipeComplete, handleSwipeCancel);
+
+  useEffect(() => {
+    if (!activePage) return;
+    const onPopState = () => {
+      setActivePage(null);
+      setDragX(0);
+      setIsAnimating(false);
+      setExitTarget(null);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [activePage]);
 
   const { data: user } = useQuery({
     queryKey: ["currentUser"],
@@ -214,6 +233,9 @@ export default function MobileSettings({ isPremium = false, onUpgrade }) {
 
   const openPage = (page) => {
     if (preferences) setDraft({ ...preferences });
+    if (typeof window !== "undefined") {
+      window.history.pushState({ mobileSettingsSubPage: page }, "", window.location.href);
+    }
     setDragX(screenWidth);
     setActivePage(page);
     requestAnimationFrame(() => {

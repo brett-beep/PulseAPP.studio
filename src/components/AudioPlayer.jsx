@@ -88,6 +88,10 @@ export default function AudioPlayer({
     };
     const handleCanPlay = () => {
       console.log("🎵 [Audio Element] Can play");
+      audio.playbackRate = playbackRate;
+    };
+    const handleLoadedData = () => {
+      audio.playbackRate = playbackRate;
     };
 
     audio.addEventListener("timeupdate", handleTimeUpdate);
@@ -95,6 +99,7 @@ export default function AudioPlayer({
     audio.addEventListener("ended", handleEnded);
     audio.addEventListener("error", handleError);
     audio.addEventListener("canplay", handleCanPlay);
+    audio.addEventListener("loadeddata", handleLoadedData);
 
     return () => {
       audio.removeEventListener("timeupdate", handleTimeUpdate);
@@ -102,8 +107,9 @@ export default function AudioPlayer({
       audio.removeEventListener("ended", handleEnded);
       audio.removeEventListener("error", handleError);
       audio.removeEventListener("canplay", handleCanPlay);
+      audio.removeEventListener("loadeddata", handleLoadedData);
     };
-  }, [audioUrl, duration, onComplete]);
+  }, [audioUrl, duration, onComplete, playbackRate]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -371,9 +377,20 @@ export default function AudioPlayer({
   };
 
   const changeSpeed = (speed) => {
+    const audio = audioRef.current;
+    const wasPlaying = audio && !audio.paused;
+    if (wasPlaying) {
+      audio.pause();
+    }
     setPlaybackRate(speed);
     setShowSpeedMenu(false);
     track("audio_speed_changed", { speed });
+    if (wasPlaying && audio) {
+      audio.playbackRate = speed;
+      requestAnimationFrame(() => {
+        audio.play().catch(() => {});
+      });
+    }
   };
 
   const formatTime = (seconds) => {

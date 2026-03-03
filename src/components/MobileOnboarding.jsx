@@ -360,10 +360,10 @@ function PreferencesStep({ preferences, setPreferences }) {
             }}
             className="mobile-onboarding-chip"
           >
-            <span style={{ fontWeight: 600, fontSize: 15, color: preferences.preferred_voice === opt.value ? "#c85d1e" : "#222" }}>
+            <span style={{ fontWeight: 600, fontSize: 15, color: preferences.preferred_voice === opt.value ? "#c85d1e" : "#222", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>
               {opt.label}
             </span>
-            <span style={{ fontSize: 12, color: "#888", marginTop: 2 }}>{opt.desc}</span>
+            <span style={{ fontSize: 12, color: "#888", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>{opt.desc}</span>
           </button>
         ))}
       </div>
@@ -564,17 +564,18 @@ const styles = {
   },
   preferencesGrid: {
     display: "grid",
-    gridTemplateColumns: "1fr 1fr 1fr",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
     gap: 10,
     marginTop: 12,
     width: "100%",
+    minWidth: 0,
   },
   preferenceCard: {
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
-    padding: "16px 12px",
+    padding: "16px 8px",
     borderRadius: 14,
     border: "1.5px solid rgba(0,0,0,0.06)",
     background: "rgba(255,255,255,0.6)",
@@ -585,6 +586,8 @@ const styles = {
     cursor: "pointer",
     WebkitTapHighlightColor: "transparent",
     transition: "all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)",
+    minWidth: 0,
+    overflow: "hidden",
   },
   preferenceCardSelected: {
     border: "1.5px solid #e07028",
