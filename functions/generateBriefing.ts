@@ -2896,19 +2896,20 @@ HARD RULE — macro_selections must be TRUE MACRO news, NOT portfolio-company st
   Examples of WRONG macro picks: "Amazon rebounds", "Nvidia-Meta deal", "Boeing job shift".
   Those belong in portfolio_selections. Keep macro and portfolio strictly separated.
 
-DEDUPLICATION RULE: Before finalizing your 3 macro selections, check if any two stories
-cover the same underlying event (e.g., two articles about Fed minutes, two articles about
-the same earnings report). If so, MERGE them into one selection — combine the best facts
-from both sources. Then pick a genuinely different story for the remaining slot. Selecting
-two stories about the same event is a critical failure.
-
 STORY_KEY (required for each macro and portfolio selection): For each story you select, output a "story_key" — a short snake_case identifier (max 40 chars) for the underlying EVENT, not the article. Macro: use the theme (e.g. "fed_rate_path", "tariff_consumer_impact"). Portfolio: prefix with ticker (e.g. "ba_vietnam_orders", "nvda_q4_earnings"). The key must be STABLE: if tomorrow's story is about the same Boeing Vietnam deal, use the same key "ba_vietnam_orders". Different events, different keys: "ba_vietnam_orders" vs "ba_starliner_issues" vs "ba_q4_earnings".
 
 UMBRELLA RULE: Stories that stem from the SAME underlying conflict, crisis, or event MUST use the SAME story_key. Do NOT create separate keys for sub-events of the same crisis. Examples:
 - US–Iran strikes, Israel–Hezbollah escalation, Gulf shipping disruptions, oil price spikes from the same conflict → all ONE key (e.g. "middle_east_conflict"), not separate keys like "us_iran_strikes" and "israel_hezbollah" and "oil_surge_iran".
 - Fed rate decision + follow-up commentary from officials → one key "fed_rate_path", not separate keys per speaker.
 - One earnings season theme across multiple companies → one key if it's a macro story.
-When selecting macro stories, treat the umbrella as ONE story and dedicate ONE selection slot to it. Use the remaining slots for genuinely different themes.
+
+SLOT A/B/C — APPLY ONLY WHEN 2 OR MORE OF YOUR 3 SELECTIONS ARE FROM THE SAME EVENT:
+Your primary job is to pick the TOP 3 most urgent macro stories and rank them 1–3. If the top 3 are from THREE DIFFERENT events → output them as-is (no special framing).
+When 2 OR MORE of your 3 selections stem from the SAME event/crisis (same story_key):
+- Slot A (rank 1): The CORE EVENT or development — what actually happened (e.g. Iran attacks bases in UAE, escalation, policy move). One slot for the breaking event.
+- Slot B (rank 2): ONE clear IMPLICATION of that same event (e.g. inflation/rates, energy prices, risk sentiment). Do NOT use two slots for the same angle (e.g. "ECB on inflation" and "Turkey on inflation" = one angle; pick the strongest single implication).
+- Slot C (rank 3): If the third story is a DIFFERENT event → keep it as-is. If the third would also be the same event → use this slot for a genuinely different macro story (different region, sector, or data); if none exists, use a second distinct implication and label it clearly.
+Rule of thumb: If you can merge two candidates into one sentence without losing meaning ("X and Y both say inflation from Iran"), they are the same angle — use one slot for that angle. When only 2 of 3 are same event, Slot C = third story unchanged.
 
 GEOGRAPHIC PRIORITY — CRITICAL:
 Prioritize US / North America macro news. Only include non-US stories if they have a CLEAR, DIRECT, and SPECIFIC impact on US markets or the listener's portfolio.
@@ -3150,9 +3151,9 @@ WEEKEND MODE: Markets are closed. Do NOT select stories framed as live market mo
 
   const weekdayBlock = `
 HARD RULE — macro_selections must be TRUE MACRO news, NOT portfolio-company stories. Do NOT select stories about ${holdings.join(", ")}.
-DEDUPLICATION: Merge stories covering the same event into one; pick different stories for remaining slots.
 STORY_KEY: For each macro selection output story_key (snake_case, e.g. "fed_rate_path", "tariff_consumer_impact").
-UMBRELLA RULE: Stories from the SAME underlying conflict/crisis/event MUST use ONE story_key. E.g. US–Iran strikes, Israel–Hezbollah, Gulf shipping disruptions, oil spikes from the same conflict → all ONE key (e.g. "middle_east_conflict"). Do NOT split sub-events of the same crisis into separate selections. One umbrella = one slot; use remaining slots for genuinely different themes.
+UMBRELLA RULE: Stories from the SAME underlying conflict/crisis/event MUST use ONE story_key. E.g. US–Iran strikes, Israel–Hezbollah, Gulf shipping disruptions, oil spikes from the same conflict → all ONE key (e.g. "middle_east_conflict"). Do NOT split sub-events of the same crisis into separate selections.
+SLOT A/B/C (when 2+ of your 3 selections are from the SAME event): Slot A (rank 1) = core event/development (what happened). Slot B (rank 2) = ONE clear implication (e.g. inflation/rates). Do NOT use two slots for the same angle (e.g. two central banks both saying "inflation from Iran" = one slot). Slot C (rank 3) = if third story is a different event, keep as-is; otherwise use a different macro theme.
 GEOGRAPHIC PRIORITY: Prioritize US/North America macro news. Only include non-US stories if they have CLEAR, DIRECT, and SPECIFIC impact on US markets. NO Australian domestic news (e.g. "Qantas shares fall"), NO Canadian domestic news — UNLESS there is a direct US impact. The listener is a US investor.
 URGENCY ORDERING: Rank all 3 macro_selections strictly by URGENCY. rank=1 is the most critical market-moving story TODAY; rank=2 second; rank=3 third. Do NOT rank by topic. A military conflict escalation outranks a routine data release if it moves more markets.
 Story 1 (rank=1): Today's single biggest market-moving headline. Must NOT be about a portfolio holding.
@@ -3300,6 +3301,8 @@ interface ScriptwriterInput {
   dayName: string;
   skipped_tickers?: string[];
   personalizationContext?: PersonalizationContext | null;
+  /** When 2+ macro selections share the same story_key, scriptwriter must present at most two segments for that event (event + one implication). */
+  macroSameEvent?: { story_key: string; count: number } | null;
 }
 
 function buildScriptwriterPrompt(input: ScriptwriterInput): string {
@@ -3308,6 +3311,7 @@ function buildScriptwriterPrompt(input: ScriptwriterInput): string {
     isWeekend, isMonday, isFriday, userHoldingsStr, userSectorInterests,
     marketSnapshot, userVoicePreference, dayName, skipped_tickers = [],
     personalizationContext: pCtx,
+    macroSameEvent,
   } = input;
 
   const wordTarget = "450-600 words (~3-4 minutes)";
@@ -3475,6 +3479,15 @@ ${userVoicePreference === "hybrid" ? `Hybrid: lead with terminology, quick plain
 PERSONALITY: Talk to ${name}; use name 2-3x (opening, mid, sign-off). Match energy: volatile_up→celebratory, volatile_down→reassuring, mixed_calm→efficient, breakout→urgent, quiet→brief. "We're watching" not "investors should watch." Show personality 1-2x (surprise, humor, emphasis, candor).
 VOICE & TTS: Contractions; short sentences + dashes; opinions not hedging; no filler; "your [COMPANY] position"; company names. Spell abbreviations first; "$X billion", "1.9 percent"; no exchange-prefixed tickers.
 ${continuityBlock}
+${macroSameEvent && macroSameEvent.count >= 2 ? `
+═══════════════════════════════════════
+RAPID-FIRE DIVERSITY (same-event fallback)
+═══════════════════════════════════════
+Two or more of the macro_selections below are from the SAME event (story_key: "${macroSameEvent.story_key}"). Do NOT present the same angle multiple times.
+- Use at most TWO segments for that event: (1) the breaking event/development — what actually happened; (2) ONE clear implication (e.g. inflation, rates, energy). Do not repeat "inflation" or "central bank reaction" in a third segment.
+- If there is a third macro story that is a DIFFERENT event, present it as your third rapid-fire segment unchanged ("And finally...").
+- If all three selections are from the same event, still use only two segments for that event (event + one implication); do not say the same thing three ways.
+` : ""}
 SCRIPT STRUCTURE
 ${isWeekend ? `
 WEEKEND: 350-450 words. No live markets. 1) Opening: warm, acknowledge weekend; no index numbers. 2) Week in review: one cohesive theme + 1-2 portfolio highlights. 3) Week ahead: calendar (earnings, CPI, Fed); use watch_items. 4) One interesting thing (optional). 5) Sign-off: relaxed, see you Monday.
@@ -4686,6 +4699,30 @@ Deno.serve(async (req) => {
       }
       console.log(`🎤 [Voice] User preference: "${preferences?.preferred_voice ?? ""}" → normalized: "${userVoicePreference3}"`);
 
+      // ── Slot A/B/C fallback: detect when 2+ macro selections share the same story_key ──
+      let macroSameEvent: { story_key: string; count: number } | null = null;
+      if (analyzedBrief.macro_selections && analyzedBrief.macro_selections.length >= 2) {
+        const keyCounts = new Map<string, { count: number; firstKey: string }>();
+        for (const ms of analyzedBrief.macro_selections) {
+          const raw = (ms.story_key || "").trim();
+          const norm = raw.toLowerCase();
+          if (!norm) continue;
+          const existing = keyCounts.get(norm);
+          if (existing) {
+            existing.count += 1;
+          } else {
+            keyCounts.set(norm, { count: 1, firstKey: raw });
+          }
+        }
+        for (const [norm, { count, firstKey }] of keyCounts) {
+          if (count >= 2) {
+            macroSameEvent = { story_key: firstKey, count };
+            console.log(`📊 [Stage 2→3] Same-event detected: "${firstKey}" appears ${count}x in macro_selections — Slot A/B/C diversity rule will be applied in scriptwriter.`);
+            break;
+          }
+        }
+      }
+
       // ── Build Scriptwriter Prompt + LLM (try/catch so 3B prompt or schema issues fall back to legacy, not 500) ──
       let scriptwriterResult: any = null;
       try {
@@ -4705,6 +4742,7 @@ Deno.serve(async (req) => {
           dayName: dayName3,
           skipped_tickers: skippedTickers,
           personalizationContext,
+          macroSameEvent,
         });
 
         console.log(`📝 [Stage 3] Scriptwriter prompt built (voice=${userVoicePreference3}, weekend=${isWeekend3}) — ${analyzedBrief.macro_selections.length} macro, ${analyzedBrief.portfolio_selections.length} portfolio`);
