@@ -319,11 +319,39 @@ export default function MobileSettings({ isPremium = false, onUpgrade }) {
         height: "100%",
       }}
     >
-      <div className="px-5 mb-5">
-        <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 28, fontWeight: 500 }} className="text-slate-900">
-          Settings
-        </h1>
-        <p className="text-[14px] mt-1" style={{ color: "#a0a0a0" }}>Manage your account & preferences</p>
+      <div className="px-5 mb-5 flex items-start justify-between gap-4">
+        <div>
+          <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 28, fontWeight: 500 }} className="text-slate-900 dark:text-slate-100">
+            Settings
+          </h1>
+          <p className="text-[14px] mt-1" style={{ color: "#a0a0a0" }}>Manage your account & preferences</p>
+        </div>
+        <div className="inline-flex p-0.5 rounded-lg shrink-0 bg-slate-100 dark:bg-neutral-800 border border-slate-200 dark:border-neutral-700">
+          <button
+            type="button"
+            onClick={() => setTheme("light")}
+            className="p-2 rounded-md transition-all active:scale-95"
+            style={{
+              background: appTheme === "light" ? ACCENT : "transparent",
+              color: appTheme === "light" ? "#fff" : "#64748b",
+            }}
+            title="Light"
+          >
+            <Sun className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setTheme("dark")}
+            className="p-2 rounded-md transition-all active:scale-95"
+            style={{
+              background: appTheme === "dark" ? ACCENT : "transparent",
+              color: appTheme === "dark" ? "#fff" : "#64748b",
+            }}
+            title="Dark"
+          >
+            <Moon className="w-4 h-4" />
+          </button>
+        </div>
       </div>
       {!isPremium && (
         <div className="mx-5 mb-5 rounded-[20px] p-5 relative overflow-hidden" style={{ background: `linear-gradient(135deg, ${ACCENT}, #c85d1e)` }}>
@@ -348,48 +376,6 @@ export default function MobileSettings({ isPremium = false, onUpgrade }) {
         </div>
       )}
       <div className="px-5 space-y-2 mb-8">
-        <div
-          className="p-4 rounded-2xl"
-          style={{ background: CARD_BG, backdropFilter: BLUR, border: BORDER }}
-        >
-          <div className="flex items-center gap-3.5 mb-3">
-            <div className="w-9 h-9 rounded-[10px] flex items-center justify-center" style={{ background: "rgba(251,191,36,0.15)" }}>
-              <Sun className="w-[18px] h-[18px]" style={{ color: "#eab308" }} />
-            </div>
-            <div>
-              <div className="text-[15px] font-medium text-slate-900">Appearance</div>
-              <div className="text-[12px]" style={{ color: "#a0a0a0" }}>Light or dark theme</div>
-            </div>
-          </div>
-          <div className="inline-flex p-1 rounded-xl" style={{ background: "rgba(0,0,0,0.04)" }}>
-            <button
-              type="button"
-              onClick={() => setTheme("light")}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-[14px] font-medium active:scale-[0.98] transition-transform"
-              style={{
-                background: appTheme === "light" ? "#fff" : "transparent",
-                color: appTheme === "light" ? "#0f172a" : "#64748b",
-                boxShadow: appTheme === "light" ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
-              }}
-            >
-              <Sun className="w-4 h-4" />
-              Light
-            </button>
-            <button
-              type="button"
-              onClick={() => setTheme("dark")}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-[14px] font-medium active:scale-[0.98] transition-transform"
-              style={{
-                background: appTheme === "dark" ? "#fff" : "transparent",
-                color: appTheme === "dark" ? "#0f172a" : "#64748b",
-                boxShadow: appTheme === "dark" ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
-              }}
-            >
-              <Moon className="w-4 h-4" />
-              Dark
-            </button>
-          </div>
-        </div>
         {settingItems.map((item) => {
           const Icon = item.icon;
           return (
