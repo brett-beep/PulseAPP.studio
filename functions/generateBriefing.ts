@@ -4305,10 +4305,7 @@ Deno.serve(async (req) => {
     // For UI cards and dedup logic, use top 3 from candidates
     let rapidFireStories = rapidFireCandidatesFinal.slice(0, 3);
 
-    console.log(`\n⚡ [generateBriefing] TIER 1 - RAPID FIRE (${rapidFireCandidatesFinal.length} candidates for LLM to editorialize → pick best 3):`);
-    rapidFireCandidatesFinal.forEach((s, i) => {
-      console.log(`   ${i + 1}. [score:${s.breakingScore}] [age:${s.ageHours.toFixed(1)}h] [${s.category}] ${(s.title || "").slice(0, 50)}...`);
-    });
+    console.log(`⚡ [TIER 1] ${rapidFireCandidatesFinal.length} rapid fire candidates`);
 
     // =========================================================
     // STEP 1D: TIER 2 - Select PERSONALIZED stories
