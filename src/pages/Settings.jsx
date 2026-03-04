@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
@@ -20,6 +20,7 @@ import {
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import StockPicker from "@/components/StockPicker";
+import { getTheme, setTheme, getThemeEventName } from '@/lib/theme';
 import { 
     ArrowLeft, 
     Target, 
@@ -30,7 +31,9 @@ import {
     Check,
     TrendingUp,
     LogOut,
-    Trash2
+    Trash2,
+    Sun,
+    Moon
 } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { toast } from 'sonner';
@@ -51,6 +54,13 @@ export default function Settings() {
     const queryClient = useQueryClient();
     const { logout } = useAuth();
     const [deleteConfirmText, setDeleteConfirmText] = useState('');
+    const [appTheme, setAppTheme] = useState(getTheme);
+
+    useEffect(() => {
+        const handler = (e) => setAppTheme(e.detail);
+        window.addEventListener(getThemeEventName(), handler);
+        return () => window.removeEventListener(getThemeEventName(), handler);
+    }, []);
 
     // Page transition animation variants
     const pageVariants = {
@@ -216,6 +226,50 @@ export default function Settings() {
             </header>
 
             <main className="max-w-2xl mx-auto px-4 md:px-6 py-8 md:py-12 space-y-10 md:space-y-12 pb-28 md:pb-12">
+                {/* Appearance / Theme */}
+                <motion.section
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                >
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 bg-slate-100 dark:bg-neutral-800 rounded-xl flex items-center justify-center">
+                            <Sun className="h-5 w-5 text-slate-600 dark:text-neutral-400" />
+                        </div>
+                        <div>
+                            <h2 className="font-semibold text-slate-900 dark:text-neutral-100">Appearance</h2>
+                            <p className="text-sm text-slate-500 dark:text-neutral-400">Choose light or dark theme.</p>
+                        </div>
+                    </div>
+                    <div className="inline-flex p-1 rounded-xl bg-slate-100 dark:bg-neutral-800 border border-slate-200 dark:border-neutral-700">
+                        <button
+                            type="button"
+                            onClick={() => setTheme('light')}
+                            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                                appTheme === 'light'
+                                    ? 'bg-white dark:bg-neutral-700 text-slate-900 dark:text-neutral-100 shadow-sm border border-slate-200 dark:border-neutral-600'
+                                    : 'text-slate-600 dark:text-neutral-400 hover:text-slate-900 dark:hover:text-neutral-200'
+                            }`}
+                        >
+                            <Sun className="h-4 w-4" />
+                            Light
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setTheme('dark')}
+                            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                                appTheme === 'dark'
+                                    ? 'bg-white dark:bg-neutral-700 text-slate-900 dark:text-neutral-100 shadow-sm border border-slate-200 dark:border-neutral-600'
+                                    : 'text-slate-600 dark:text-neutral-400 hover:text-slate-900 dark:hover:text-neutral-200'
+                            }`}
+                        >
+                            <Moon className="h-4 w-4" />
+                            Dark
+                        </button>
+                    </div>
+                </motion.section>
+
+                <Separator />
+
                 {/* Display Name */}
                 <motion.section
                     initial={{ opacity: 0, y: 20 }}
