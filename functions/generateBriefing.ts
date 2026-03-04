@@ -4951,10 +4951,7 @@ Deno.serve(async (req) => {
       portfolioNewsBatch = topPortfolio;
       personalizedStories = portfolioNewsBatch.slice(0, 3); // UI cards
 
-      console.log(`   📊 Top portfolio stories:`);
-      topPortfolio.forEach((s: any, i: number) => {
-        console.log(`   ${i + 1}. [pScore:${s._portfolioScore}] [age:${(s.ageHours || 0).toFixed(1)}h] ${(s.title || "").slice(0, 55)}...`);
-      });
+      console.log(`   📊 Top ${topPortfolio.length} portfolio stories selected`);
     } else {
       // FALLBACK: shared NewsCache — financial relevance gated
       console.log(`📂 [Tier 2] Falling back to shared NewsCache (${tickerCacheStories.length} ticker stories < 3 minimum)`);
