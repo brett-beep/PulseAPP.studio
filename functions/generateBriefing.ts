@@ -4591,14 +4591,7 @@ Deno.serve(async (req) => {
           ).join(', ')}`);
         }
 
-        // ── Section 5B: Portfolio count safeguard ──
-        const portfolioCount = analyzedBrief.portfolio_selections?.length || 0;
-        if (portfolioCount < 3 && briefingTickers.length < 3) {
-          console.log(`⚠️ [Stage 2] Only ${portfolioCount} portfolio stories for ${briefingTickers.length} holdings. Expected at least 3 if quality articles available.`);
-        }
-        for (const ps of analyzedBrief.portfolio_selections || []) {
-          console.log(`📊 [Stage 2] Portfolio: ${ps.ticker} — "${ps.story_key}" (event_type=${ps.event_type})`);
-        }
+        console.log(`📊 [Stage 2] macro=${analyzedBrief.macro_selections.length} portfolio=${analyzedBrief.portfolio_selections?.length || 0}`);
       }
     } catch (analystErr: any) {
       console.error(`❌ [Stage 2] Analyst Desk failed: ${analystErr.message}`);
