@@ -4318,8 +4318,7 @@ Deno.serve(async (req) => {
     const userCategories = getMatchingCategories(userInterests);
     const userKeywords = getMatchingKeywords(userInterests);
 
-    console.log(`\n📊 [generateBriefing] User interests: ${userInterests.join(", ") || "none"}`);
-    console.log(`📊 [generateBriefing] Matching categories: ${userCategories.join(", ") || "all"}`);
+    console.log(`📊 Interests: ${userInterests.length} Categories: ${userCategories.length}`);
 
     const briefingTickers = userHoldings
       .map((h: any) => (typeof h === "string" ? h : h?.symbol || h?.ticker || "").toUpperCase().trim())
