@@ -61,6 +61,56 @@ function getBusinessDaysUntil(today: Date, eventDate: Date): number {
 }
 // ─── End inlined economic calendar ───
 
+// =========================================================
+// PREWARM CACHE: In-memory cache for pre-warmed pipeline data.
+// Persists within the same Deno isolate between requests.
+// Falls back gracefully if isolate is recycled.
+// =========================================================
+interface PrewarmCacheEntry {
+  data: {
+    tickerMarketMap: any;
+    macroCandidates: any[];
+    earningsCalendar: any[];
+    marketSnapshotForAnalyst: any;
+    personalizationContext: any;
+    tickerPackages: any[];
+    skippedTickers: string[];
+    gatedCandidates: any[];
+    impactEvalsApplied: boolean;
+    pipelineStartMs: number;
+    briefingTickers: string[];
+    userInterests: string[];
+  };
+  timestamp: number;
+  tickers: string[];
+  userEmail: string;
+}
+const PREWARM_CACHE = new Map<string, PrewarmCacheEntry>();
+const PREWARM_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+function getPrewarmCacheKey(email: string): string { return `prewarm_${email}`; }
+
+function getValidPrewarm(email: string, currentTickers: string[]): PrewarmCacheEntry["data"] | null {
+  const key = getPrewarmCacheKey(email);
+  const entry = PREWARM_CACHE.get(key);
+  if (!entry) return null;
+  const age = Date.now() - entry.timestamp;
+  if (age > PREWARM_TTL_MS) {
+    PREWARM_CACHE.delete(key);
+    console.log(`🔥 [Prewarm] Cache expired (${Math.round(age / 1000)}s old) for ${email}`);
+    return null;
+  }
+  const tickersMatch = currentTickers.length === entry.tickers.length &&
+    currentTickers.every((t) => entry.tickers.includes(t));
+  if (!tickersMatch) {
+    PREWARM_CACHE.delete(key);
+    console.log(`🔥 [Prewarm] Cache invalidated — tickers changed for ${email}`);
+    return null;
+  }
+  console.log(`✅ [Prewarm] Cache HIT for ${email} (${Math.round(age / 1000)}s old, ${entry.data.briefingTickers.length} tickers)`);
+  return entry.data;
+}
+
 function safeISODate(input) {
   if (typeof input === "string" && input.trim()) return input.trim();
   return new Date().toISOString().slice(0, 10);
@@ -685,6 +735,60 @@ async function invokeLLM(base44, prompt, addInternet, schema) {
     add_context_from_internet: addInternet,
     response_json_schema: schema,
   });
+}
+
+// =========================================================
+// SPLIT TTS: Find the portfolio transition boundary and split
+// the script into Segment A (intro+rapid-fire) and Segment B
+// (portfolio+watch+close). Returns [segA, segB] or null.
+// =========================================================
+function splitScriptForTTS(script: string): [string, string] | null {
+  const portfolioPatterns = [
+    /(?:\n\n|\.\s+)(now[,\s]+(?:let'?s|shifting|turning)\s+to\s+your\s+(?:portfolio|holdings))/i,
+    /(?:\n\n|\.\s+)(shifting\s+to\s+your\s+holdings)/i,
+    /(?:\n\n|\.\s+)(turning\s+to\s+your\s+portfolio)/i,
+    /(?:\n\n|\.\s+)(for\s+your\s+holdings)/i,
+    /(?:\n\n|\.\s+)(your\s+portfolio\s*[—:-])/i,
+    /(?:\n\n|\.\s+)(alright,?\s+your\s+holdings)/i,
+    /(?:\n\n|\.\s+)(now\s+for\s+your\s+holdings)/i,
+    /(?:\n\n|\.\s+)(looking\s+at\s+your\s+(?:portfolio|holdings))/i,
+  ];
+
+  for (const pattern of portfolioPatterns) {
+    const match = pattern.exec(script);
+    if (match && match.index != null) {
+      const splitIdx = match.index + (script[match.index] === '\n' ? 0 : 1);
+      const segA = script.slice(0, splitIdx).trim();
+      const segB = script.slice(splitIdx).trim();
+      const wordsA = segA.split(/\s+/).length;
+      const wordsB = segB.split(/\s+/).length;
+      if (wordsA >= 50 && wordsB >= 50) {
+        console.log(`✂️ [Split TTS] Split at char ${splitIdx}: Seg A = ${wordsA} words, Seg B = ${wordsB} words`);
+        return [segA, segB];
+      }
+    }
+  }
+
+  // Fallback: split at ~40% of the script (approximate intro+rapid-fire boundary)
+  const words = script.split(/\s+/);
+  const totalWords = words.length;
+  if (totalWords < 120) {
+    console.log(`✂️ [Split TTS] Script too short to split (${totalWords} words) — using single file`);
+    return null;
+  }
+  const splitPoint = Math.round(totalWords * 0.4);
+  let charIdx = 0;
+  for (let i = 0; i < splitPoint; i++) {
+    charIdx = script.indexOf(words[i], charIdx) + words[i].length;
+  }
+  const nearestPeriod = script.indexOf('. ', charIdx);
+  if (nearestPeriod > 0 && nearestPeriod - charIdx < 200) {
+    charIdx = nearestPeriod + 1;
+  }
+  const segA = script.slice(0, charIdx).trim();
+  const segB = script.slice(charIdx).trim();
+  console.log(`✂️ [Split TTS] Fallback split at ~40%: Seg A = ${segA.split(/\s+/).length} words, Seg B = ${segB.split(/\s+/).length} words`);
+  return [segA, segB];
 }
 
 async function generateAudioFile(script, date, elevenLabsApiKey) {
@@ -2890,48 +2994,16 @@ and preparation, not play-by-play.
 `;
 
   const weekdayBlock = `
-HARD RULE — macro_selections must be TRUE MACRO news, NOT portfolio-company stories:
-- Macro = Fed, inflation, interest rates, sector rotation, indices, regulatory, geopolitical, broad market themes.
-- Do NOT select stories that are primarily about ${holdings.join(", ")} or any of the listener's holdings.
-  Examples of WRONG macro picks: "Amazon rebounds", "Nvidia-Meta deal", "Boeing job shift".
-  Those belong in portfolio_selections. Keep macro and portfolio strictly separated.
+HARD RULE — macro_selections = TRUE MACRO only, NOT stories about ${holdings.join(", ")} or any holdings. Macro = Fed, rates, inflation, indices, regulatory, geopolitical, sector rotation. Keep macro and portfolio strictly separated.
 
-STORY_KEY (required for each macro and portfolio selection): For each story you select, output a "story_key" — a short snake_case identifier (max 40 chars) for the underlying EVENT, not the article. Macro: use the theme (e.g. "fed_rate_path", "tariff_consumer_impact"). Portfolio: prefix with ticker (e.g. "ba_vietnam_orders", "nvda_q4_earnings"). The key must be STABLE: if tomorrow's story is about the same Boeing Vietnam deal, use the same key "ba_vietnam_orders". Different events, different keys: "ba_vietnam_orders" vs "ba_starliner_issues" vs "ba_q4_earnings".
+STORY_KEY: snake_case identifier (max 40 chars) for the underlying EVENT. Macro: theme-based (e.g. "fed_rate_path"). Portfolio: ticker-prefixed (e.g. "ba_vietnam_orders"). Must be STABLE across days for the same event.
+UMBRELLA RULE: Same conflict/crisis/event → same story_key. Do NOT split sub-events (e.g. all Middle East conflict stories → one key "middle_east_conflict").
 
-UMBRELLA RULE: Stories that stem from the SAME underlying conflict, crisis, or event MUST use the SAME story_key. Do NOT create separate keys for sub-events of the same crisis. Examples:
-- US–Iran strikes, Israel–Hezbollah escalation, Gulf shipping disruptions, oil price spikes from the same conflict → all ONE key (e.g. "middle_east_conflict"), not separate keys like "us_iran_strikes" and "israel_hezbollah" and "oil_surge_iran".
-- Fed rate decision + follow-up commentary from officials → one key "fed_rate_path", not separate keys per speaker.
-- One earnings season theme across multiple companies → one key if it's a macro story.
+SLOT A/B/C (only when 2+ selections share story_key): Slot A = core event. Slot B = one distinct implication. Slot C = different event (or second implication if forced). If all 3 are different events, output as-is.
 
-SLOT A/B/C — APPLY ONLY WHEN 2 OR MORE OF YOUR 3 SELECTIONS ARE FROM THE SAME EVENT:
-Your primary job is to pick the TOP 3 most urgent macro stories and rank them 1–3. If the top 3 are from THREE DIFFERENT events → output them as-is (no special framing).
-When 2 OR MORE of your 3 selections stem from the SAME event/crisis (same story_key):
-- Slot A (rank 1): The CORE EVENT or development — what actually happened (e.g. Iran attacks bases in UAE, escalation, policy move). One slot for the breaking event.
-- Slot B (rank 2): ONE clear IMPLICATION of that same event (e.g. inflation/rates, energy prices, risk sentiment). Do NOT use two slots for the same angle (e.g. "ECB on inflation" and "Turkey on inflation" = one angle; pick the strongest single implication).
-- Slot C (rank 3): If the third story is a DIFFERENT event → keep it as-is. If the third would also be the same event → use this slot for a genuinely different macro story (different region, sector, or data); if none exists, use a second distinct implication and label it clearly.
-Rule of thumb: If you can merge two candidates into one sentence without losing meaning ("X and Y both say inflation from Iran"), they are the same angle — use one slot for that angle. When only 2 of 3 are same event, Slot C = third story unchanged.
+GEOGRAPHIC PRIORITY: US/North America first. Non-US stories only if they have CLEAR, DIRECT US market impact. The listener is a US investor.
 
-GEOGRAPHIC PRIORITY — CRITICAL:
-Prioritize US / North America macro news. Only include non-US stories if they have a CLEAR, DIRECT, and SPECIFIC impact on US markets or the listener's portfolio.
-- YES: "RBA signals inflation risk from Middle East tensions → impacts global bond yields" (global impact, actionable)
-- NO: "Australian airline Qantas shares fall 10%" (Australian domestic, no US portfolio impact)
-- NO: "Canadian housing fund halts redemptions" (Canadian domestic — UNLESS the listener explicitly has Canadian real estate exposure)
-When in doubt, prefer the US-centric story. The listener is a US investor. International stories must EARN their slot by demonstrating concrete US market relevance.
-
-MACRO STORY ORDERING — CRITICAL:
-Rank macro_selections strictly by URGENCY / IMPORTANCE — the most critical market-moving story MUST have rank=1, the second most critical rank=2, etc.
-The scriptwriter will present stories in rank order. Story rank=1 will open with "First up..." — it MUST be the single most important story.
-Do NOT rank by topic (e.g. "Fed always first"). Rank by TODAY'S urgency. A military conflict escalation can outrank a routine Fed comment.
-
-Story 1 (rank=1): ALWAYS today's single biggest market-moving headline. Prefer "editorial_net" or "targeted_macro". Must NOT be about a portfolio holding.
-
-Story 2 (rank=2): Second most urgent macro story — rates, sector rotation, broad market theme.
-Check matches_user_sector: true for sector relevance, but still macro (not single-holding news).
-
-Story 3 (rank=3): Third most urgent story, sector-interest if possible (e.g. "AI sector resilience", "credit market convergence").
-User interests: ${interests.join(", ")}.
-If the best sector story is about a portfolio company, skip it — pick true macro instead.
-Never put portfolio-company news (Amazon, Nvidia, etc.) in macro_selections.
+ORDERING: Rank by TODAY'S urgency, not by topic. rank=1 = single most important market-moving headline. rank=2 = second most urgent. rank=3 = third, sector-interest if possible (interests: ${interests.join(", ")}). Never put holding-company news in macro_selections.
 `;
 
   return `You are a senior financial analyst preparing a research brief for an audio
@@ -2956,67 +3028,19 @@ ${isWeekend ? "WEEKEND EDITION — DIFFERENT SELECTION LOGIC" : "RAPID FIRE STOR
 
 ${isWeekend ? weekendBlock : weekdayBlock}
 
-GENERAL SELECTION CRITERIA:
-- Market-moving impact > political noise
-- Macro themes > single-stock news
-- Fresh (< 12 hours) > stale
-- Actionable intelligence > general interest
-- DROP: pure politics with no market impact, weak macro, aviation/logistics minutiae
+GENERAL: Market-moving impact > noise. Fresh > stale. Actionable > general interest. DROP pure politics, weak macro, fluff.
 
 ═══════════════════════════════════════
 PORTFOLIO STORY SELECTION
 ═══════════════════════════════════════
 
-ARTICLE IMPACT SCORES: Each article in ticker_packages may have "llm_impact_score" (1-10) and "llm_impact_reason" from a separate LLM evaluation of material impact on that company.
-PRIORITIZATION: When choosing which article to use for a holding's portfolio_selection:
-- Score 7-10: HIGH PRIORITY — materially significant. Always prefer these.
-- Score 4-6: MODERATE — use if no high-priority articles exist.
-- Score 1-3: LOW — only as last resort; if these are the only articles, treat as "no significant company-specific news" (see QUIET DAY below).
-Do NOT ignore a score-8 article just because relevance_type is "tangential". Impact score overrides relevance_type.
+IMPACT SCORES: Articles may have "llm_impact_score" (1-10). Prefer 7-10 (high). Use 4-6 if no better. Score 1-3 = treat as quiet day. Impact score overrides relevance_type.
 
-QUIET DAY RULE: If ALL articles for a holding have llm_impact_score 3 or below (or there are no articles), this is a quiet news day for that holding. Then:
-- Set source_type to "news" if there IS an article worth mentioning (even low-impact), or "market_data_only" if truly nothing.
-- In "hook", frame honestly. Examples: "No major headlines for Boeing today, but there's one thing worth flagging…" / "Quiet day for your Shopify position — here's a quick sector note…" / "Nothing market-moving for Disney right now, though…"
-- Pick the BEST available low-scoring article and present it with honest framing. Set confidence to "low" and data_gap_note: "No high-impact news today; surfacing best available."
-- If there is literally zero news AND no meaningful price move, keep it to 1-2 sentences max using market_data_only. The listener appreciates candor over manufactured urgency.
+QUIET DAY: All scores ≤3 or no articles → frame honestly ("Quiet day for [holding]..."). Use "market_data_only" if truly nothing. Set confidence "low". Candor over manufactured urgency.
 
-SELECTION CRITERIA:
-- Specific news with numbers > vague commentary
-- Analyst actions (upgrades/downgrades/price targets) = high priority
-- Earnings-related = high priority
-- Articles tagged relevance_type "direct" should be preferred over "tangential" or "sector" when impact scores are tied.
-- If NO news articles exist for a holding, use the quote data to create a
-  "market_data_only" angle. Be explicit that this is data-driven, not news-driven.
-- If articles are flagged is_sector_level: true, frame the insight at the sector
-  level and connect it to the specific holding — don't pretend it's company-specific news.
-- NEVER fabricate news. If there's nothing, say so.
-- For each portfolio selection, include a story_key (snake_case, ticker-prefixed, e.g. "amzn_antitrust_california", "nvda_q4_earnings"). Same event across days = same key.
+SELECTION: Specific data > vague commentary. Analyst actions/earnings = high priority. Prefer "direct" over "tangential" when scores tied. No news → "market_data_only" from quote data. is_sector_level → frame at sector level. NEVER fabricate. story_key: ticker-prefixed snake_case.
 
-FACTS INTEGRITY RULE: Every item in the "facts" array MUST be a specific, verifiable data
-point that comes directly from the source articles or market data provided. Examples of valid facts:
-- "Current price: $48.35, up 3.64% today"
-- "Q1 revenue of $21.8 million vs $18.55 million expected"
-- "Stock hit daily high of $48.57"
-- "Macy's announcing 65 store closures over the next 18 months"
-
-Examples of INVALID facts (never include these):
-- "Investors are watching for potential entry points" ← speculation
-- "The sector is showing growth momentum" ← vague commentary
-- "Technical setups suggest opportunity" ← not from any source
-- "Market conditions are favorable" ← filler
-
-If you cannot find 2-3 specific facts from the provided articles and market data for a holding,
-include only the facts you can verify and set confidence to "low". Do NOT pad with generated commentary.
-
-CROSS-REFERENCE RULE: For each portfolio holding, you are given MULTIPLE articles. Before writing
-the "facts" array, read ALL articles for that holding and combine the most specific data points
-from across them. For example, if Article A says "Amazon overtook Walmart by revenue" and Article B
-says "Amazon reported $717 billion in global sales" — combine both: the narrative from A and the
-specific number from B. If multiple articles cite DIFFERENT numbers for the same metric, use the
-number from the most authoritative source (Reuters/Bloomberg over a blog) or the most recent article.
-Flag the discrepancy in data_gap_note. If NO article provides a specific figure for a claim, simply
-drop that data point from the facts array entirely. Do not mention the absence. Do not estimate or
-invent numbers from your own knowledge. Only include numbers that appear in the provided source articles.
+FACTS: Only verifiable data from provided articles/market data. No speculation, filler, or invented numbers. Cross-reference ALL articles per holding — combine best data points, use most authoritative source for conflicts, flag in data_gap_note.
 
 ═══════════════════════════════════════
 DATA DEPTH RULES
@@ -3363,45 +3387,14 @@ You are NOT a news reader. You are a personal financial assistant who has been b
     }
 
     lines.push(`
-SCRIPTING RULES BY EVENT TYPE (from analyzed_brief — each story has event_type):
+EVENT TYPE SCRIPTING (each story has event_type):
+- BREAKING: First time hearing it. Context first (what happened, 2-3 sent), then market impact (2-3 sent), then portfolio link (1-2 sent). NEVER skip context.
+- DEVELOPING: ${name} knows the basics. Name the event specifically (not "tensions"), state the NEW development concretely (who/what/where), then financial implications. Don't over-compress the biggest story.
+- ESCALATION: "That [story] just took a dramatic turn —" → full explanation of NEW development (as if breaking) → updated financial implications. Give it space.
+- RECURRING (3+ mentions): Brief status update with specifics (1-2 sent). If nothing new, one sentence and move on. If 5+ mentions with no change, skip entirely.
+- ONE_OFF: Standard full treatment, no follow-up expected.
 
-=== BREAKING (event_type = "breaking") ===
-This is the FIRST TIME ${name} is hearing about this event. Do NOT assume they know.
-1. CONTEXT FIRST (2-3 sentences): What happened, in plain terms. Give backstory.
-2. WHY IT MATTERS FOR MARKETS (2-3 sentences): Financial implications.
-3. WHAT IT MEANS FOR YOU (1-2 sentences): Connect to portfolio if possible.
-NEVER jump straight into financial consequences without explaining WHAT HAPPENED first.
-
-=== DEVELOPING (event_type = "developing") ===
-${name} has heard about this before. Do NOT reintroduce from scratch, but DO give context.
-1. NAME THE EVENT (1 sentence): Clearly state what this story is about using its proper name — e.g. "the US–Iran conflict," "the Boeing labor dispute," "the Fed rate path." Don't say vague phrases like "tensions in the Middle East" or "disruptions in energy markets" — be specific.
-2. WHAT DEVELOPED (1-3 sentences): The concrete new development — who did what, where, to whom. This can be non-financial (military action, political decision, regulatory filing, etc.). Be specific with facts, names, actions. Do NOT start with financial implications. Example: "Iran has called on Hezbollah to strike Israeli military bases, and maritime insurers have pulled war risk coverage from the Gulf" — not "oil prices are being affected by tensions."
-3. FINANCIAL IMPLICATIONS (1-2 sentences): Now connect it to markets, oil, inflation, portfolios, etc.
-Key principle: name the event clearly, tell what concretely happened (even if it's geopolitical, not financial), THEN connect to money. If the story is important enough, it's okay to spend more words here — don't over-compress the biggest story of the day.
-
-=== ESCALATION (event_type = "escalation") ===
-A tracked story just had a DRAMATIC new development. Treat like a hybrid:
-1. Acknowledge existing story (1 sentence): "That [story] just took a dramatic turn —"
-2. Full explanation of the NEW development (as if breaking — who did what, what happened, who's involved). Be concrete and specific.
-3. Updated financial implications (these have likely changed significantly).
-Don't compress this — if it's a major escalation, give it the space it needs.
-
-=== RECURRING (event_type = "recurring") ===
-Mentioned 3+ times. Still name the event clearly (don't be vague).
-1. Name the event + brief status (1-2 sentences): "The US–Iran conflict — [specific metric or status update]." Be concrete even when brief.
-2. ONLY if something developed: 1-2 sentences on what's new, with specifics.
-3. If genuinely nothing changed: one sentence acknowledging it and move on. No filler.
-If 5+ mentions with no development, SKIP ENTIRELY unless something genuinely new happens.
-
-=== ONE_OFF (event_type = "one_off") ===
-Standard treatment. Full explanation, no follow-up expected.
-
-WATCH ITEM PROGRESSION:
-Check the watch_history below. If you mentioned an event in a previous briefing:
-- If the event date is TODAY: "That [event] I've been flagging? It comes out today."
-- If the event date is TOMORROW: "[Event] is tomorrow — I'll have the breakdown for you."
-- If mentioned 3+ days ago and still days away: skip until 1-2 days before.
-NEVER reintroduce a watch item from scratch if it was already mentioned. Always reference the continuity.
+WATCH ITEM PROGRESSION: If previously mentioned — TODAY: "That [event] I've been flagging? It comes out today." TOMORROW: "[Event] is tomorrow." 3+ days ago and still far: skip until 1-2 days before. Never reintroduce from scratch.
 `);
 
     // Relationship progression based on user tenure
@@ -4020,6 +4013,7 @@ Deno.serve(async (req) => {
     const date = localISODate(timeZone, body?.date);
     const audioOnly = Boolean(body?.audio_only);
     const skipAudio = Boolean(body?.skip_audio);
+    const mode = safeText(body?.mode, ""); // "prewarm" | "" (normal)
 
     const userEmail = safeText(user?.email);
     if (!userEmail) return Response.json({ error: "User email missing" }, { status: 400 });
@@ -4082,6 +4076,125 @@ Deno.serve(async (req) => {
       });
 
       return Response.json({ success: true, briefing: updated });
+    }
+
+    // =========================================================
+    // PREWARM MODE: pre-fetch data + run gates, cache results
+    // Called on app open to reduce generation time later.
+    // =========================================================
+    if (mode === "prewarm") {
+      const prewarmStartMs = Date.now();
+      console.log(`🔥 [Prewarm] Starting for ${userEmail}...`);
+
+      const prefProfile = {
+        holdings: preferences?.holdings ?? preferences?.portfolio_holdings ?? null,
+        interests: preferences?.interests ?? preferences?.investment_interests ?? null,
+      };
+      const userInterests = prefProfile?.interests || [];
+      const userHoldings = prefProfile?.holdings || [];
+      const briefingTickers = userHoldings
+        .map((h: any) => (typeof h === "string" ? h : h?.symbol || h?.ticker || "").toUpperCase().trim())
+        .filter(Boolean);
+
+      if (briefingTickers.length === 0) {
+        console.log(`🔥 [Prewarm] No tickers — skipping`);
+        return Response.json({ success: true, prewarm: "skipped", reason: "no_tickers" });
+      }
+
+      try {
+        const finnhubKey = Deno.env.get("FINNHUB_API_KEY") || FINNHUB_FALLBACK_KEY;
+
+        // Stage 0+1A+1B: parallel data fetch
+        console.log(`🔥 [Prewarm] Stage 0+1A+1B: parallel fetch (${briefingTickers.length} tickers)...`);
+        const [tickerMarketMap, macroCandidates, earningsCalendar, marketSnapshotForAnalyst, personalizationContext] = await Promise.all([
+          fetchAllTickerMarketData(briefingTickers),
+          fetchMacroCandidates(userInterests),
+          fetchEarningsCalendar(briefingTickers, finnhubKey),
+          fetchMarketSnapshot(),
+          loadPersonalizationContext(base44, userEmail, date, briefingTickers),
+        ]);
+        const dataFetchMs = Date.now() - prewarmStartMs;
+        console.log(`🔥 [Prewarm] Data fetch done in ${dataFetchMs}ms`);
+
+        // Stage 1C: ticker packages
+        const tickerPackagesRaw = await fetchAllTickerPackages(briefingTickers, tickerMarketMap);
+        const skippedTickers = tickerPackagesRaw
+          .filter((p) => p.ticker_unsupported && p.news_coverage === "none")
+          .map((p) => p.ticker);
+        const tickerPackages = tickerPackagesRaw.filter(
+          (p) => !(p.ticker_unsupported && p.news_coverage === "none")
+        );
+        const tickerPkgMs = Date.now() - prewarmStartMs;
+        console.log(`🔥 [Prewarm] Stage 1C done in ${tickerPkgMs}ms (${tickerPackages.length} packages)`);
+
+        // Parallel Gates: Impact Gate + Smart Gate
+        const gatesStartMs = Date.now();
+        const totalArticles = tickerPackages.reduce((s, p) => s + p.news_articles.length, 0);
+        const SMART_GATE_INPUT_CAP = 20;
+        const macroCandidatesForGate = macroCandidates.slice(0, SMART_GATE_INPUT_CAP);
+
+        const [impactEvals, gatedCandidates] = await Promise.all([
+          totalArticles > 0
+            ? evaluatePortfolioNewsImpactBatch(base44, tickerPackages)
+            : Promise.resolve([]),
+          screenMacroCandidates(base44, macroCandidatesForGate, userInterests, briefingTickers),
+        ]);
+
+        if (impactEvals.length > 0) {
+          const evalMap = new Map(impactEvals.map((e) => [e.id, e]));
+          for (const pkg of tickerPackages) {
+            for (const article of pkg.news_articles) {
+              const ev = evalMap.get(article.id);
+              if (ev) {
+                article.llm_impact_score = ev.impact_score;
+                article.llm_impact_reason = ev.reason;
+              }
+            }
+          }
+        }
+        const gatesMs = Date.now() - gatesStartMs;
+        const totalMs = Date.now() - prewarmStartMs;
+        console.log(`🔥 [Prewarm] Gates done in ${gatesMs}ms | Total prewarm: ${totalMs}ms`);
+
+        // Cache the results
+        const cacheKey = getPrewarmCacheKey(userEmail);
+        PREWARM_CACHE.set(cacheKey, {
+          data: {
+            tickerMarketMap,
+            macroCandidates,
+            earningsCalendar,
+            marketSnapshotForAnalyst,
+            personalizationContext,
+            tickerPackages,
+            skippedTickers,
+            gatedCandidates,
+            impactEvalsApplied: true,
+            pipelineStartMs: prewarmStartMs,
+            briefingTickers,
+            userInterests,
+          },
+          timestamp: Date.now(),
+          tickers: [...briefingTickers],
+          userEmail,
+        });
+        console.log(`🔥 [Prewarm] Cached for ${userEmail} (${briefingTickers.length} tickers, ${totalMs}ms)`);
+
+        return Response.json({
+          success: true,
+          prewarm: "completed",
+          duration_ms: totalMs,
+          tickers: briefingTickers.length,
+          macro_candidates: gatedCandidates.length,
+          ticker_packages: tickerPackages.length,
+        });
+      } catch (prewarmErr: any) {
+        console.error(`❌ [Prewarm] Failed: ${prewarmErr?.message}`, prewarmErr?.stack);
+        return Response.json({
+          success: true,
+          prewarm: "failed",
+          error: prewarmErr?.message,
+        });
+      }
     }
 
     // =========================================================
@@ -4321,77 +4434,103 @@ Deno.serve(async (req) => {
     const pipelineStartMs = Date.now();
 
     // =========================================================
-    // STAGE 1A + 1B + CALENDAR: Run in PARALLEL (independent data sources)
-    // 1A: Finnhub per-ticker market data
-    // 1B: Finlight macro/market news candidates
-    // Calendar: earnings only (30d). Economic calendar is Finnhub premium — use static US calendar if needed.
+    // PREWARM CHECK: Use cached data if available (Option B)
     // =========================================================
-    const finnhubKey = Deno.env.get("FINNHUB_API_KEY") || FINNHUB_FALLBACK_KEY;
-    console.log(`⚡ [Stage 0+1A+1B] Parallel fetch...`);
-    const [tickerMarketMap, macroCandidates, earningsCalendar, marketSnapshotForAnalyst, personalizationContext] = await Promise.all([
-      fetchAllTickerMarketData(briefingTickers),
-      fetchMacroCandidates(userInterests),
-      fetchEarningsCalendar(briefingTickers, finnhubKey),
-      fetchMarketSnapshot(),
-      loadPersonalizationContext(base44, userEmail, date, briefingTickers),
-    ]);
-    const marketSnapshotPromise = Promise.resolve(marketSnapshotForAnalyst);
+    let tickerMarketMap: any;
+    let macroCandidates: any[];
+    let earningsCalendar: any[];
+    let marketSnapshotForAnalyst: any;
+    let personalizationContext: any;
+    let tickerPackages: any[];
+    let skippedTickers: string[];
+    let gatedCandidates: any[];
 
-    console.log(`📋 [Stage 0] memories=${personalizationContext.last_briefings?.length || 0} active_stories=${personalizationContext.active_stories?.length || 0} days_since=${personalizationContext.days_since_last} day_count=${personalizationContext.user_day_count || 0}`);
-    console.log(`📊 [Stage 1A] ${briefingTickers.length} holdings | [Stage 1B] ${macroCandidates.length} macro candidates`);
+    const prewarmData = getValidPrewarm(userEmail, briefingTickers);
+    if (prewarmData) {
+      const prewarmAge = Date.now() - prewarmData.pipelineStartMs;
+      console.log(`🔥 [Prewarm HIT] Using cached data (${Math.round(prewarmAge / 1000)}s old) — skipping Stages 0-1C + Gates`);
+      tickerMarketMap = prewarmData.tickerMarketMap;
+      macroCandidates = prewarmData.macroCandidates;
+      earningsCalendar = prewarmData.earningsCalendar;
+      marketSnapshotForAnalyst = prewarmData.marketSnapshotForAnalyst;
+      personalizationContext = prewarmData.personalizationContext;
+      tickerPackages = prewarmData.tickerPackages;
+      skippedTickers = prewarmData.skippedTickers;
+      gatedCandidates = prewarmData.gatedCandidates;
+      // Clear the cache after use (one-shot)
+      PREWARM_CACHE.delete(getPrewarmCacheKey(userEmail));
+      console.log(`⚡ [Prewarm] Saved ~${Math.round(prewarmAge / 1000)}s of data fetch + gate time`);
+    } else {
+      console.log(`🔥 [Prewarm MISS] No valid cache — running full pipeline`);
 
-    // =========================================================
-    // STAGE 1C TEST: Build per-ticker data packages
-    // Multi-step Finlight cascade + aggressive fallback chain.
-    // This replaces the old single-query portfolio refresh.
-    // TODO: Remove test log once pipeline integration is complete.
-    // =========================================================
-    const tickerPackagesRaw = await fetchAllTickerPackages(briefingTickers, tickerMarketMap);
-    const skippedTickers = tickerPackagesRaw
-      .filter((p) => p.ticker_unsupported && p.news_coverage === "none")
-      .map((p) => p.ticker);
-    const tickerPackages = tickerPackagesRaw.filter(
-      (p) => !(p.ticker_unsupported && p.news_coverage === "none")
-    );
-    if (skippedTickers.length > 0) {
-      console.log(`📋 [Stage 1D] Excluding unsupported tickers with no coverage: ${skippedTickers.join(", ")}`);
-    }
-    console.log(`📦 [Stage 1C] ${tickerPackages.length} ticker packages built: ${tickerPackages.map(p => `${p.ticker}=${p.news_coverage}(${p.news_articles.length})`).join(', ')}`);
+      // =========================================================
+      // STAGE 1A + 1B + CALENDAR: Run in PARALLEL (independent data sources)
+      // =========================================================
+      const finnhubKey = Deno.env.get("FINNHUB_API_KEY") || FINNHUB_FALLBACK_KEY;
+      console.log(`⚡ [Stage 0+1A+1B] Parallel fetch...`);
+      [tickerMarketMap, macroCandidates, earningsCalendar, marketSnapshotForAnalyst, personalizationContext] = await Promise.all([
+        fetchAllTickerMarketData(briefingTickers),
+        fetchMacroCandidates(userInterests),
+        fetchEarningsCalendar(briefingTickers, finnhubKey),
+        fetchMarketSnapshot(),
+        loadPersonalizationContext(base44, userEmail, date, briefingTickers),
+      ]);
 
-    // =========================================================
-    // PORTFOLIO IMPACT GATE: one batch LLM call to score all articles for material impact
-    // =========================================================
-    const totalArticles = tickerPackages.reduce((s, p) => s + p.news_articles.length, 0);
-    if (totalArticles > 0) {
-      const impactEvals = await evaluatePortfolioNewsImpactBatch(base44, tickerPackages);
-      const evalMap = new Map(impactEvals.map((e) => [e.id, e]));
-      for (const pkg of tickerPackages) {
-        for (const article of pkg.news_articles) {
-          const ev = evalMap.get(article.id);
-          if (ev) {
-            article.llm_impact_score = ev.impact_score;
-            article.llm_impact_reason = ev.reason;
-          }
-        }
+      console.log(`📋 [Stage 0] memories=${personalizationContext.last_briefings?.length || 0} active_stories=${personalizationContext.active_stories?.length || 0} days_since=${personalizationContext.days_since_last} day_count=${personalizationContext.user_day_count || 0}`);
+      console.log(`📊 [Stage 1A] ${briefingTickers.length} holdings | [Stage 1B] ${macroCandidates.length} macro candidates`);
+
+      // =========================================================
+      // STAGE 1C: Build per-ticker data packages
+      // =========================================================
+      const tickerPackagesRaw = await fetchAllTickerPackages(briefingTickers, tickerMarketMap);
+      skippedTickers = tickerPackagesRaw
+        .filter((p) => p.ticker_unsupported && p.news_coverage === "none")
+        .map((p) => p.ticker);
+      tickerPackages = tickerPackagesRaw.filter(
+        (p) => !(p.ticker_unsupported && p.news_coverage === "none")
+      );
+      if (skippedTickers.length > 0) {
+        console.log(`📋 [Stage 1D] Excluding unsupported tickers with no coverage: ${skippedTickers.join(", ")}`);
       }
+      console.log(`📦 [Stage 1C] ${tickerPackages.length} ticker packages built: ${tickerPackages.map(p => `${p.ticker}=${p.news_coverage}(${p.news_articles.length})`).join(', ')}`);
+
+      // =========================================================
+      // PARALLEL GATES: Impact Gate + Smart Gate run concurrently
+      // =========================================================
+      const gatesStartMs = Date.now();
+      const totalArticles = tickerPackages.reduce((s, p) => s + p.news_articles.length, 0);
+      const SMART_GATE_INPUT_CAP = 20;
+      const macroCandidatesForGate = macroCandidates.slice(0, SMART_GATE_INPUT_CAP);
+      if (macroCandidates.length > SMART_GATE_INPUT_CAP) {
+        console.log(`🚪 [Smart Gate] Capping input: ${macroCandidates.length} → ${macroCandidatesForGate.length} (top by source+recency+sector)`);
+      }
+      console.log(`⚡ [Parallel Gates] Starting Impact Gate (${totalArticles} articles) + Smart Gate (${macroCandidatesForGate.length} candidates) in parallel...`);
+
+      [, gatedCandidates] = await Promise.all([
+        (async () => {
+          if (totalArticles > 0) {
+            const impactEvals = await evaluatePortfolioNewsImpactBatch(base44, tickerPackages);
+            const evalMap = new Map(impactEvals.map((e) => [e.id, e]));
+            for (const pkg of tickerPackages) {
+              for (const article of pkg.news_articles) {
+                const ev = evalMap.get(article.id);
+                if (ev) {
+                  article.llm_impact_score = ev.impact_score;
+                  article.llm_impact_reason = ev.reason;
+                }
+              }
+            }
+            console.log(`📊 [Impact Gate] ${impactEvals.length} evaluations applied`);
+          }
+        })(),
+        screenMacroCandidates(base44, macroCandidatesForGate, userInterests, briefingTickers),
+      ]);
+      console.log(`⚡ [Parallel Gates] Both completed in ${Date.now() - gatesStartMs}ms`);
     }
 
-    // =========================================================
-    // SMART GATE: LLM pre-screen macro candidates for market-moving relevance
-    // Cap input to top 20 (already sorted by premium source + recency + sector relevance)
-    // to keep the LLM call fast (~14s vs ~30s for 42 candidates).
-    // =========================================================
-    const SMART_GATE_INPUT_CAP = 20;
-    const macroCandidatesForGate = macroCandidates.slice(0, SMART_GATE_INPUT_CAP);
-    if (macroCandidates.length > SMART_GATE_INPUT_CAP) {
-      console.log(`🚪 [Smart Gate] Capping input: ${macroCandidates.length} → ${macroCandidatesForGate.length} (top by source+recency+sector)`);
-    }
-    const gatedCandidates = await screenMacroCandidates(
-      base44,
-      macroCandidatesForGate,
-      userInterests,
-      briefingTickers
-    );
+    const marketSnapshotPromise = Promise.resolve(marketSnapshotForAnalyst);
+    const dataStageMs = Date.now() - pipelineStartMs;
+    console.log(`📊 [Pipeline] Data + Gates total: ${dataStageMs}ms (prewarm: ${!!prewarmData})`);
 
     // =========================================================
     // STAGE 1D: Bundle into Raw Intelligence Package
@@ -5470,51 +5609,101 @@ RETURN FORMAT (JSON)
 });
 
 // =========================================================
-// Async audio generation function
-// - sets delivered_at when READY (user can access)
+// Async audio generation — Split TTS with early playback
+// 1. Try to split script at portfolio boundary → TTS both in parallel
+// 2. Upload Segment A first → status "ready" → user can play
+// 3. Upload Segment B → update audio_url_part2
+// 4. Fallback: if split fails, use single-file TTS (original behavior)
 // =========================================================
+async function uploadAndSign(base44Client, audioFile) {
+  const { file_uri } = await base44Client.asServiceRole.integrations.Core.UploadPrivateFile({
+    file: audioFile,
+  });
+  const { signed_url } = await base44Client.asServiceRole.integrations.Core.CreateFileSignedUrl({
+    file_uri,
+    expires_in: 60 * 60 * 24 * 7,
+  });
+  return signed_url;
+}
+
 async function generateAudioAsync(base44Client, briefingId, script, date, elevenLabsApiKey, timeZone) {
+  const audioStartMs = Date.now();
   console.log(`🎵 [Async Audio] Starting generation for briefing ${briefingId}...`);
 
   try {
     await base44Client.asServiceRole.entities.DailyBriefing.update(briefingId, {
       status: "generating_audio",
     });
-    console.log("✅ [Status] Updated to generating_audio");
 
-    // Convert numbers/currency to spoken form for TTS only; transcript (script in DB) stays numeric
     const scriptForTTS = numbersToSpokenForm(script);
-    const audioFile = await generateAudioFile(scriptForTTS, date, elevenLabsApiKey);
-    console.log(`✅ [Async Audio] Audio file generated`);
+    const segments = splitScriptForTTS(scriptForTTS);
 
-    await base44Client.asServiceRole.entities.DailyBriefing.update(briefingId, {
-      status: "uploading",
-    });
-    console.log("✅ [Status] Updated to uploading");
+    if (segments) {
+      // ── SPLIT TTS PATH: parallel TTS → early playback ──
+      const [segA, segB] = segments;
+      console.log(`🎵 [Split TTS] Generating Segment A (${segA.split(/\s+/).length}w) + B (${segB.split(/\s+/).length}w) in parallel...`);
 
-    const { file_uri } = await base44Client.asServiceRole.integrations.Core.UploadPrivateFile({
-      file: audioFile,
-    });
-    console.log(`✅ [Async Audio] File uploaded: ${file_uri}`);
+      const ttsStartMs = Date.now();
+      let audioFileA: File, audioFileB: File;
+      try {
+        [audioFileA, audioFileB] = await Promise.all([
+          generateAudioFile(segA, `${date}-a`, elevenLabsApiKey),
+          generateAudioFile(segB, `${date}-b`, elevenLabsApiKey),
+        ]);
+        console.log(`🎵 [Split TTS] Both segments generated in ${Date.now() - ttsStartMs}ms`);
+      } catch (splitTTSErr: any) {
+        console.warn(`⚠️ [Split TTS] Parallel TTS failed (${splitTTSErr?.message}) — falling back to single file`);
+        return await generateAudioSingleFile(base44Client, briefingId, scriptForTTS, date, elevenLabsApiKey, timeZone, audioStartMs);
+      }
 
-    const { signed_url } = await base44Client.asServiceRole.integrations.Core.CreateFileSignedUrl({
-      file_uri,
-      expires_in: 60 * 60 * 24 * 7,
-    });
-    console.log(`✅ [Async Audio] Signed URL created`);
+      // Upload Segment A first → user can start playing
+      const uploadAStartMs = Date.now();
+      const signedUrlA = await uploadAndSign(base44Client, audioFileA);
+      const deliveredAt = new Date().toISOString();
+      await base44Client.asServiceRole.entities.DailyBriefing.update(briefingId, {
+        audio_url: signedUrlA,
+        status: "ready",
+        delivered_at: deliveredAt,
+        time_zone: timeZone,
+      });
+      const segAMs = Date.now() - audioStartMs;
+      console.log(`🎵 [Split TTS] Segment A READY in ${segAMs}ms (upload: ${Date.now() - uploadAStartMs}ms) — user can play!`);
 
-    const deliveredAt = new Date().toISOString();
-
-    await base44Client.asServiceRole.entities.DailyBriefing.update(briefingId, {
-      audio_url: signed_url,
-      status: "ready",
-      delivered_at: deliveredAt,
-      time_zone: timeZone,
-    });
-
-    console.log(`🎉 [Async Audio] Briefing ${briefingId} is now READY with audio! delivered_at=${deliveredAt}`);
+      // Upload Segment B (user is already playing Segment A)
+      try {
+        const uploadBStartMs = Date.now();
+        const signedUrlB = await uploadAndSign(base44Client, audioFileB);
+        await base44Client.asServiceRole.entities.DailyBriefing.update(briefingId, {
+          audio_url_part2: signedUrlB,
+        });
+        console.log(`🎵 [Split TTS] Segment B uploaded in ${Date.now() - uploadBStartMs}ms | Total audio pipeline: ${Date.now() - audioStartMs}ms`);
+      } catch (segBErr: any) {
+        console.error(`⚠️ [Split TTS] Segment B upload failed (${segBErr?.message}) — user has Segment A only`);
+      }
+    } else {
+      // ── SINGLE FILE PATH: original behavior ──
+      await generateAudioSingleFile(base44Client, briefingId, scriptForTTS, date, elevenLabsApiKey, timeZone, audioStartMs);
+    }
   } catch (error) {
     console.error(`❌ [Async Audio] Failed for briefing ${briefingId}:`, error);
     throw error;
   }
+}
+
+async function generateAudioSingleFile(base44Client, briefingId, scriptForTTS, date, elevenLabsApiKey, timeZone, audioStartMs) {
+  console.log(`🎵 [Single TTS] Generating full audio...`);
+  const audioFile = await generateAudioFile(scriptForTTS, date, elevenLabsApiKey);
+  console.log(`🎵 [Single TTS] Audio generated in ${Date.now() - audioStartMs}ms`);
+
+  await base44Client.asServiceRole.entities.DailyBriefing.update(briefingId, { status: "uploading" });
+  const signedUrl = await uploadAndSign(base44Client, audioFile);
+  const deliveredAt = new Date().toISOString();
+
+  await base44Client.asServiceRole.entities.DailyBriefing.update(briefingId, {
+    audio_url: signedUrl,
+    status: "ready",
+    delivered_at: deliveredAt,
+    time_zone: timeZone,
+  });
+  console.log(`🎉 [Single TTS] Briefing ${briefingId} READY in ${Date.now() - audioStartMs}ms`);
 }
