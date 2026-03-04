@@ -604,7 +604,7 @@ export default function Home() {
         }
       }
     }
-  }, [isGenerating, generationStartedAt, briefings]);
+  }, [isGenerating, generationStartedAt, briefings, refetchBriefing]);
 
   // =========================================================
   // COUNTDOWN: ONLY START AFTER BRIEFING IS DELIVERED
