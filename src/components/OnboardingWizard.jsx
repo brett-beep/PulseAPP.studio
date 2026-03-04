@@ -285,11 +285,11 @@ function WebOnboardingWizard({ onComplete }) {
               selectedStocks={preferences.portfolio_holdings || []}
               onAdd={handleAddStock}
               onRemove={handleRemoveStock}
-              maxStocks={10}
+              maxStocks={3}
             />
 
             <p className="text-xs text-slate-400 text-center">
-              Click the × button to remove stocks. You can skip or add more later in Settings.
+              Free plan: up to 3 tickers. You can add more later by upgrading.
             </p>
           </div>
         );

@@ -32,6 +32,206 @@ const POPULAR_STOCKS = [
   { symbol: 'UBER', name: 'Uber Technologies' },
 ];
 
+// Top 200 US ETFs by AUM — searchable alongside stocks
+const POPULAR_ETFS = [
+  { symbol: 'SPY',  name: 'SPDR S&P 500 ETF' },
+  { symbol: 'IVV',  name: 'iShares Core S&P 500' },
+  { symbol: 'VOO',  name: 'Vanguard S&P 500 ETF' },
+  { symbol: 'VTI',  name: 'Vanguard Total Stock Market' },
+  { symbol: 'QQQ',  name: 'Invesco QQQ Trust (Nasdaq 100)' },
+  { symbol: 'VEA',  name: 'Vanguard FTSE Developed Markets' },
+  { symbol: 'VTV',  name: 'Vanguard Value ETF' },
+  { symbol: 'IEFA', name: 'iShares Core MSCI EAFE' },
+  { symbol: 'BND',  name: 'Vanguard Total Bond Market' },
+  { symbol: 'AGG',  name: 'iShares Core US Aggregate Bond' },
+  { symbol: 'VUG',  name: 'Vanguard Growth ETF' },
+  { symbol: 'VWO',  name: 'Vanguard FTSE Emerging Markets' },
+  { symbol: 'IEMG', name: 'iShares Core MSCI Emerging Markets' },
+  { symbol: 'IWF',  name: 'iShares Russell 1000 Growth' },
+  { symbol: 'IJR',  name: 'iShares Core S&P Small-Cap' },
+  { symbol: 'IJH',  name: 'iShares Core S&P Mid-Cap' },
+  { symbol: 'VIG',  name: 'Vanguard Dividend Appreciation' },
+  { symbol: 'IWM',  name: 'iShares Russell 2000' },
+  { symbol: 'IWD',  name: 'iShares Russell 1000 Value' },
+  { symbol: 'GLD',  name: 'SPDR Gold Shares' },
+  { symbol: 'EFA',  name: 'iShares MSCI EAFE' },
+  { symbol: 'VGT',  name: 'Vanguard Information Technology' },
+  { symbol: 'XLK',  name: 'Technology Select Sector SPDR' },
+  { symbol: 'VXUS', name: 'Vanguard Total International Stock' },
+  { symbol: 'VO',   name: 'Vanguard Mid-Cap ETF' },
+  { symbol: 'VB',   name: 'Vanguard Small-Cap ETF' },
+  { symbol: 'SCHD', name: 'Schwab US Dividend Equity' },
+  { symbol: 'BSV',  name: 'Vanguard Short-Term Bond' },
+  { symbol: 'VCSH', name: 'Vanguard Short-Term Corporate Bond' },
+  { symbol: 'LQD',  name: 'iShares Investment Grade Corporate Bond' },
+  { symbol: 'VCIT', name: 'Vanguard Intermediate-Term Corporate Bond' },
+  { symbol: 'TIP',  name: 'iShares TIPS Bond' },
+  { symbol: 'XLV',  name: 'Health Care Select Sector SPDR' },
+  { symbol: 'XLF',  name: 'Financial Select Sector SPDR' },
+  { symbol: 'VYM',  name: 'Vanguard High Dividend Yield' },
+  { symbol: 'ITOT', name: 'iShares Core S&P Total US Stock Market' },
+  { symbol: 'SCHX', name: 'Schwab US Large-Cap' },
+  { symbol: 'SCHF', name: 'Schwab International Equity' },
+  { symbol: 'RSP',  name: 'Invesco S&P 500 Equal Weight' },
+  { symbol: 'XLE',  name: 'Energy Select Sector SPDR' },
+  { symbol: 'XLI',  name: 'Industrial Select Sector SPDR' },
+  { symbol: 'XLY',  name: 'Consumer Discretionary Select SPDR' },
+  { symbol: 'XLP',  name: 'Consumer Staples Select SPDR' },
+  { symbol: 'XLU',  name: 'Utilities Select Sector SPDR' },
+  { symbol: 'XLB',  name: 'Materials Select Sector SPDR' },
+  { symbol: 'XLRE', name: 'Real Estate Select Sector SPDR' },
+  { symbol: 'XLC',  name: 'Communication Services Select SPDR' },
+  { symbol: 'DIA',  name: 'SPDR Dow Jones Industrial Average' },
+  { symbol: 'MDY',  name: 'SPDR S&P MidCap 400' },
+  { symbol: 'SLV',  name: 'iShares Silver Trust' },
+  { symbol: 'IAU',  name: 'iShares Gold Trust' },
+  { symbol: 'ARKK', name: 'ARK Innovation ETF' },
+  { symbol: 'ARKG', name: 'ARK Genomic Revolution' },
+  { symbol: 'ARKW', name: 'ARK Next Generation Internet' },
+  { symbol: 'ARKF', name: 'ARK Fintech Innovation' },
+  { symbol: 'ARKQ', name: 'ARK Autonomous Tech & Robotics' },
+  { symbol: 'VNQ',  name: 'Vanguard Real Estate ETF' },
+  { symbol: 'SCHB', name: 'Schwab US Broad Market' },
+  { symbol: 'SCHA', name: 'Schwab US Small-Cap' },
+  { symbol: 'SCHE', name: 'Schwab Emerging Markets Equity' },
+  { symbol: 'SCHG', name: 'Schwab US Large-Cap Growth' },
+  { symbol: 'SCHV', name: 'Schwab US Large-Cap Value' },
+  { symbol: 'SPDW', name: 'SPDR Portfolio Developed World' },
+  { symbol: 'SPEM', name: 'SPDR Portfolio Emerging Markets' },
+  { symbol: 'SPLG', name: 'SPDR Portfolio S&P 500' },
+  { symbol: 'SPYG', name: 'SPDR Portfolio S&P 500 Growth' },
+  { symbol: 'SPYV', name: 'SPDR Portfolio S&P 500 Value' },
+  { symbol: 'VHT',  name: 'Vanguard Health Care ETF' },
+  { symbol: 'VIS',  name: 'Vanguard Industrials ETF' },
+  { symbol: 'VCR',  name: 'Vanguard Consumer Discretionary' },
+  { symbol: 'VDC',  name: 'Vanguard Consumer Staples' },
+  { symbol: 'VDE',  name: 'Vanguard Energy ETF' },
+  { symbol: 'VFH',  name: 'Vanguard Financials ETF' },
+  { symbol: 'VOX',  name: 'Vanguard Communication Services' },
+  { symbol: 'VAW',  name: 'Vanguard Materials ETF' },
+  { symbol: 'VPU',  name: 'Vanguard Utilities ETF' },
+  { symbol: 'NOBL', name: 'ProShares S&P 500 Dividend Aristocrats' },
+  { symbol: 'DVY',  name: 'iShares Select Dividend' },
+  { symbol: 'SDY',  name: 'SPDR S&P Dividend' },
+  { symbol: 'HDV',  name: 'iShares Core High Dividend' },
+  { symbol: 'DGRO', name: 'iShares Core Dividend Growth' },
+  { symbol: 'IWR',  name: 'iShares Russell Mid-Cap' },
+  { symbol: 'IWS',  name: 'iShares Russell Mid-Cap Value' },
+  { symbol: 'IWP',  name: 'iShares Russell Mid-Cap Growth' },
+  { symbol: 'IWN',  name: 'iShares Russell 2000 Value' },
+  { symbol: 'IWO',  name: 'iShares Russell 2000 Growth' },
+  { symbol: 'EEM',  name: 'iShares MSCI Emerging Markets' },
+  { symbol: 'EWJ',  name: 'iShares MSCI Japan' },
+  { symbol: 'EWZ',  name: 'iShares MSCI Brazil' },
+  { symbol: 'EWT',  name: 'iShares MSCI Taiwan' },
+  { symbol: 'EWY',  name: 'iShares MSCI South Korea' },
+  { symbol: 'EWG',  name: 'iShares MSCI Germany' },
+  { symbol: 'EWU',  name: 'iShares MSCI United Kingdom' },
+  { symbol: 'EWC',  name: 'iShares MSCI Canada' },
+  { symbol: 'EWA',  name: 'iShares MSCI Australia' },
+  { symbol: 'FXI',  name: 'iShares China Large-Cap' },
+  { symbol: 'KWEB', name: 'KraneShares CSI China Internet' },
+  { symbol: 'INDA', name: 'iShares MSCI India' },
+  { symbol: 'VGK',  name: 'Vanguard FTSE Europe' },
+  { symbol: 'VPL',  name: 'Vanguard FTSE Pacific' },
+  { symbol: 'MCHI', name: 'iShares MSCI China' },
+  { symbol: 'IGSB', name: 'iShares 1-5 Year Investment Grade Corporate Bond' },
+  { symbol: 'IGIB', name: 'iShares 5-10 Year Investment Grade Corporate Bond' },
+  { symbol: 'HYG',  name: 'iShares iBoxx High Yield Corporate Bond' },
+  { symbol: 'JNK',  name: 'SPDR Bloomberg High Yield Bond' },
+  { symbol: 'EMB',  name: 'iShares J.P. Morgan USD Emerging Markets Bond' },
+  { symbol: 'MUB',  name: 'iShares National Muni Bond' },
+  { symbol: 'TLT',  name: 'iShares 20+ Year Treasury Bond' },
+  { symbol: 'IEF',  name: 'iShares 7-10 Year Treasury Bond' },
+  { symbol: 'SHY',  name: 'iShares 1-3 Year Treasury Bond' },
+  { symbol: 'SHV',  name: 'iShares Short Treasury Bond' },
+  { symbol: 'GOVT', name: 'iShares US Treasury Bond' },
+  { symbol: 'VGSH', name: 'Vanguard Short-Term Treasury' },
+  { symbol: 'VGIT', name: 'Vanguard Intermediate-Term Treasury' },
+  { symbol: 'VGLT', name: 'Vanguard Long-Term Treasury' },
+  { symbol: 'BIL',  name: 'SPDR Bloomberg 1-3 Month T-Bill' },
+  { symbol: 'BNDX', name: 'Vanguard Total International Bond' },
+  { symbol: 'VMBS', name: 'Vanguard Mortgage-Backed Securities' },
+  { symbol: 'MBB',  name: 'iShares MBS ETF' },
+  { symbol: 'VTEB', name: 'Vanguard Tax-Exempt Bond' },
+  { symbol: 'MINT', name: 'PIMCO Enhanced Short Maturity Active' },
+  { symbol: 'USFR', name: 'WisdomTree Floating Rate Treasury' },
+  { symbol: 'SGOV', name: 'iShares 0-3 Month Treasury Bond' },
+  { symbol: 'TQQQ', name: 'ProShares UltraPro QQQ (3x)' },
+  { symbol: 'SQQQ', name: 'ProShares UltraPro Short QQQ (-3x)' },
+  { symbol: 'SPXL', name: 'Direxion Daily S&P 500 Bull 3x' },
+  { symbol: 'UPRO', name: 'ProShares UltraPro S&P 500 (3x)' },
+  { symbol: 'SOXL', name: 'Direxion Daily Semiconductor Bull 3x' },
+  { symbol: 'SOXS', name: 'Direxion Daily Semiconductor Bear 3x' },
+  { symbol: 'TNA',  name: 'Direxion Daily Small Cap Bull 3x' },
+  { symbol: 'UVXY', name: 'ProShares Ultra VIX Short-Term Futures' },
+  { symbol: 'VXX',  name: 'iPath Series B S&P 500 VIX' },
+  { symbol: 'QLD',  name: 'ProShares Ultra QQQ (2x)' },
+  { symbol: 'SSO',  name: 'ProShares Ultra S&P 500 (2x)' },
+  { symbol: 'SOXX', name: 'iShares Semiconductor ETF' },
+  { symbol: 'SMH',  name: 'VanEck Semiconductor ETF' },
+  { symbol: 'XBI',  name: 'SPDR S&P Biotech ETF' },
+  { symbol: 'IBB',  name: 'iShares Biotechnology ETF' },
+  { symbol: 'HACK', name: 'ETFMG Prime Cyber Security' },
+  { symbol: 'BOTZ', name: 'Global X Robotics & AI ETF' },
+  { symbol: 'ROBO', name: 'ROBO Global Robotics & Automation' },
+  { symbol: 'AIQ',  name: 'Global X Artificial Intelligence & Technology' },
+  { symbol: 'CIBR', name: 'First Trust NASDAQ Cybersecurity' },
+  { symbol: 'SKYY', name: 'First Trust Cloud Computing' },
+  { symbol: 'WCLD', name: 'WisdomTree Cloud Computing' },
+  { symbol: 'FINX', name: 'Global X FinTech ETF' },
+  { symbol: 'ICLN', name: 'iShares Global Clean Energy' },
+  { symbol: 'TAN',  name: 'Invesco Solar ETF' },
+  { symbol: 'QCLN', name: 'First Trust NASDAQ Clean Edge Green Energy' },
+  { symbol: 'LIT',  name: 'Global X Lithium & Battery Tech' },
+  { symbol: 'URA',  name: 'Global X Uranium ETF' },
+  { symbol: 'COPX', name: 'Global X Copper Miners' },
+  { symbol: 'REMX', name: 'VanEck Rare Earth/Strategic Metals' },
+  { symbol: 'GDX',  name: 'VanEck Gold Miners ETF' },
+  { symbol: 'GDXJ', name: 'VanEck Junior Gold Miners' },
+  { symbol: 'SIL',  name: 'Global X Silver Miners' },
+  { symbol: 'XOP',  name: 'SPDR S&P Oil & Gas Exploration' },
+  { symbol: 'OIH',  name: 'VanEck Oil Services ETF' },
+  { symbol: 'USO',  name: 'United States Oil Fund' },
+  { symbol: 'UNG',  name: 'United States Natural Gas Fund' },
+  { symbol: 'DBA',  name: 'Invesco DB Agriculture Fund' },
+  { symbol: 'DBC',  name: 'Invesco DB Commodity Index' },
+  { symbol: 'GSG',  name: 'iShares GSCI Commodity-Indexed Trust' },
+  { symbol: 'PDBC', name: 'Invesco Optimum Yield Diversified Commodity' },
+  { symbol: 'GBTC', name: 'Grayscale Bitcoin Trust' },
+  { symbol: 'IBIT', name: 'iShares Bitcoin Trust' },
+  { symbol: 'FBTC', name: 'Fidelity Wise Origin Bitcoin Fund' },
+  { symbol: 'BITO', name: 'ProShares Bitcoin Strategy ETF' },
+  { symbol: 'ETHE', name: 'Grayscale Ethereum Trust' },
+  { symbol: 'ETHA', name: 'iShares Ethereum Trust' },
+  { symbol: 'BITB', name: 'Bitwise Bitcoin ETF' },
+  { symbol: 'MARA', name: 'Marathon Digital Holdings' },
+  { symbol: 'RIOT', name: 'Riot Platforms' },
+  { symbol: 'XHB',  name: 'SPDR S&P Homebuilders ETF' },
+  { symbol: 'ITB',  name: 'iShares US Home Construction' },
+  { symbol: 'IYR',  name: 'iShares US Real Estate' },
+  { symbol: 'XLRE', name: 'Real Estate Select Sector SPDR' },
+  { symbol: 'REM',  name: 'iShares Mortgage Real Estate' },
+  { symbol: 'KRE',  name: 'SPDR S&P Regional Banking' },
+  { symbol: 'KBE',  name: 'SPDR S&P Bank ETF' },
+  { symbol: 'IHI',  name: 'iShares US Medical Devices' },
+  { symbol: 'XRT',  name: 'SPDR S&P Retail ETF' },
+  { symbol: 'ITA',  name: 'iShares US Aerospace & Defense' },
+  { symbol: 'PFF',  name: 'iShares Preferred & Income Securities' },
+  { symbol: 'JEPI', name: 'JPMorgan Equity Premium Income' },
+  { symbol: 'JEPQ', name: 'JPMorgan Nasdaq Equity Premium Income' },
+  { symbol: 'DIVO', name: 'Amplify CWP Enhanced Dividend Income' },
+  { symbol: 'XYLD', name: 'Global X S&P 500 Covered Call' },
+  { symbol: 'QYLD', name: 'Global X NASDAQ 100 Covered Call' },
+  { symbol: 'RYLD', name: 'Global X Russell 2000 Covered Call' },
+  { symbol: 'COWZ', name: 'Pacer US Cash Cows 100' },
+  { symbol: 'QUAL', name: 'iShares MSCI USA Quality Factor' },
+  { symbol: 'MTUM', name: 'iShares MSCI USA Momentum Factor' },
+  { symbol: 'USMV', name: 'iShares MSCI USA Min Vol Factor' },
+  { symbol: 'VLUE', name: 'iShares MSCI USA Value Factor' },
+  { symbol: 'SIZE', name: 'iShares MSCI USA Size Factor' },
+];
+
 // Keep consistent with existing frontend Finnhub usage in this project.
 const FINNHUB_API_KEY = 'd5n7s19r01qh5ppc5ln0d5n7s19r01qh5ppc5lng';
 const FINNHUB_SEARCH_LIMIT = 20;
@@ -131,7 +331,8 @@ export default function StockPicker({ selectedStocks = [], onAdd, onRemove, maxS
       setIsSearching(true);
 
       try {
-        const localRanked = POPULAR_STOCKS
+        const ALL_LOCAL = [...POPULAR_STOCKS, ...POPULAR_ETFS];
+        const localRanked = ALL_LOCAL
           .map((stock) => ({ stock, score: getMatchScore(stock, term) }))
           .filter((x) => x.score > -Infinity)
           .sort((a, b) => b.score - a.score)
@@ -154,7 +355,6 @@ export default function StockPicker({ selectedStocks = [], onAdd, onRemove, maxS
                 type: item.type || '',
               }))
               .filter((item) => item.symbol.length > 0)
-              .filter((item) => item.type !== 'ETP') // avoid ETF spam in type-ahead
               .slice(0, FINNHUB_SEARCH_LIMIT);
           }
         } catch (_) {
@@ -213,7 +413,7 @@ export default function StockPicker({ selectedStocks = [], onAdd, onRemove, maxS
             <Input
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search stocks (e.g., AAPL, Tesla, NVIDIA)..."
+              placeholder="Search stocks & ETFs (e.g., AAPL, SPY, QQQ)..."
               className="pl-10"
               onFocus={() => searchTerm && setShowDropdown(true)}
             />
@@ -281,10 +481,11 @@ export default function StockPicker({ selectedStocks = [], onAdd, onRemove, maxS
       {/* Quick Add Popular Stocks */}
       {canAddMore && selectedStocks.length < 3 && (
         <div>
-          <p className="text-[10px] md:text-xs text-slate-500 mb-2">Quick add popular stocks:</p>
+          <p className="text-[10px] md:text-xs text-slate-500 mb-2">Quick add popular:</p>
           <div className="flex flex-wrap gap-1.5 md:gap-2">
-            {POPULAR_STOCKS.slice(0, 8)
+            {[...POPULAR_STOCKS.slice(0, 6), ...POPULAR_ETFS.slice(0, 4)]
               .filter(stock => !selectedStocks.includes(stock.symbol))
+              .slice(0, 10)
               .map((stock) => (
                 <button
                   key={stock.symbol}

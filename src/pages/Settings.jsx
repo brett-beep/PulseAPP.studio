@@ -186,6 +186,8 @@ export default function Settings() {
         track("settings_viewed", {});
     }, []);
 
+    const isPremium = preferences?.is_premium === true;
+
     if (isLoading || !editedPrefs) {
         return (
             <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'hsl(var(--background))' }}>
@@ -412,8 +414,13 @@ export default function Settings() {
                         selectedStocks={editedPrefs.portfolio_holdings || []}
                         onAdd={handleAddStock}
                         onRemove={handleRemoveStock}
-                        maxStocks={10}
+                        maxStocks={isPremium ? 10 : 3}
                     />
+                    {!isPremium && (
+                        <p className="text-xs text-slate-500 mt-2">
+                            Free plan: up to 3 tickers. <span className="text-amber-600 font-medium">Upgrade to Pro</span> for up to 10.
+                        </p>
+                    )}
                 </motion.section>
 
                 <Separator />
