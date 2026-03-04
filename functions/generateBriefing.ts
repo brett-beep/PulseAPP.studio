@@ -4367,11 +4367,7 @@ Deno.serve(async (req) => {
     if (skippedTickers.length > 0) {
       console.log(`📋 [Stage 1D] Excluding unsupported tickers with no coverage: ${skippedTickers.join(", ")}`);
     }
-    console.log(`📦 [Stage 1C] ${tickerPackages.length} ticker packages built`);
-    for (const pkg of tickerPackages) {
-      const directCount = pkg.news_articles.filter((a) => a.relevance_type === "direct").length;
-      console.log(`   ${pkg.ticker}: coverage=${pkg.news_coverage}, articles=${pkg.news_articles.length} (${directCount} direct)`);
-    }
+    console.log(`📦 [Stage 1C] ${tickerPackages.length} ticker packages built: ${tickerPackages.map(p => `${p.ticker}=${p.news_coverage}(${p.news_articles.length})`).join(', ')}`);
 
     // =========================================================
     // PORTFOLIO IMPACT GATE: one batch LLM call to score all articles for material impact
