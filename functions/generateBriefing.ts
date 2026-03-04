@@ -5402,21 +5402,9 @@ RETURN FORMAT (JSON)
 
     console.log(`✅ [generateBriefing] Generated script: ${wc} words (~${estimatedMinutes} min)`);
 
-    // GUARD: Don't create a briefing with an empty or near-empty script
     if (wc < 50) {
-      console.error(`❌ [generateBriefing] Script too short (${wc} words). LLM may have returned empty. Aborting.`);
-      console.error(`   Stories fed to prompt: ${allBriefingStories.length} (rapid:${rapidFireForPrompt.length}, personal:${personalizedForPrompt.length})`);
-      return Response.json({
-        error: `Briefing script was too short (${wc} words). This can happen when news data is stale or the LLM returned an incomplete response. Please try again.`,
-        success: false,
-        debug: {
-          scriptWordCount: wc,
-          storiesTotal: allBriefingStories.length,
-          rapidFireCount: rapidFireForPrompt.length,
-          personalizedCount: personalizedForPrompt.length,
-          scoredStoriesCount: scoredStories.length,
-        },
-      }, { status: 500 });
+      await logBriefingError("legacy_script_short", `Script ${wc} words`, undefined, { wc, stories: allBriefingStories.length });
+      return Response.json({ error: `Briefing script was too short (${wc} words). Please try again.`, success: false }, { status: 500 });
     }
 
     // Story matching skipped in legacy fallback — using pre-selected stories directly
