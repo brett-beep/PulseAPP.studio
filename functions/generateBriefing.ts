@@ -4811,9 +4811,8 @@ Deno.serve(async (req) => {
           delivered_at: skipAudio ? deliveredAtNow3 : null,
         };
 
-        const saved3 = await base44.entities.DailyBriefing.create(baseRecord3);
-
-        console.log(`🔍 [Stage 3] Created briefing ${saved3.id}: ${wc3} words, ${allStories3.length} stories`);
+        let saved3; if (placeholderBriefingId) { await base44.asServiceRole.entities.DailyBriefing.update(placeholderBriefingId, baseRecord3); saved3 = { ...baseRecord3, id: placeholderBriefingId }; } else { saved3 = await base44.entities.DailyBriefing.create(baseRecord3); }
+        console.log(`🔍 [Stage 3] Briefing ${saved3.id}: ${wc3} words`);
 
         // ── Save Briefing Memory & Story Tracker (blocking: await before response so isolate doesn't exit) ──
         console.log("💾 [Memory] Saving briefing memory...");
