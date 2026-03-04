@@ -4449,8 +4449,7 @@ Deno.serve(async (req) => {
       economic: economicCalendar,
     };
 
-    const meta = rawIntelligence.metadata;
-    console.log(`✅ [Stage 1D] Raw Intelligence: user="${userName}" interests=${userInterests.length} holdings=${briefingTickers.length} | tickers=${meta.ticker_count} (strong=${meta.tickers_with_strong_coverage} mod=${meta.tickers_with_moderate_coverage} thin=${meta.tickers_with_thin_coverage} none=${meta.tickers_with_no_coverage}) | macro=${meta.macro_candidate_count} | pipeline=${meta.pipeline_duration_ms}ms`);
+    console.log(`✅ [Stage 1D] tickers=${rawIntelligence.metadata.ticker_count} macro=${rawIntelligence.metadata.macro_candidate_count} pipeline=${rawIntelligence.metadata.pipeline_duration_ms}ms`);
 
     // =========================================================
     // STAGE 2: THE ANALYST DESK (LLM Call)
