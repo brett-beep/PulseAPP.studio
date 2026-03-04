@@ -514,18 +514,7 @@ export default function Home() {
     enabled: !!user && !!preferences?.onboarding_completed,
     staleTime: 0,
     refetchOnMount: true,
-    refetchInterval: (() => {
-      if (isGenerating) return 2000;
-      // Brief polling after ready to pick up audio_url_part2 (stops after 30s or when part2 arrives)
-      if (todayBriefing?.status === "ready" && todayBriefing?.audio_url && !todayBriefing?.audio_url_part2) {
-        const readyAt = todayBriefing?.delivered_at;
-        if (readyAt) {
-          const secsSinceReady = (Date.now() - new Date(readyAt).getTime()) / 1000;
-          if (secsSinceReady < 30) return 3000;
-        }
-      }
-      return false;
-    })(),
+    refetchInterval: isGenerating ? 2000 : false,
   });
 
   console.log("📍 [Briefing State] isLoading:", briefingLoading);
