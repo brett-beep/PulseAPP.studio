@@ -4348,25 +4348,8 @@ Deno.serve(async (req) => {
     ]);
     const marketSnapshotPromise = Promise.resolve(marketSnapshotForAnalyst);
 
-    // ── Section 1A: Detailed diagnostic logging for personalization context ──
-    console.log(`📋 [Stage 0] Personalization context built:`);
-    console.log(`  - Recent memories: ${personalizationContext.last_briefings?.length || 0}`);
-    console.log(`  - Active stories: ${personalizationContext.active_stories?.length || 0}`);
-    console.log(`  - Days since last: ${personalizationContext.days_since_last}`);
-    console.log(`  - Holdings added: ${personalizationContext.holdings_changed?.added?.join(', ') || 'none'}`);
-    console.log(`  - Holdings removed: ${personalizationContext.holdings_changed?.removed?.join(', ') || 'none'}`);
-    console.log(`  - User day count: ${personalizationContext.user_day_count || 0}`);
-    if (personalizationContext.active_stories?.length > 0) {
-      personalizationContext.active_stories.slice(0, 5).forEach((s) => {
-        console.log(`  - Story: "${s.story_key}" mentions=${s.mention_count} type=${s.event_type}${s.big_event ? ' BIG_EVENT' : ''} last=${s.last_mentioned}`);
-      });
-    }
-
-    console.log(`📊 [Stage 1A] Got market data for ${briefingTickers.length} holdings`);
-    console.log(`📰 [Stage 1B] ${macroCandidates.length} macro candidates`);
-    macroCandidates.slice(0, 5).forEach((c, i) => {
-      console.log(`   ${i + 1}. [${c.source_query}] [${c.age_hours}h] ${c.title.slice(0, 65)}...`);
-    });
+    console.log(`📋 [Stage 0] memories=${personalizationContext.last_briefings?.length || 0} active_stories=${personalizationContext.active_stories?.length || 0} days_since=${personalizationContext.days_since_last} day_count=${personalizationContext.user_day_count || 0}`);
+    console.log(`📊 [Stage 1A] ${briefingTickers.length} holdings | [Stage 1B] ${macroCandidates.length} macro candidates`);
 
     // =========================================================
     // STAGE 1C TEST: Build per-ticker data packages
