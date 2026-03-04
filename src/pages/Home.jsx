@@ -1146,11 +1146,9 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
     if (briefingLoading && !isGenerating) return "Loading briefing...";
 
     if (isGenerating) {
-      // Real backend statuses take priority when they arrive
+      if (status === "failed") return "❌ Generation failed — try again";
       if (status === "generating_audio") return "🎵 Generating audio...";
       if (status === "uploading") return "📤 Almost ready...";
-
-      // Progressive messages while writing_script or before first poll
       if (elapsedSecs < 8) return "📡 Gathering market data...";
       if (elapsedSecs < 18) return "📰 Analyzing your portfolio news...";
       if (elapsedSecs < 35) return "🧠 Your analyst is selecting stories...";
@@ -1160,6 +1158,8 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
     }
 
     switch (status) {
+      case "generating":
+        return "📡 Generating...";
       case "writing_script":
         return "✍️ Writing your briefing script...";
       case "generating_audio":
@@ -1170,6 +1170,8 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
         return audioUrl ? "✅ Ready to Play" : "⏳ Finalizing...";
       case "script_ready":
         return "✅ Script Ready (audio skipped for testing)";
+      case "failed":
+        return "❌ Generation failed — try again";
       default:
         return "Ready to Generate";
     }
