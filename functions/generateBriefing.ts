@@ -4557,22 +4557,15 @@ Deno.serve(async (req) => {
         }
         console.log(`✅ [Stage 2] Complete (${stage2Ms}ms) energy=${analyzedBrief.market_energy} macro=${analyzedBrief.macro_selections.length} portfolio=${analyzedBrief.portfolio_selections.length}`);
 
-        // ── Section 6B: Validate new fields + fill safe defaults ──
+        // Validate + fill safe defaults for story_key, event_type, rank, big_event
         for (const ms of analyzedBrief.macro_selections || []) {
-          if (!ms.story_key) {
-            ms.story_key = (ms.hook || "unknown_macro").toLowerCase().replace(/[^a-z0-9\s]/g, "").trim().split(/\s+/).slice(0, 5).join("_").substring(0, 40);
-            console.log(`⚠️ [Stage 2] Missing story_key for macro story, generated: "${ms.story_key}"`);
-          }
-          if (!ms.event_type) { ms.event_type = "breaking"; console.log(`⚠️ [Stage 2] Missing event_type for "${ms.story_key}", defaulting to "breaking"`); }
-          if (ms.rank === undefined) { console.log(`⚠️ [Stage 2] Missing rank for "${ms.story_key}"`); }
-          if (ms.big_event === undefined) { ms.big_event = false; }
+          if (!ms.story_key) ms.story_key = (ms.hook || "unknown_macro").toLowerCase().replace(/[^a-z0-9\s]/g, "").trim().split(/\s+/).slice(0, 5).join("_").substring(0, 40);
+          if (!ms.event_type) ms.event_type = "breaking";
+          if (ms.big_event === undefined) ms.big_event = false;
         }
         for (const ps of analyzedBrief.portfolio_selections || []) {
-          if (!ps.story_key) {
-            ps.story_key = ((ps.ticker || "") + "_" + (ps.hook || "unknown")).toLowerCase().replace(/[^a-z0-9\s]/g, "").trim().split(/\s+/).slice(0, 5).join("_").substring(0, 40);
-            console.log(`⚠️ [Stage 2] Missing story_key for ${ps.ticker} portfolio story, generated: "${ps.story_key}"`);
-          }
-          if (!ps.event_type) { ps.event_type = "breaking"; console.log(`⚠️ [Stage 2] Missing event_type for "${ps.story_key}", defaulting to "breaking"`); }
+          if (!ps.story_key) ps.story_key = ((ps.ticker || "") + "_" + (ps.hook || "unknown")).toLowerCase().replace(/[^a-z0-9\s]/g, "").trim().split(/\s+/).slice(0, 5).join("_").substring(0, 40);
+          if (!ps.event_type) ps.event_type = "breaking";
         }
 
         // ── Section 3C: Enforce big_event story MUST be rank 1 ──
