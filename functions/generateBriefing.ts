@@ -4184,14 +4184,7 @@ Deno.serve(async (req) => {
       })
       .filter(s => s.ageHours <= maxAgeHours);
 
-    console.log(`📅 Age filter: ${maxAgeHours}h (${isWeekendDay ? "weekend" : "weekday"}) → ${scoredStories.length} stories pass`);
-    console.log("🔥 [generateBriefing] Top breaking scores:");
-    scoredStories
-      .sort((a, b) => b.breakingScore - a.breakingScore)
-      .slice(0, 5)
-      .forEach((s, i) => {
-        console.log(`   ${i + 1}. [score: ${s.breakingScore}] [age: ${s.ageHours.toFixed(1)}h] ${(s.title || "").slice(0, 55)}...`);
-      });
+    console.log(`📅 Age filter: ${maxAgeHours}h → ${scoredStories.length} stories pass`);
 
     // =========================================================
     // STEP 1C: TIER 1 - Select RAPID FIRE candidates (top 6-8)
@@ -4305,10 +4298,7 @@ Deno.serve(async (req) => {
     // For UI cards and dedup logic, use top 3 from candidates
     let rapidFireStories = rapidFireCandidatesFinal.slice(0, 3);
 
-    console.log(`\n⚡ [generateBriefing] TIER 1 - RAPID FIRE (${rapidFireCandidatesFinal.length} candidates for LLM to editorialize → pick best 3):`);
-    rapidFireCandidatesFinal.forEach((s, i) => {
-      console.log(`   ${i + 1}. [score:${s.breakingScore}] [age:${s.ageHours.toFixed(1)}h] [${s.category}] ${(s.title || "").slice(0, 50)}...`);
-    });
+    console.log(`⚡ [TIER 1] ${rapidFireCandidatesFinal.length} rapid fire candidates`);
 
     // =========================================================
     // STEP 1D: TIER 2 - Select PERSONALIZED stories
@@ -4321,8 +4311,7 @@ Deno.serve(async (req) => {
     const userCategories = getMatchingCategories(userInterests);
     const userKeywords = getMatchingKeywords(userInterests);
 
-    console.log(`\n📊 [generateBriefing] User interests: ${userInterests.join(", ") || "none"}`);
-    console.log(`📊 [generateBriefing] Matching categories: ${userCategories.join(", ") || "all"}`);
+    console.log(`📊 Interests: ${userInterests.length} Categories: ${userCategories.length}`);
 
     const briefingTickers = userHoldings
       .map((h: any) => (typeof h === "string" ? h : h?.symbol || h?.ticker || "").toUpperCase().trim())
@@ -4338,7 +4327,7 @@ Deno.serve(async (req) => {
     // Calendar: earnings only (30d). Economic calendar is Finnhub premium — use static US calendar if needed.
     // =========================================================
     const finnhubKey = Deno.env.get("FINNHUB_API_KEY") || FINNHUB_FALLBACK_KEY;
-    console.log(`\n⚡ [Stage 0+1A+1B+Calendar+Snapshot] Loading memory + fetching market data, macro news, earnings calendar, and market snapshot in parallel...`);
+    console.log(`⚡ [Stage 0+1A+1B] Parallel fetch...`);
     const [tickerMarketMap, macroCandidates, earningsCalendar, marketSnapshotForAnalyst, personalizationContext] = await Promise.all([
       fetchAllTickerMarketData(briefingTickers),
       fetchMacroCandidates(userInterests),
@@ -4348,25 +4337,8 @@ Deno.serve(async (req) => {
     ]);
     const marketSnapshotPromise = Promise.resolve(marketSnapshotForAnalyst);
 
-    // ── Section 1A: Detailed diagnostic logging for personalization context ──
-    console.log(`📋 [Stage 0] Personalization context built:`);
-    console.log(`  - Recent memories: ${personalizationContext.last_briefings?.length || 0}`);
-    console.log(`  - Active stories: ${personalizationContext.active_stories?.length || 0}`);
-    console.log(`  - Days since last: ${personalizationContext.days_since_last}`);
-    console.log(`  - Holdings added: ${personalizationContext.holdings_changed?.added?.join(', ') || 'none'}`);
-    console.log(`  - Holdings removed: ${personalizationContext.holdings_changed?.removed?.join(', ') || 'none'}`);
-    console.log(`  - User day count: ${personalizationContext.user_day_count || 0}`);
-    if (personalizationContext.active_stories?.length > 0) {
-      personalizationContext.active_stories.slice(0, 5).forEach((s) => {
-        console.log(`  - Story: "${s.story_key}" mentions=${s.mention_count} type=${s.event_type}${s.big_event ? ' BIG_EVENT' : ''} last=${s.last_mentioned}`);
-      });
-    }
-
-    console.log(`📊 [Stage 1A] Got market data for ${briefingTickers.length} holdings`);
-    console.log(`📰 [Stage 1B] ${macroCandidates.length} macro candidates`);
-    macroCandidates.slice(0, 5).forEach((c, i) => {
-      console.log(`   ${i + 1}. [${c.source_query}] [${c.age_hours}h] ${c.title.slice(0, 65)}...`);
-    });
+    console.log(`📋 [Stage 0] memories=${personalizationContext.last_briefings?.length || 0} active_stories=${personalizationContext.active_stories?.length || 0} days_since=${personalizationContext.days_since_last} day_count=${personalizationContext.user_day_count || 0}`);
+    console.log(`📊 [Stage 1A] ${briefingTickers.length} holdings | [Stage 1B] ${macroCandidates.length} macro candidates`);
 
     // =========================================================
     // STAGE 1C TEST: Build per-ticker data packages
@@ -4384,11 +4356,7 @@ Deno.serve(async (req) => {
     if (skippedTickers.length > 0) {
       console.log(`📋 [Stage 1D] Excluding unsupported tickers with no coverage: ${skippedTickers.join(", ")}`);
     }
-    console.log(`📦 [Stage 1C] ${tickerPackages.length} ticker packages built`);
-    for (const pkg of tickerPackages) {
-      const directCount = pkg.news_articles.filter((a) => a.relevance_type === "direct").length;
-      console.log(`   ${pkg.ticker}: coverage=${pkg.news_coverage}, articles=${pkg.news_articles.length} (${directCount} direct)`);
-    }
+    console.log(`📦 [Stage 1C] ${tickerPackages.length} ticker packages built: ${tickerPackages.map(p => `${p.ticker}=${p.news_coverage}(${p.news_articles.length})`).join(', ')}`);
 
     // =========================================================
     // PORTFOLIO IMPACT GATE: one batch LLM call to score all articles for material impact
@@ -4481,8 +4449,7 @@ Deno.serve(async (req) => {
       economic: economicCalendar,
     };
 
-    const meta = rawIntelligence.metadata;
-    console.log(`✅ [Stage 1D] Raw Intelligence: user="${userName}" interests=${userInterests.length} holdings=${briefingTickers.length} | tickers=${meta.ticker_count} (strong=${meta.tickers_with_strong_coverage} mod=${meta.tickers_with_moderate_coverage} thin=${meta.tickers_with_thin_coverage} none=${meta.tickers_with_no_coverage}) | macro=${meta.macro_candidate_count} | pipeline=${meta.pipeline_duration_ms}ms`);
+    console.log(`✅ [Stage 1D] tickers=${rawIntelligence.metadata.ticker_count} macro=${rawIntelligence.metadata.macro_candidate_count} pipeline=${rawIntelligence.metadata.pipeline_duration_ms}ms`);
 
     // =========================================================
     // STAGE 2: THE ANALYST DESK (LLM Call)
@@ -4578,22 +4545,15 @@ Deno.serve(async (req) => {
         }
         console.log(`✅ [Stage 2] Complete (${stage2Ms}ms) energy=${analyzedBrief.market_energy} macro=${analyzedBrief.macro_selections.length} portfolio=${analyzedBrief.portfolio_selections.length}`);
 
-        // ── Section 6B: Validate new fields + fill safe defaults ──
+        // Validate + fill safe defaults for story_key, event_type, rank, big_event
         for (const ms of analyzedBrief.macro_selections || []) {
-          if (!ms.story_key) {
-            ms.story_key = (ms.hook || "unknown_macro").toLowerCase().replace(/[^a-z0-9\s]/g, "").trim().split(/\s+/).slice(0, 5).join("_").substring(0, 40);
-            console.log(`⚠️ [Stage 2] Missing story_key for macro story, generated: "${ms.story_key}"`);
-          }
-          if (!ms.event_type) { ms.event_type = "breaking"; console.log(`⚠️ [Stage 2] Missing event_type for "${ms.story_key}", defaulting to "breaking"`); }
-          if (ms.rank === undefined) { console.log(`⚠️ [Stage 2] Missing rank for "${ms.story_key}"`); }
-          if (ms.big_event === undefined) { ms.big_event = false; }
+          if (!ms.story_key) ms.story_key = (ms.hook || "unknown_macro").toLowerCase().replace(/[^a-z0-9\s]/g, "").trim().split(/\s+/).slice(0, 5).join("_").substring(0, 40);
+          if (!ms.event_type) ms.event_type = "breaking";
+          if (ms.big_event === undefined) ms.big_event = false;
         }
         for (const ps of analyzedBrief.portfolio_selections || []) {
-          if (!ps.story_key) {
-            ps.story_key = ((ps.ticker || "") + "_" + (ps.hook || "unknown")).toLowerCase().replace(/[^a-z0-9\s]/g, "").trim().split(/\s+/).slice(0, 5).join("_").substring(0, 40);
-            console.log(`⚠️ [Stage 2] Missing story_key for ${ps.ticker} portfolio story, generated: "${ps.story_key}"`);
-          }
-          if (!ps.event_type) { ps.event_type = "breaking"; console.log(`⚠️ [Stage 2] Missing event_type for "${ps.story_key}", defaulting to "breaking"`); }
+          if (!ps.story_key) ps.story_key = ((ps.ticker || "") + "_" + (ps.hook || "unknown")).toLowerCase().replace(/[^a-z0-9\s]/g, "").trim().split(/\s+/).slice(0, 5).join("_").substring(0, 40);
+          if (!ps.event_type) ps.event_type = "breaking";
         }
 
         // ── Section 3C: Enforce big_event story MUST be rank 1 ──
@@ -4619,14 +4579,7 @@ Deno.serve(async (req) => {
           ).join(', ')}`);
         }
 
-        // ── Section 5B: Portfolio count safeguard ──
-        const portfolioCount = analyzedBrief.portfolio_selections?.length || 0;
-        if (portfolioCount < 3 && briefingTickers.length < 3) {
-          console.log(`⚠️ [Stage 2] Only ${portfolioCount} portfolio stories for ${briefingTickers.length} holdings. Expected at least 3 if quality articles available.`);
-        }
-        for (const ps of analyzedBrief.portfolio_selections || []) {
-          console.log(`📊 [Stage 2] Portfolio: ${ps.ticker} — "${ps.story_key}" (event_type=${ps.event_type})`);
-        }
+        console.log(`📊 [Stage 2] macro=${analyzedBrief.macro_selections.length} portfolio=${analyzedBrief.portfolio_selections?.length || 0}`);
       }
     } catch (analystErr: any) {
       console.error(`❌ [Stage 2] Analyst Desk failed: ${analystErr.message}`);
@@ -4858,9 +4811,8 @@ Deno.serve(async (req) => {
           delivered_at: skipAudio ? deliveredAtNow3 : null,
         };
 
-        const saved3 = await base44.entities.DailyBriefing.create(baseRecord3);
-
-        console.log(`🔍 [Stage 3] Created briefing ${saved3.id}: ${wc3} words, ${allStories3.length} stories`);
+        let saved3; if (placeholderBriefingId) { await base44.asServiceRole.entities.DailyBriefing.update(placeholderBriefingId, baseRecord3); saved3 = { ...baseRecord3, id: placeholderBriefingId }; } else { saved3 = await base44.entities.DailyBriefing.create(baseRecord3); }
+        console.log(`🔍 [Stage 3] Briefing ${saved3.id}: ${wc3} words`);
 
         // ── Save Briefing Memory & Story Tracker (blocking: await before response so isolate doesn't exit) ──
         console.log("💾 [Memory] Saving briefing memory...");
@@ -4990,10 +4942,7 @@ Deno.serve(async (req) => {
       portfolioNewsBatch = topPortfolio;
       personalizedStories = portfolioNewsBatch.slice(0, 3); // UI cards
 
-      console.log(`   📊 Top portfolio stories:`);
-      topPortfolio.forEach((s: any, i: number) => {
-        console.log(`   ${i + 1}. [pScore:${s._portfolioScore}] [age:${(s.ageHours || 0).toFixed(1)}h] ${(s.title || "").slice(0, 55)}...`);
-      });
+      console.log(`   📊 Top ${topPortfolio.length} portfolio stories selected`);
     } else {
       // FALLBACK: shared NewsCache — financial relevance gated
       console.log(`📂 [Tier 2] Falling back to shared NewsCache (${tickerCacheStories.length} ticker stories < 3 minimum)`);
@@ -5453,21 +5402,9 @@ RETURN FORMAT (JSON)
 
     console.log(`✅ [generateBriefing] Generated script: ${wc} words (~${estimatedMinutes} min)`);
 
-    // GUARD: Don't create a briefing with an empty or near-empty script
     if (wc < 50) {
-      console.error(`❌ [generateBriefing] Script too short (${wc} words). LLM may have returned empty. Aborting.`);
-      console.error(`   Stories fed to prompt: ${allBriefingStories.length} (rapid:${rapidFireForPrompt.length}, personal:${personalizedForPrompt.length})`);
-      return Response.json({
-        error: `Briefing script was too short (${wc} words). This can happen when news data is stale or the LLM returned an incomplete response. Please try again.`,
-        success: false,
-        debug: {
-          scriptWordCount: wc,
-          storiesTotal: allBriefingStories.length,
-          rapidFireCount: rapidFireForPrompt.length,
-          personalizedCount: personalizedForPrompt.length,
-          scoredStoriesCount: scoredStories.length,
-        },
-      }, { status: 500 });
+      await logBriefingError("legacy_script_short", `Script ${wc} words`, undefined, { wc, stories: allBriefingStories.length });
+      return Response.json({ error: `Briefing script was too short (${wc} words). Please try again.`, success: false }, { status: 500 });
     }
 
     // Story matching skipped in legacy fallback — using pre-selected stories directly
@@ -5493,9 +5430,8 @@ RETURN FORMAT (JSON)
       delivered_at: skipAudio ? deliveredAtNow : null,
     };
 
-    const saved = await base44.entities.DailyBriefing.create(baseRecord);
-
-    console.log(`🔍 [Legacy] Created briefing ${saved.id}: status=${saved.status}`);
+    let saved; if (placeholderBriefingId) { await base44.asServiceRole.entities.DailyBriefing.update(placeholderBriefingId, baseRecord); saved = { ...baseRecord, id: placeholderBriefingId }; } else { saved = await base44.entities.DailyBriefing.create(baseRecord); }
+    console.log(`🔍 [Legacy] Briefing ${saved.id}: status=${saved.status}`);
 
     if (skipAudio) {
       return Response.json({
@@ -5528,8 +5464,8 @@ RETURN FORMAT (JSON)
       message: "Hang Tight! We're writing your briefing script...",
     });
   } catch (error) {
-    console.error("Error in generateBriefing:", error);
-    return Response.json({ error: error?.message || String(error), stack: error?.stack }, { status: 500 });
+    console.error("Error:", error); try{const eb=createClientFromRequest(req);const eu=await eb.auth.me().catch(()=>null);await eb.asServiceRole.entities.BriefingError.create({user_email:eu?.email||"?",date:new Date().toISOString().slice(0,10),stage:"crash",error_message:String(error?.message||error).slice(0,2000)})}catch(_){}
+    return Response.json({ error: error?.message || String(error) }, { status: 500 });
   }
 });
 

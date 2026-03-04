@@ -552,42 +552,59 @@ export default function Home() {
     }
   }, [user, preferences, todayBriefing]);
 
-  // Auto-stop isGenerating when briefing is ready OR script_ready (since you skip audio sometimes)
-  // FIX: Only stop if the briefing was delivered AFTER we started generating
+  // FIX #3: Auto-stop isGenerating — trust the briefing status directly.
+  // If ANY briefing from today has status "ready" or "script_ready" that was
+  // created/updated after we started generating, stop. Also stop if status is "failed".
+  // Fallback: if stuck generating for >3 minutes, force-stop and refetch.
   useEffect(() => {
     if (!isGenerating || !generationStartedAt) return;
-    
-    const isReady = todayBriefing?.status === "ready" || todayBriefing?.status === "script_ready";
-    if (!isReady) return;
 
-    // Track briefing_generation_completed once
-    const scriptText = todayBriefing?.script || "";
-    const wordCount = scriptText.split(/\s+/).filter(Boolean).length;
-    track("briefing_generation_completed", {
-      script_word_count: wordCount,
-      duration_seconds: todayBriefing?.duration_minutes ? Math.round(todayBriefing.duration_minutes * 60) : null,
-    });
-    
-    // Check if this briefing was delivered after we started generating
-    const deliveredAt = todayBriefing?.delivered_at || todayBriefing?.updated_date || todayBriefing?.created_date || todayBriefing?.updated_at || todayBriefing?.created_at;
-    if (!deliveredAt) return;
-    
-    const deliveredTime = parseBase44Timestamp(deliveredAt)?.getTime() || 0;
-    const startedTime = generationStartedAt.getTime();
-    
-    // Only stop if this briefing was delivered AFTER we clicked generate (with 5s buffer for clock skew)
-    if (deliveredTime >= startedTime - 5000) {
-      console.log("✅ NEW Briefing is delivered! Stopping generation state.");
-      console.log("   - Generation started at:", generationStartedAt.toISOString());
-      console.log("   - Briefing delivered at:", deliveredAt);
+    // Safety timeout: if stuck for >3 minutes, force-stop
+    const elapsedMs = Date.now() - generationStartedAt.getTime();
+    if (elapsedMs > 180000) {
+      console.log("⏰ Generation stuck for >3 min — force-stopping and refetching.");
       setIsGenerating(false);
       setGenerationStartedAt(null);
-    } else {
-      console.log("⏳ Old briefing detected, still waiting for new one...");
-      console.log("   - Generation started at:", generationStartedAt.toISOString());
-      console.log("   - Old briefing delivered at:", deliveredAt);
+      refetchBriefing();
+      return;
     }
-  }, [isGenerating, generationStartedAt, todayBriefing?.status, todayBriefing?.delivered_at, todayBriefing?.updated_date, todayBriefing?.created_date, todayBriefing?.updated_at, todayBriefing?.created_at]);
+
+    // Check if any briefing from today's list indicates completion or failure
+    if (!briefings || !Array.isArray(briefings)) return;
+    
+    for (const b of briefings) {
+      const status = b?.status;
+      // If we find a "failed" briefing created after we started, stop generating
+      if (status === "failed") {
+        const createdAt = parseBase44Timestamp(b?.created_date)?.getTime() || 0;
+        if (createdAt >= generationStartedAt.getTime() - 5000) {
+          console.log("❌ Briefing failed (status=failed). Stopping generation.");
+          setIsGenerating(false);
+          setGenerationStartedAt(null);
+          return;
+        }
+      }
+      
+      // If we find a ready/script_ready briefing delivered after we started
+      if (status === "ready" || status === "script_ready") {
+        const deliveredAt = b?.delivered_at || b?.updated_date || b?.created_date;
+        if (!deliveredAt) continue;
+        const deliveredTime = parseBase44Timestamp(deliveredAt)?.getTime() || 0;
+        if (deliveredTime >= generationStartedAt.getTime() - 5000) {
+          const scriptText = b?.script || "";
+          const wordCount = scriptText.split(/\s+/).filter(Boolean).length;
+          track("briefing_generation_completed", {
+            script_word_count: wordCount,
+            duration_seconds: b?.duration_minutes ? Math.round(b.duration_minutes * 60) : null,
+          });
+          console.log("✅ Briefing delivered! Stopping generation.");
+          setIsGenerating(false);
+          setGenerationStartedAt(null);
+          return;
+        }
+      }
+    }
+  }, [isGenerating, generationStartedAt, briefings, refetchBriefing]);
 
   // =========================================================
   // COUNTDOWN: ONLY START AFTER BRIEFING IS DELIVERED
@@ -1129,11 +1146,9 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
     if (briefingLoading && !isGenerating) return "Loading briefing...";
 
     if (isGenerating) {
-      // Real backend statuses take priority when they arrive
+      if (status === "failed") return "❌ Generation failed — try again";
       if (status === "generating_audio") return "🎵 Generating audio...";
       if (status === "uploading") return "📤 Almost ready...";
-
-      // Progressive messages while writing_script or before first poll
       if (elapsedSecs < 8) return "📡 Gathering market data...";
       if (elapsedSecs < 18) return "📰 Analyzing your portfolio news...";
       if (elapsedSecs < 35) return "🧠 Your analyst is selecting stories...";
@@ -1143,6 +1158,8 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
     }
 
     switch (status) {
+      case "generating":
+        return "📡 Generating...";
       case "writing_script":
         return "✍️ Writing your briefing script...";
       case "generating_audio":
@@ -1153,6 +1170,8 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
         return audioUrl ? "✅ Ready to Play" : "⏳ Finalizing...";
       case "script_ready":
         return "✅ Script Ready (audio skipped for testing)";
+      case "failed":
+        return "❌ Generation failed — try again";
       default:
         return "Ready to Generate";
     }
