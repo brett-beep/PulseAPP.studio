@@ -5478,8 +5478,8 @@ RETURN FORMAT (JSON)
       message: "Hang Tight! We're writing your briefing script...",
     });
   } catch (error) {
-    console.error("Error in generateBriefing:", error);
-    return Response.json({ error: error?.message || String(error), stack: error?.stack }, { status: 500 });
+    console.error("Error:", error); try{const eb=createClientFromRequest(req);const eu=await eb.auth.me().catch(()=>null);await eb.asServiceRole.entities.BriefingError.create({user_email:eu?.email||"?",date:new Date().toISOString().slice(0,10),stage:"crash",error_message:String(error?.message||error).slice(0,2000)})}catch(_){}
+    return Response.json({ error: error?.message || String(error) }, { status: 500 });
   }
 });
 
