@@ -4334,7 +4334,7 @@ Deno.serve(async (req) => {
     // Calendar: earnings only (30d). Economic calendar is Finnhub premium — use static US calendar if needed.
     // =========================================================
     const finnhubKey = Deno.env.get("FINNHUB_API_KEY") || FINNHUB_FALLBACK_KEY;
-    console.log(`\n⚡ [Stage 0+1A+1B+Calendar+Snapshot] Loading memory + fetching market data, macro news, earnings calendar, and market snapshot in parallel...`);
+    console.log(`⚡ [Stage 0+1A+1B] Parallel fetch...`);
     const [tickerMarketMap, macroCandidates, earningsCalendar, marketSnapshotForAnalyst, personalizationContext] = await Promise.all([
       fetchAllTickerMarketData(briefingTickers),
       fetchMacroCandidates(userInterests),
