@@ -4184,14 +4184,7 @@ Deno.serve(async (req) => {
       })
       .filter(s => s.ageHours <= maxAgeHours);
 
-    console.log(`📅 Age filter: ${maxAgeHours}h (${isWeekendDay ? "weekend" : "weekday"}) → ${scoredStories.length} stories pass`);
-    console.log("🔥 [generateBriefing] Top breaking scores:");
-    scoredStories
-      .sort((a, b) => b.breakingScore - a.breakingScore)
-      .slice(0, 5)
-      .forEach((s, i) => {
-        console.log(`   ${i + 1}. [score: ${s.breakingScore}] [age: ${s.ageHours.toFixed(1)}h] ${(s.title || "").slice(0, 55)}...`);
-      });
+    console.log(`📅 Age filter: ${maxAgeHours}h → ${scoredStories.length} stories pass`);
 
     // =========================================================
     // STEP 1C: TIER 1 - Select RAPID FIRE candidates (top 6-8)
