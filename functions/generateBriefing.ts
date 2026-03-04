@@ -4950,7 +4950,7 @@ Deno.serve(async (req) => {
           delivered_at: skipAudio ? deliveredAtNow3 : null,
         };
 
-        let saved3; if (placeholderBriefingId) { await base44.asServiceRole.entities.DailyBriefing.update(placeholderBriefingId, baseRecord3); saved3 = { ...baseRecord3, id: placeholderBriefingId }; } else { saved3 = await base44.entities.DailyBriefing.create(baseRecord3); }
+        const saved3 = await base44.entities.DailyBriefing.create(baseRecord3);
         console.log(`🔍 [Stage 3] Briefing ${saved3.id}: ${wc3} words`);
 
         // ── Save Briefing Memory & Story Tracker (blocking: await before response so isolate doesn't exit) ──
@@ -5569,7 +5569,7 @@ RETURN FORMAT (JSON)
       delivered_at: skipAudio ? deliveredAtNow : null,
     };
 
-    let saved; if (placeholderBriefingId) { await base44.asServiceRole.entities.DailyBriefing.update(placeholderBriefingId, baseRecord); saved = { ...baseRecord, id: placeholderBriefingId }; } else { saved = await base44.entities.DailyBriefing.create(baseRecord); }
+    const saved = await base44.entities.DailyBriefing.create(baseRecord);
     console.log(`🔍 [Legacy] Briefing ${saved.id}: status=${saved.status}`);
 
     if (skipAudio) {

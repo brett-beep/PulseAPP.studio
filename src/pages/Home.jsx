@@ -554,8 +554,11 @@ export default function Home() {
 
   // =========================================================
   // PREWARM: Pre-fetch pipeline data on Home mount (Option B)
-  // Fires once when user+prefs are loaded and no briefing today.
+  // Fires AT MOST once per calendar day (persisted via localStorage).
+  // Skips if user already has a briefing today or is on cooldown.
   // The promise is awaited in generateFullBriefing if still in flight.
+  // Server-side cache TTL is 30 min — if user waits longer, generate
+  // falls back to the full pipeline automatically.
   // =========================================================
   const prewarmPromiseRef = useRef(null);
   const prewarmFiredRef = useRef(false);
@@ -573,11 +576,26 @@ export default function Home() {
       return;
     }
 
+    if (!canGenerateNew) {
+      console.log("🔥 [Prewarm] Skipping — briefing on cooldown");
+      return;
+    }
+
     const holdings = preferences?.portfolio_holdings || [];
     if (holdings.length === 0) {
       console.log("🔥 [Prewarm] Skipping — no holdings");
       return;
     }
+
+    const PREWARM_LS_KEY = "pulse_prewarm_last";
+    try {
+      const last = localStorage.getItem(PREWARM_LS_KEY);
+      if (last === today) {
+        console.log("🔥 [Prewarm] Skipping — already prewarmed today (localStorage)");
+        prewarmFiredRef.current = true;
+        return;
+      }
+    } catch {}
 
     prewarmFiredRef.current = true;
     console.log("🔥 [Prewarm] Firing prewarm on Home mount...");
@@ -596,13 +614,14 @@ export default function Home() {
       .then((resp) => {
         const dur = Date.now() - startMs;
         console.log(`🔥 [Prewarm] Complete in ${dur}ms:`, resp?.data);
+        try { localStorage.setItem(PREWARM_LS_KEY, today); } catch {}
         return resp;
       })
       .catch((err) => {
         console.warn("🔥 [Prewarm] Failed (will fall back to full pipeline):", err?.message);
         prewarmPromiseRef.current = null;
       });
-  }, [user, preferences, briefingLoading, briefings, today, userTimeZone]);
+  }, [user, preferences, briefingLoading, briefings, today, userTimeZone, canGenerateNew]);
 
   // ── app_home_viewed: fires once per mount when data is ready ──
   useEffect(() => {
