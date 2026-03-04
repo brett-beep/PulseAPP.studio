@@ -5442,9 +5442,8 @@ RETURN FORMAT (JSON)
       delivered_at: skipAudio ? deliveredAtNow : null,
     };
 
-    const saved = await base44.entities.DailyBriefing.create(baseRecord);
-
-    console.log(`🔍 [Legacy] Created briefing ${saved.id}: status=${saved.status}`);
+    let saved; if (placeholderBriefingId) { await base44.asServiceRole.entities.DailyBriefing.update(placeholderBriefingId, baseRecord); saved = { ...baseRecord, id: placeholderBriefingId }; } else { saved = await base44.entities.DailyBriefing.create(baseRecord); }
+    console.log(`🔍 [Legacy] Briefing ${saved.id}: status=${saved.status}`);
 
     if (skipAudio) {
       return Response.json({
