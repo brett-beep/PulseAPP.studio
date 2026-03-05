@@ -687,8 +687,36 @@ async function invokeLLM(base44, prompt, addInternet, schema) {
   });
 }
 
-async function generateAudioFile(script, date, elevenLabsApiKey) {
-  const voiceId = "WZlYpi1yf6zJhNWXih74";
+async function generateAudioFile(script, date, elevenLabsApiKey, preferredVoice) {
+  let voiceId: string;
+  let stability: number;
+  let similarity_boost: number;
+  let style: number;
+  let speed: number;
+
+  const normalized = (preferredVoice || "professional").toLowerCase().trim();
+  const voiceMode = normalized === "energetic" ? "hybrid" : normalized;
+
+  if (voiceMode === "conversational") {
+    voiceId = "OYTbf65OHHFELVut7v2H";
+    stability = 0.45;
+    similarity_boost = 0.75;
+    style = 0;
+    speed = 1;
+  } else if (voiceMode === "professional") {
+    voiceId = "WZlYpi1yf6zJhNWXih74";
+    stability = 0.45;
+    similarity_boost = 0.6;
+    style = 0.1;
+    speed = 1.2;
+  } else {
+    // hybrid (or unknown): unchanged
+    voiceId = "WZlYpi1yf6zJhNWXih74";
+    stability = 0.38;
+    similarity_boost = 0.6;
+    style = 0.1;
+    speed = 1.1;
+  }
 
   const ttsResponse = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
     method: "POST",
@@ -697,18 +725,18 @@ async function generateAudioFile(script, date, elevenLabsApiKey) {
       "Content-Type": "application/json",
       "xi-api-key": elevenLabsApiKey,
     },
-      body: JSON.stringify({
-        text: script,
-        model_id: "eleven_turbo_v2_5",
-        output_format: "mp3_44100_128",
-        voice_settings: {
-          stability: 0.38,
-          similarity_boost: 0.6,
-          style: 0.1,
-          use_speaker_boost: true,
-        },
-        speed: 1.1,
-      }),
+    body: JSON.stringify({
+      text: script,
+      model_id: "eleven_turbo_v2_5",
+      output_format: "mp3_44100_128",
+      voice_settings: {
+        stability,
+        similarity_boost,
+        style,
+        use_speaker_boost: true,
+      },
+      speed,
+    }),
   });
 
   if (!ttsResponse.ok) {
@@ -3952,7 +3980,8 @@ Deno.serve(async (req) => {
       });
 
       const scriptForTTS = numbersToSpokenForm(script);
-      const audioFile = await generateAudioFile(scriptForTTS, date, elevenLabsApiKey);
+      const preferredVoiceAudioOnly = safeText(preferences?.preferred_voice, "professional");
+      const audioFile = await generateAudioFile(scriptForTTS, date, elevenLabsApiKey, preferredVoiceAudioOnly);
 
       const { file_uri } = await base44.asServiceRole.integrations.Core.UploadPrivateFile({
         file: audioFile,
@@ -4751,7 +4780,8 @@ Deno.serve(async (req) => {
 
         // ── Async audio generation ──
         console.log("✅ [Stage 3] Starting async audio generation...");
-        generateAudioAsync(base44, saved3.id, script3, date, elevenLabsApiKey, timeZone).catch((error) => {
+        const preferredVoiceForTTS = safeText(preferences?.preferred_voice, "professional");
+        generateAudioAsync(base44, saved3.id, script3, date, elevenLabsApiKey, timeZone, preferredVoiceForTTS).catch((error) => {
           console.error("❌ Async audio generation failed:", error);
           base44.asServiceRole.entities.DailyBriefing.update(saved3.id, {
             status: "failed",
@@ -5369,7 +5399,8 @@ RETURN FORMAT (JSON)
     // =========================================================
     console.log("✅ Briefing created; starting async audio generation...");
 
-    generateAudioAsync(base44, saved.id, script, date, elevenLabsApiKey, timeZone).catch((error) => {
+    const preferredVoiceForTTS = safeText(preferences?.preferred_voice, "professional");
+    generateAudioAsync(base44, saved.id, script, date, elevenLabsApiKey, timeZone, preferredVoiceForTTS).catch((error) => {
       console.error("❌ Async audio generation failed:", error);
       base44.asServiceRole.entities.DailyBriefing.update(saved.id, {
         status: "failed",
@@ -5390,8 +5421,8 @@ RETURN FORMAT (JSON)
   }
 });
 
-async function generateAudioAsync(base44Client, briefingId, script, date, elevenLabsApiKey, timeZone) {
-  console.log(`🎵 [Async Audio] Starting generation for briefing ${briefingId}...`);
+async function generateAudioAsync(base44Client, briefingId, script, date, elevenLabsApiKey, timeZone, preferredVoice) {
+  console.log(`🎵 [Async Audio] Starting generation for briefing ${briefingId}... (voice: ${preferredVoice || "professional"})`);
 
   try {
     await base44Client.asServiceRole.entities.DailyBriefing.update(briefingId, {
@@ -5400,7 +5431,7 @@ async function generateAudioAsync(base44Client, briefingId, script, date, eleven
     console.log("✅ [Status] Updated to generating_audio");
 
     const scriptForTTS = numbersToSpokenForm(script);
-    const audioFile = await generateAudioFile(scriptForTTS, date, elevenLabsApiKey);
+    const audioFile = await generateAudioFile(scriptForTTS, date, elevenLabsApiKey, preferredVoice);
     console.log(`✅ [Async Audio] Audio file generated`);
 
     await base44Client.asServiceRole.entities.DailyBriefing.update(briefingId, {
