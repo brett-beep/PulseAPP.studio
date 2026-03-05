@@ -4560,6 +4560,30 @@ Deno.serve(async (req) => {
         }
       }
 
+      // ── Content-based dedup: catch same-event stories the Analyst assigned different story_keys ──
+      if (!macroSameEvent && analyzedBrief.macro_selections && analyzedBrief.macro_selections.length >= 2) {
+        const sels = analyzedBrief.macro_selections;
+        const selTexts = sels.map((s: any) =>
+          [s.hook, s.so_what, ...(s.facts || [])].filter(Boolean).join(" ")
+        );
+        const duplicateIndices = new Set<number>();
+        for (let i = 0; i < selTexts.length; i++) {
+          for (let j = i + 1; j < selTexts.length; j++) {
+            if (isSimilarTitle(selTexts[i], selTexts[j])) {
+              duplicateIndices.add(i);
+              duplicateIndices.add(j);
+            }
+          }
+        }
+        if (duplicateIndices.size >= 2) {
+          const firstIdx = Math.min(...duplicateIndices);
+          const keepKey = sels[firstIdx].story_key || "duplicate_event";
+          macroSameEvent = { story_key: keepKey, count: duplicateIndices.size };
+          const pairs = [...duplicateIndices].map((idx) => `${idx + 1} ("${(sels[idx].hook || "").slice(0, 50)}")`).join(", ");
+          console.log(`📊 [Stage 2→3] Content-based dedup: macro selections ${pairs} cover the same event — applying Slot A/B/C diversity rule.`);
+        }
+      }
+
       // ── Build Scriptwriter Prompt + LLM (try/catch so 3B prompt or schema issues fall back to legacy, not 500) ──
       let scriptwriterResult: any = null;
       try {
@@ -4967,8 +4991,20 @@ Deno.serve(async (req) => {
       relevantToUserHoldings: detectRelevantHoldings(story, userHoldings),
     }));
 
-    // Pass ALL rapid fire candidates to LLM for editorial selection
-    const rapidFireCandidatesForPrompt = rapidFireCandidatesFinal.map((story: any, index: number) => {
+    // Content-based dedup on rapid-fire candidates: remove stories covering the same event
+    const rapidFireCandidatesDeduped = rapidFireCandidatesFinal.filter((story: any, idx: number) => {
+      for (let prev = 0; prev < idx; prev++) {
+        const textA = `${rapidFireCandidatesFinal[prev]?.title || ""} ${rapidFireCandidatesFinal[prev]?.what_happened || ""}`;
+        const textB = `${story?.title || ""} ${story?.what_happened || ""}`;
+        if (isSimilarTitle(textA, textB)) {
+          console.log(`📊 [Rapid Fire Dedup] Candidate ${idx + 1} ("${(story?.title || "").slice(0, 50)}") duplicates candidate ${prev + 1} — removed`);
+          return false;
+        }
+      }
+      return true;
+    });
+
+    const rapidFireCandidatesForPrompt = rapidFireCandidatesDeduped.map((story: any, index: number) => {
       const rawCat = safeText(story?.category, "default").toLowerCase();
       const category = allowedCats.has(rawCat) ? rawCat : "default";
       return {
