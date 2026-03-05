@@ -138,13 +138,36 @@ export default function AudioPlayer({
     return () => clearInterval(interval);
   }, [isPlaying, audioUrl, totalDuration]);
 
-  // Audio-reactive waveform: AnalyserNode drives bar heights when playing
+  // Audio-reactive waveform: AnalyserNode drives bar heights when playing.
+  // IMPORTANT: On mobile (iOS/WKWebView), creating a MediaElementSourceNode
+  // breaks playbackRate — audio becomes choppy instead of speed-adjusted.
+  // So we skip the AudioContext entirely on mobile and use a simulated waveform.
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !audioUrl || !isPlaying) {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       return;
     }
+
+    // On mobile: simulate waveform from currentTime (no AudioContext needed)
+    if (isMobileView) {
+      const barCount = 48;
+      const tick = () => {
+        const t = audio.currentTime || 0;
+        const bars = [];
+        for (let i = 0; i < barCount; i++) {
+          // Pseudo-random waveform driven by time + bar index
+          const v = 0.3 + 0.5 * Math.abs(Math.sin(t * 3.2 + i * 0.45) * Math.cos(t * 1.7 + i * 0.3));
+          bars.push(Math.min(1, v));
+        }
+        setFrequencyData(bars);
+        rafRef.current = requestAnimationFrame(tick);
+      };
+      rafRef.current = requestAnimationFrame(tick);
+      return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+    }
+
+    // Desktop: use real AudioContext analyser for frequency-reactive bars
     let ctx = audioContextRef.current;
     if (!ctx) {
       ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -179,7 +202,7 @@ export default function AudioPlayer({
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [audioUrl, isPlaying]);
+  }, [audioUrl, isPlaying, isMobileView]);
 
   const progress = totalDuration > 0 ? currentTime / totalDuration : 0;
   const rawSectionCount = Math.min(6, sectionStories?.length || 0);
