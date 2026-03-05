@@ -35,6 +35,7 @@ export default function AudioPlayer({
   const sourceRef = useRef(null);
   const rafRef = useRef(null);
   const playbackRateRef = useRef(1);
+  const precomputedWaveformRef = useRef(null); // Float32Array of per-frame RMS amplitudes
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [totalDuration, setTotalDuration] = useState((duration || 0) * 60 || 0);
