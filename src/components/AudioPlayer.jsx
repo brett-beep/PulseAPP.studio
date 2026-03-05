@@ -374,9 +374,42 @@ export default function AudioPlayer({
 
   const changeSpeed = (speed) => {
     const audio = audioRef.current;
-    if (audio) {
-      audio.playbackRate = speed;
+    if (!audio) {
+      setPlaybackRate(speed);
+      setShowSpeedMenu(false);
+      track("audio_speed_changed", { speed });
+      return;
     }
+
+    const wasPlaying = !audio.paused;
+
+    // On mobile (iOS/WKWebView), AudioContext's MediaElementSourceNode
+    // causes choppy playback when playbackRate changes. Fix: disconnect
+    // the analyser chain, apply speed, then reconnect.
+    if (audioContextRef.current && sourceRef.current && analyserRef.current) {
+      try {
+        sourceRef.current.disconnect();
+        analyserRef.current.disconnect();
+      } catch (_) {}
+    }
+
+    // Pause briefly to let the engine settle before rate change
+    if (wasPlaying) audio.pause();
+    audio.playbackRate = speed;
+
+    // Reconnect the audio graph
+    if (audioContextRef.current && sourceRef.current && analyserRef.current) {
+      try {
+        sourceRef.current.connect(analyserRef.current);
+        analyserRef.current.connect(audioContextRef.current.destination);
+      } catch (_) {}
+    }
+
+    // Resume playback
+    if (wasPlaying) {
+      audio.play().catch(() => {});
+    }
+
     setPlaybackRate(speed);
     setShowSpeedMenu(false);
     track("audio_speed_changed", { speed });
