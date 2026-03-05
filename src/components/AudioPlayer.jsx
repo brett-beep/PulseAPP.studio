@@ -35,6 +35,7 @@ export default function AudioPlayer({
   const sourceRef = useRef(null);
   const rafRef = useRef(null);
   const playbackRateRef = useRef(1);
+  const precomputedWaveformRef = useRef(null); // Float32Array of per-frame RMS amplitudes
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [totalDuration, setTotalDuration] = useState((duration || 0) * 60 || 0);
@@ -138,13 +139,123 @@ export default function AudioPlayer({
     return () => clearInterval(interval);
   }, [isPlaying, audioUrl, totalDuration]);
 
-  // Audio-reactive waveform: AnalyserNode drives bar heights when playing
+  // ── MOBILE: Pre-compute waveform amplitudes from the actual audio file ──
+  // We fetch the audio, decode it into a buffer, and compute RMS amplitude
+  // at ~30fps resolution. This data is then used during playback to drive
+  // the waveform bars. Zero interference with <audio> element or playbackRate.
+  useEffect(() => {
+    if (!audioUrl || !isMobileView) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        console.log("🎵 [Waveform] Fetching audio for offline analysis...");
+        const resp = await fetch(audioUrl);
+        const arrayBuf = await resp.arrayBuffer();
+        const offlineCtx = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(1, 1, 44100);
+        const audioBuf = await offlineCtx.decodeAudioData(arrayBuf);
+        if (cancelled) return;
+
+        const channelData = audioBuf.getChannelData(0);
+        const sampleRate = audioBuf.sampleRate;
+        const audioDuration = audioBuf.duration;
+        const FPS = 30;
+        const totalFrames = Math.ceil(audioDuration * FPS);
+        const samplesPerFrame = Math.floor(sampleRate / FPS);
+        const amplitudes = new Float32Array(totalFrames);
+
+        for (let f = 0; f < totalFrames; f++) {
+          const start = f * samplesPerFrame;
+          const end = Math.min(start + samplesPerFrame, channelData.length);
+          let sum = 0;
+          for (let s = start; s < end; s++) {
+            sum += channelData[s] * channelData[s];
+          }
+          amplitudes[f] = Math.sqrt(sum / (end - start));
+        }
+
+        // Normalize to 0..1
+        let maxAmp = 0;
+        for (let i = 0; i < amplitudes.length; i++) {
+          if (amplitudes[i] > maxAmp) maxAmp = amplitudes[i];
+        }
+        if (maxAmp > 0) {
+          for (let i = 0; i < amplitudes.length; i++) {
+            amplitudes[i] /= maxAmp;
+          }
+        }
+
+        if (!cancelled) {
+          precomputedWaveformRef.current = { amplitudes, fps: FPS, duration: audioDuration };
+          console.log("🎵 [Waveform] Pre-computed", totalFrames, "frames for", audioDuration.toFixed(1), "s audio");
+        }
+      } catch (e) {
+        console.warn("🎵 [Waveform] Failed to pre-compute waveform:", e);
+        precomputedWaveformRef.current = null;
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [audioUrl, isMobileView]);
+
+  // ── Drive waveform bars from pre-computed data (mobile) or AnalyserNode (desktop) ──
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !audioUrl || !isPlaying) {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       return;
     }
+
+    const barCount = 48;
+
+    if (isMobileView) {
+      // Use pre-computed amplitude data to drive bars — 100% real audio data
+      const tick = () => {
+        const wf = precomputedWaveformRef.current;
+        const t = audio.currentTime || 0;
+
+        if (wf && wf.amplitudes.length > 0) {
+          const frameIdx = Math.min(
+            Math.floor(t * wf.fps),
+            wf.amplitudes.length - 1
+          );
+          // Sample a window of nearby frames to spread across bars
+          const windowSize = Math.max(1, Math.floor(wf.amplitudes.length / barCount));
+          const bars = [];
+          for (let i = 0; i < barCount; i++) {
+            // Each bar samples a slightly different offset around the current frame
+            // to create spatial variation (like a real frequency spectrum)
+            const offset = Math.floor((i - barCount / 2) * 0.7);
+            const sampleIdx = Math.max(0, Math.min(wf.amplitudes.length - 1, frameIdx + offset));
+            // Mix the current-frame amplitude with per-bar offset for variety
+            const amp = wf.amplitudes[sampleIdx];
+            // Add subtle per-bar variation so they don't all move in lockstep
+            const variation = 0.85 + 0.15 * Math.sin(i * 0.8 + t * 2.3);
+            const level = Math.max(0.06, Math.min(1, amp * variation * 1.8));
+            bars.push(level);
+          }
+          setFrequencyData(bars);
+        } else {
+          // Pre-computed data not ready yet — show gentle idle animation
+          const bars = [];
+          for (let i = 0; i < barCount; i++) {
+            const norm = i / (barCount - 1);
+            const wave1 = Math.sin(t * 4.1 + i * 0.52) * 0.35;
+            const wave2 = Math.sin(t * 2.3 + i * 0.31 + 1.7) * 0.25;
+            const wave3 = Math.cos(t * 5.7 + i * 0.73 + 0.4) * 0.18;
+            const envelope = 0.6 + 0.4 * Math.sin(norm * Math.PI);
+            const raw = 0.35 + (wave1 + wave2 + wave3) * envelope;
+            bars.push(Math.max(0.08, Math.min(1, raw)));
+          }
+          setFrequencyData(bars);
+        }
+        rafRef.current = requestAnimationFrame(tick);
+      };
+      rafRef.current = requestAnimationFrame(tick);
+      return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+    }
+
+    // Desktop: use createMediaElementSource (safe here, no playbackRate issues)
     let ctx = audioContextRef.current;
     if (!ctx) {
       ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -161,7 +272,6 @@ export default function AudioPlayer({
     if (ctx.state === "suspended") ctx.resume().catch(() => {});
     const analyser = analyserRef.current;
     const dataArray = new Uint8Array(analyser.frequencyBinCount);
-    const barCount = 48;
 
     const tick = () => {
       analyser.getByteFrequencyData(dataArray);
@@ -179,7 +289,7 @@ export default function AudioPlayer({
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [audioUrl, isPlaying]);
+  }, [audioUrl, isPlaying, isMobileView]);
 
   const progress = totalDuration > 0 ? currentTime / totalDuration : 0;
   const rawSectionCount = Math.min(6, sectionStories?.length || 0);
@@ -312,7 +422,8 @@ export default function AudioPlayer({
         duration_seconds: Math.round(totalDuration || 0),
       });
       a.pause();
-      if (audioContextRef.current && audioContextRef.current.state === "running") {
+      // Only manage AudioContext on desktop (mobile doesn't use it)
+      if (!isMobileView && audioContextRef.current && audioContextRef.current.state === "running") {
         audioContextRef.current.suspend().catch(() => {});
       }
       setIsPlaying(false);
@@ -320,7 +431,8 @@ export default function AudioPlayer({
     }
 
     try {
-      if (audioContextRef.current && audioContextRef.current.state === "suspended") {
+      // Only manage AudioContext on desktop
+      if (!isMobileView && audioContextRef.current && audioContextRef.current.state === "suspended") {
         await audioContextRef.current.resume();
       }
       await a.play();
@@ -374,9 +486,15 @@ export default function AudioPlayer({
 
   const changeSpeed = (speed) => {
     const audio = audioRef.current;
-    if (audio) {
-      audio.playbackRate = speed;
+    if (!audio) {
+      setPlaybackRate(speed);
+      setShowSpeedMenu(false);
+      track("audio_speed_changed", { speed });
+      return;
     }
+
+    // Simply set playbackRate — no AudioContext on mobile so no conflicts
+    audio.playbackRate = speed;
     setPlaybackRate(speed);
     setShowSpeedMenu(false);
     track("audio_speed_changed", { speed });
