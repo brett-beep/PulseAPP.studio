@@ -34,6 +34,7 @@ export default function AudioPlayer({
   const analyserRef = useRef(null);
   const sourceRef = useRef(null);
   const rafRef = useRef(null);
+  const playbackRateRef = useRef(1);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [totalDuration, setTotalDuration] = useState((duration || 0) * 60 || 0);
@@ -88,10 +89,10 @@ export default function AudioPlayer({
     };
     const handleCanPlay = () => {
       console.log("🎵 [Audio Element] Can play");
-      audio.playbackRate = playbackRate;
+      audio.playbackRate = playbackRateRef.current;
     };
     const handleLoadedData = () => {
-      audio.playbackRate = playbackRate;
+      audio.playbackRate = playbackRateRef.current;
     };
 
     audio.addEventListener("timeupdate", handleTimeUpdate);
@@ -109,9 +110,10 @@ export default function AudioPlayer({
       audio.removeEventListener("canplay", handleCanPlay);
       audio.removeEventListener("loadeddata", handleLoadedData);
     };
-  }, [audioUrl, duration, onComplete, playbackRate]);
+  }, [audioUrl, duration, onComplete]);
 
   useEffect(() => {
+    playbackRateRef.current = playbackRate;
     const audio = audioRef.current;
     if (audio) {
       audio.playbackRate = playbackRate;
@@ -310,11 +312,17 @@ export default function AudioPlayer({
         duration_seconds: Math.round(totalDuration || 0),
       });
       a.pause();
+      if (audioContextRef.current && audioContextRef.current.state === "running") {
+        audioContextRef.current.suspend().catch(() => {});
+      }
       setIsPlaying(false);
       return;
     }
 
     try {
+      if (audioContextRef.current && audioContextRef.current.state === "suspended") {
+        await audioContextRef.current.resume();
+      }
       await a.play();
       track("audio_play_pressed", {
         playback_position_seconds: Math.round(a.currentTime || 0),
@@ -366,19 +374,12 @@ export default function AudioPlayer({
 
   const changeSpeed = (speed) => {
     const audio = audioRef.current;
-    const wasPlaying = audio && !audio.paused;
-    if (wasPlaying) {
-      audio.pause();
+    if (audio) {
+      audio.playbackRate = speed;
     }
     setPlaybackRate(speed);
     setShowSpeedMenu(false);
     track("audio_speed_changed", { speed });
-    if (wasPlaying && audio) {
-      audio.playbackRate = speed;
-      requestAnimationFrame(() => {
-        audio.play().catch(() => {});
-      });
-    }
   };
 
   const formatTime = (seconds) => {
