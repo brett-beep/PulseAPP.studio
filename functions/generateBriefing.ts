@@ -2965,7 +2965,7 @@ EXTRACTION FORMAT
 FOR EACH SELECTED STORY, EXTRACT:
 a) HOOK: One sentence that creates tension or curiosity
 b) FACTS: 2-3 specific data points (numbers, dates, names)
-c) SO_WHAT: One sentence connecting it to the listener's portfolio or market outlook
+c) SO_WHAT: Plain-language investment implication — why it matters for markets, rates, sectors, or supply chains. 1-2 sentences so the script can give a VP-of-research-style "so what" (e.g. impact on oil prices, Fed path, tech demand). Not vague; be specific.
 d) PLAIN_ENGLISH_BRIDGE: A one-liner that translates the concept into simple terms
    (e.g. "In simple terms — borrowing money stays expensive")
 e) CONFIDENCE: "high" (strong source, specific data), "medium" (decent source,
@@ -3181,10 +3181,12 @@ QUIET DAY RULE: If ALL articles for a holding have llm_impact_score 3 or below (
 - is_sector_level: true → frame at sector level, connect to holding. NEVER fabricate news.
 - story_key per selection: ticker-prefixed snake_case (e.g. "amzn_antitrust_california", "nvda_q4_earnings", "ba_market_data_only").
 
-FACTS: Every "facts" item must be a verifiable data point from the provided articles or market data. No speculation or filler. For market_data_only, use only quote data (e.g. "Current price: $X, up Y% today").
+FACTS: Every "facts" item must be a verifiable data point from the provided articles or market data. No speculation or filler. When the story involves a named product, initiative, or program (e.g. Amazon Connect Health, a new platform, a partnership), include its exact name and one sentence describing what it does — so the script can name it and explain it to the listener. For market_data_only, use only quote data (e.g. "Current price: $X, up Y% today").
 CROSS-REFERENCE: Combine specific data from ALL articles for each holding when using news; use most authoritative or most recent when numbers differ. Flag discrepancies in data_gap_note.
 
 DATA DEPTH (from each ticker_package): daily → brief (price + one insight). weekly → week-in-review. monthly → full review. earnings_ramp/earnings_day/earnings_aftermath → focus on earnings. weekend → light.
+
+SO_WHAT (investment analysis): This is the "so what" for the listener — plain-language breakdown of what the news means. Include: impact on this company; impact on the sector or industry; if the listener holds related names (e.g. healthcare competitors), mention competition or ripple effects. Use 2-3 sentences when the story is material (product launch, strategic pivot, regulatory change) so the script can deliver a VP-of-research-level segment. For quiet days or market_data_only, one sentence is fine. No vague filler ("worth watching", "space to keep an eye on"); be specific and informative.
 
 EXTRACTION PER HOLDING: ticker, company_name, data_depth, source_type (news|market_data_only), source_id, hook, facts (1-4), so_what, confidence, quote_context (current_price, change_today_pct), data_gap_note, transition_suggestion, story_key.
 
@@ -3234,7 +3236,7 @@ function buildScriptwriterPrompt(input: ScriptwriterInput): string {
     macroSameEvent,
   } = input;
 
-  const wordTarget = "450-600 words (~3-4 minutes)";
+  const wordTarget = "620-800 words (~4-5 minutes)";
 
   console.log(`📝 [Stage 3] Voice mode block injected: ${userVoicePreference}`);
 
@@ -3355,7 +3357,7 @@ MISSED BRIEFINGS: ${name} missed ${pCtx.days_since_last - 1} day(s). Brief catch
     return lines.join("\n");
   })();
 
-  const prompt = `SYSTEM: You host "Pulse" — a personalized financial audio briefing for ONE person (name, portfolio, interests). Pre-analyzed brief is provided; turn it into a compelling 3-4 min audio script that sounds natural. Useful + enjoyable.
+  const prompt = `SYSTEM: You host "Pulse" — a personalized financial audio briefing for ONE person (name, portfolio, interests). You are like a VP of financial analysis: give a clear, informative breakdown of what the news means in plain terms. Pre-analyzed brief is provided; turn it into a rich ~4-5 min audio script that sounds natural. Every section should be informative and investment-relevant — not just "what happened" but "what it means for you and the market."
 
 LISTENER: ${name} | ${naturalDate} | ${timeGreeting}${holidayGreeting ? ` | ${holidayGreeting}` : ""}${isWeekend ? " | Weekend" : ""}${isMonday ? " | Monday" : ""}${isFriday ? " | Friday" : ""}. Holdings: ${userHoldingsStr}. Sectors: ${userSectorInterests.join(", ")}
 MARKET: S&P ${marketSnapshot.sp500_pct} | Nasdaq ${marketSnapshot.nasdaq_pct} | Dow ${marketSnapshot.dow_pct}. Energy: ${analyzedBrief.market_energy}
@@ -3383,9 +3385,9 @@ WEEKEND: 350-450 words. No live markets. 1) Opening: warm, acknowledge weekend; 
 
 ` : `WEEKDAY (exact order):`}
 
-1) Opening (50-80w): greeting + each index ONCE + what's driving it; match market_energy; end "Here's your Pulse." 2) Rapid fire (80-140w): 3 macro_selections only; transitions "First up," "Meanwhile," "And finally,". Do NOT mention calendar watch items (PCE, earnings, CPI, Consumer Confidence, etc.) in Rapid Fire — reserve those for section 4 only. No portfolio names here.
+1) Opening (50-80w): greeting + each index ONCE + what's driving it; match market_energy; end "Here's your Pulse." 2) Rapid fire (120-200w): 3 macro_selections only; rich context per story — what happened plus plain-language investment implications (why it matters for markets, rates, sectors). Transitions "First up," "Meanwhile," "And finally,". Do NOT mention calendar watch items (PCE, earnings, CPI, Consumer Confidence, etc.) in Rapid Fire — reserve those for section 4 only. No portfolio names here.
 
-3) Portfolio (200-280w): portfolio_selections. Per holding: hook (1) → facts + numbers (1-2) → context/color (1, optional) → so_what (1). If market_data_only: brief, honest. Transitions: "Looking at your [company]," "Shifting to [company]," etc.
+3) Portfolio (320-450w): portfolio_selections. Per holding: name the product/initiative when relevant (e.g. "Amazon Connect Health") → one sentence on what it does → facts + numbers → SO WHAT = investment analysis in plain language (2-4 sentences when material: impact on company, sector, and if relevant other holdings). If market_data_only: brief, honest. Transitions: "Looking at your [company]," "Shifting to [company]," etc.
 ${skipped_tickers.length > 0 ? `Skipped tickers ${skipped_tickers.join(", ")}: one neutral sentence at end of portfolio; do not speculate.` : ""}
 
 4) What to watch (40-70w): Put ALL watch items (primary and secondary from analyzed_brief.watch_items) in this section only — one block after portfolio. Do not split them (e.g. one in Rapid Fire and one later). Cover both primary and secondary here; use reminder_context for catch-up/freshen. End with forward pull. 5) Sign-off (15-25w): Vary by market_energy (good/volatile/catalyst/quiet) and day (Friday/Monday); never repeat two days in a row.
@@ -5065,9 +5067,8 @@ Generate these fields:
 PART 2: AUDIO SCRIPT
 ═══════════════════════════════════════
 
-TARGET: 430-560 words (~3-4 minutes of audio).
-Keep it tight and energetic. Do NOT ramble. Hit every section with purpose.
-Prioritize fresh intra-day developments. Avoid repeating details already covered earlier today unless there is a materially new update.
+TARGET: 620-800 words (~4-5 minutes of audio).
+Keep it energetic and informative. You are like a VP of financial analysis — give a clear, plain-language breakdown of what the news means. Prioritize fresh intra-day developments. Avoid repeating details already covered earlier today unless there is a materially new update.
 
 ──── VOICE & TONE ────
 - **Write like you're talking to a finance friend at a bar, not presenting at a conference.**
@@ -5115,10 +5116,9 @@ STEP 1: WRITE RAPID FIRE SECTION NOW
 
 **CRITICAL: You may ONLY use stories from the MACRO/MARKET candidates below. Do NOT use ANY story from the portfolio data (that comes in Step 2).**
 
-**STYLE: Concise. Punchy. Impactful. Fast-paced.**
-- One tight beat per story: what happened + why it matters for market sentiment.
-- No deep dives — rapid fire means quick hits.
-- Target: 80-120 words total for all 3 stories.
+**STYLE: Rich but punchy. Each story = what happened + plain-language investment implications.**
+- For each of the 3 stories: state what happened (2-3 sentences), then explain in plain terms why it matters — for markets, rates, sectors, or supply chains. Think VP of research, not headline reader.
+- Target: 120-200 words total for all 3 stories. Give enough context and implication so the listener understands the "so what."
 
 **MANDATORY: Cover exactly 3 stories from the candidates below. Even if all are weak, pick the 3 least weak.**
 
@@ -5181,27 +5181,27 @@ Do NOT mention holdings that have no stories below.
 Do NOT create generic market commentary for missing holdings.
 ` : ""}
 
-**STYLE: Insightful. Forward-looking. Educational for investors.**
-- This is where you go deeper than rapid fire.
-- Give context, forward-looking analysis, and actionable takeaways.
-- Help the listener understand what this means for their holdings.
-- Target: 200-260 words total for all stories.
+**STYLE: VP of financial analysis. Informative, plain-language investment breakdown.**
+- This is where you go deeper. The listener should finish each holding segment understanding what happened, what it means for the company, and what it could mean for the sector or their other holdings.
+- When a story involves a product, initiative, or program (e.g. a new platform, partnership, or regulatory move): NAME IT (e.g. "Amazon Connect Health"), give one sentence on what it actually does, then the facts and numbers, then 2-4 sentences of investment analysis — impact on the company, on the industry, and if they hold competitors or related names, how that fits in.
+- Target: 320-450 words total for all portfolio stories. Major announcements get 5-8 sentences; quiet days stay 2-3 sentences. Depth when warranted.
 
 **Start this section with a clear transition:** "Now turning to your portfolio" or "Shifting to your holdings"
 
-**MANDATORY: Cover ${Math.min(3, portfolioNewsBatch.length)} portfolio stories from the candidates below. Pick the stories that give the listener ACTIONABLE INSIGHT.**
+**MANDATORY: Cover ${Math.min(3, portfolioNewsBatch.length)} portfolio stories from the candidates below. Pick the stories that give the listener ACTIONABLE, INFORMATIVE INSIGHT.**
 
 For each story, follow this arc:
-a) THE SETUP (1 sentence): Create tension or curiosity. Why should they care?
-b) WHAT HAPPENED (1-2 sentences): Hard facts. Numbers. Specifics. No hedging.
-c) SO WHAT FOR YOU (1 sentence): Direct connection to their holding. Concrete, not speculative.
+a) SETUP (1 sentence): Why should they care?
+b) NAME IT: If there's a product/initiative (e.g. "Amazon Connect Health"), say its name and one sentence on what it does. If not, skip.
+c) WHAT HAPPENED (1-2 sentences): Hard facts. Numbers. Specifics. No hedging.
+d) SO WHAT — INVESTMENT ANALYSIS (2-4 sentences when material): Plain-language breakdown. Impact on this company; impact on the sector or industry; if the listener holds related names (e.g. healthcare), mention competition or ripple effects. Concrete, not vague. Think "VP of research explaining to a smart client."
 
-**GOOD example:**
-"Now turning to your portfolio — Shopify options traders are pricing in a move to $139 after earnings tomorrow. That's an 8% jump from here, and with yesterday's 8.7% surge, your Shopify position is set up nicely heading into the report."
+**GOOD example (product launch):**
+"Starting with Amazon — the stock is up 0.37% today at $217.63. They just launched Amazon Connect Health, a new AI-enabled platform that helps healthcare providers streamline administrative tasks like scheduling and billing. That strengthens Amazon's push into healthcare and gives their cloud business another wedge into a huge market. If you hold other healthcare or health-tech names, this is the kind of move that could pressure legacy admin vendors or create partnership opportunities. Worth watching how adoption rolls out."
 
 **BAD example (NEVER write like this):**
-"The narrative across the streaming sector is shifting positively, particularly in the wake of pandemic recovery. Analysts are anticipating revenue growth, which should reflect favorably on your Warner Bros. Discovery holdings."
-Why bad: Zero specifics, zero numbers, pure speculation ("shifting positively"), no concrete insight.
+"They just launched a new AI-enabled healthcare platform aimed at streamlining administrative tasks. This move boosts Amazon's cloud business and solidifies its foothold in healthcare technology — definitely a space to keep an eye on."
+Why bad: No product name, no explanation of what it does, no investment analysis (sector impact, competitors). One vague "keep an eye on."
 
 **TRANSITIONS between portfolio stories (required for info card sync):**
 - Story 1: already has "Now turning to your portfolio" intro
@@ -5250,6 +5250,7 @@ Examples: "Go crush it today" / "Have a great week" / "Enjoy the rest of your Su
 - Made-up consensus numbers, price targets, or dates
 - **NEVER fabricate news stories or make up events that aren't in the candidate lists**
 - **NEVER write generic filler like "remains stable" or "seeing increased demand" without a specific news source**
+- **NEVER end portfolio or rapid-fire segments with vague lines like "worth keeping an eye on," "definitely a space to watch," "we'll be following this" — give concrete investment analysis instead**
 - The phrase "Go crush it today" if it's evening — match the energy to the time of day
 - Events that already happened framed as "watch for this" — discuss implications instead
 
@@ -5271,7 +5272,7 @@ RETURN FORMAT (JSON)
     "key_highlights": ["bullet 1", "bullet 2", "bullet 3"],
     "market_sentiment": { "label": "bullish|bearish|neutral|mixed", "description": "one sentence" }
   },
-  "script": "Full audio script here (430-560 words, concise and high-signal)"
+  "script": "Full audio script here (620-800 words, rich and informative, VP-of-research tone)"
 }
 `;
 
