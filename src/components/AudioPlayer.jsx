@@ -335,7 +335,8 @@ export default function AudioPlayer({
         duration_seconds: Math.round(totalDuration || 0),
       });
       a.pause();
-      if (audioContextRef.current && audioContextRef.current.state === "running") {
+      // Only manage AudioContext on desktop (mobile doesn't use it)
+      if (!isMobileView && audioContextRef.current && audioContextRef.current.state === "running") {
         audioContextRef.current.suspend().catch(() => {});
       }
       setIsPlaying(false);
@@ -343,7 +344,8 @@ export default function AudioPlayer({
     }
 
     try {
-      if (audioContextRef.current && audioContextRef.current.state === "suspended") {
+      // Only manage AudioContext on desktop
+      if (!isMobileView && audioContextRef.current && audioContextRef.current.state === "suspended") {
         await audioContextRef.current.resume();
       }
       await a.play();
