@@ -8,7 +8,6 @@ import { track } from "@/components/lib/analytics";
 
 export default function AudioPlayer({
   audioUrl,
-  audioPart2Url = null,
   duration,
   onComplete,
   greeting = "Good morning",
@@ -26,13 +25,11 @@ export default function AudioPlayer({
   sectionStories = [],
 }) {
   console.log("🎵 [AudioPlayer Component] Rendered with audioUrl:", audioUrl);
-  console.log("🎵 [AudioPlayer Component] audioPart2Url:", audioPart2Url);
   console.log("🎵 [AudioPlayer Component] isGenerating:", isGenerating);
   console.log("🎵 [AudioPlayer Component] status:", status);
   console.log("🎵 [AudioPlayer Component] statusLabel:", statusLabel);
   
   const audioRef = useRef(null);
-  const audioPart2Ref = useRef(null);
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
   const sourceRef = useRef(null);
@@ -51,12 +48,6 @@ export default function AudioPlayer({
   const [infoCardExpanded, setInfoCardExpanded] = useState(false);
   const [frequencyData, setFrequencyData] = useState(() => Array(48).fill(0.3));
 
-  // Split TTS: track which segment is active and durations
-  const [activeSegment, setActiveSegment] = useState(1); // 1 or 2
-  const [segADuration, setSegADuration] = useState(0);
-  const [segBDuration, setSegBDuration] = useState(0);
-  const hasPart2 = !!audioPart2Url;
-
   const mx = useMotionValue(300);
   const my = useMotionValue(200);
   const sx = useSpring(mx, { stiffness: 200, damping: 30, mass: 0.5 });
@@ -65,38 +56,6 @@ export default function AudioPlayer({
   const speedOptions = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
   const isMobileView = useIsMobile();
   const isPreGen = !audioUrl && !isGenerating;
-
-  // Reset segment state when audio URLs change
-  useEffect(() => {
-    setActiveSegment(1);
-    setSegADuration(0);
-    setSegBDuration(0);
-  }, [audioUrl]);
-
-  // Preload segment B when it becomes available
-  useEffect(() => {
-    const part2 = audioPart2Ref.current;
-    if (part2 && audioPart2Url) {
-      part2.preload = "auto";
-      part2.src = audioPart2Url;
-      console.log("🎵 [Split TTS] Preloading Segment B:", audioPart2Url);
-    }
-  }, [audioPart2Url]);
-
-  // Segment B metadata loaded — update combined duration
-  useEffect(() => {
-    const part2 = audioPart2Ref.current;
-    if (!part2 || !audioPart2Url) return;
-    const handlePart2Meta = () => {
-      const d = part2.duration;
-      if (Number.isFinite(d) && d > 0) {
-        setSegBDuration(d);
-        console.log("🎵 [Split TTS] Segment B duration:", d);
-      }
-    };
-    part2.addEventListener("loadedmetadata", handlePart2Meta);
-    return () => part2.removeEventListener("loadedmetadata", handlePart2Meta);
-  }, [audioPart2Url]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -107,40 +66,14 @@ export default function AudioPlayer({
 
     console.log("🎵 [Audio Element] Setting up event listeners for:", audioUrl);
 
-    const handleTimeUpdate = () => {
-      if (activeSegment === 1) {
-        setCurrentTime(audio.currentTime || 0);
-      }
-    };
+    const handleTimeUpdate = () => setCurrentTime(audio.currentTime || 0);
     const handleLoadedMetadata = () => {
       console.log("🎵 [Audio Element] Metadata loaded, duration:", audio.duration);
       const d = audio.duration;
-      if (Number.isFinite(d) && d > 0) {
-        setSegADuration(d);
-        if (!hasPart2) {
-          setTotalDuration(d);
-        }
-      } else {
-        setTotalDuration((duration || 0) * 60 || 0);
-      }
+      if (Number.isFinite(d) && d > 0) setTotalDuration(d);
+      else setTotalDuration((duration || 0) * 60 || 0);
     };
     const handleEnded = () => {
-      // Split TTS: transition to Segment B if available
-      if (hasPart2 && audioPart2Ref.current && audioPart2Url) {
-        console.log("🎵 [Split TTS] Segment A ended — transitioning to Segment B");
-        setActiveSegment(2);
-        const part2 = audioPart2Ref.current;
-        part2.volume = audio.volume;
-        part2.muted = audio.muted;
-        part2.playbackRate = playbackRate;
-        part2.play().then(() => {
-          console.log("🎵 [Split TTS] Segment B playing");
-        }).catch((err) => {
-          console.error("🎵 [Split TTS] Segment B play failed:", err);
-          setIsPlaying(false);
-        });
-        return;
-      }
       console.log("🎵 [Audio Element] Playback ended");
       setIsPlaying(false);
       track("audio_completed", {
@@ -176,65 +109,23 @@ export default function AudioPlayer({
       audio.removeEventListener("canplay", handleCanPlay);
       audio.removeEventListener("loadeddata", handleLoadedData);
     };
-  }, [audioUrl, duration, onComplete, playbackRate, hasPart2, audioPart2Url, activeSegment]);
+  }, [audioUrl, duration, onComplete, playbackRate]);
 
-  // Segment B: time update + ended handlers
   useEffect(() => {
-    const part2 = audioPart2Ref.current;
-    if (!part2 || !audioPart2Url) return;
-
-    const handleTimeUpdate = () => {
-      if (activeSegment === 2) {
-        setCurrentTime(segADuration + (part2.currentTime || 0));
-      }
-    };
-    const handleEnded = () => {
-      console.log("🎵 [Split TTS] Segment B ended — playback complete");
-      setIsPlaying(false);
-      track("audio_completed", {
-        duration_seconds: Math.round(segADuration + (part2.duration || 0)),
-        completion_percent: 100,
-      });
-      onComplete?.();
-    };
-    const handleError = (e) => {
-      console.error("🎵 [Split TTS] Segment B error:", e);
-    };
-
-    part2.addEventListener("timeupdate", handleTimeUpdate);
-    part2.addEventListener("ended", handleEnded);
-    part2.addEventListener("error", handleError);
-    return () => {
-      part2.removeEventListener("timeupdate", handleTimeUpdate);
-      part2.removeEventListener("ended", handleEnded);
-      part2.removeEventListener("error", handleError);
-    };
-  }, [audioPart2Url, activeSegment, segADuration, onComplete]);
-
-  // Update combined total duration when both segments are known
-  useEffect(() => {
-    if (hasPart2 && segADuration > 0 && segBDuration > 0) {
-      setTotalDuration(segADuration + segBDuration);
-      console.log("🎵 [Split TTS] Combined duration:", segADuration + segBDuration);
-    } else if (segADuration > 0 && !hasPart2) {
-      setTotalDuration(segADuration);
+    const audio = audioRef.current;
+    if (audio) {
+      audio.playbackRate = playbackRate;
     }
-  }, [segADuration, segBDuration, hasPart2]);
-
-  useEffect(() => {
-    [audioRef.current, audioPart2Ref.current].forEach((a) => {
-      if (a) a.playbackRate = playbackRate;
-    });
   }, [playbackRate]);
 
   // ── audio_progress heartbeat (every 30 seconds while playing) ──
   useEffect(() => {
     if (!isPlaying || !audioUrl) return;
     const interval = setInterval(() => {
-      const a = getActiveAudio();
+      const a = audioRef.current;
       if (!a || a.paused) return;
-      const pos = Math.round(currentTime);
-      const dur = Math.round(totalDuration || 0);
+      const pos = Math.round(a.currentTime || 0);
+      const dur = Math.round(a.duration || totalDuration || 0);
       const pct = dur > 0 ? Math.round((pos / dur) * 100) : 0;
       track("audio_progress", {
         playback_position_seconds: pos,
@@ -300,8 +191,6 @@ export default function AudioPlayer({
     const totalWords = words.length;
     if (totalWords === 0) return [];
 
-    // Regex families: one pattern per transition type so we pick up natural variations without hardcoding every phrase.
-    // Covers all prompt-suggested transitions (generateBriefing.ts) + legacy literals. Order doesn't matter; we sort by position.
     const transitionPatterns = [
       /\bfirst\s+up[\s,—:-]*/gi,
       /\b(next\s+up|meanwhile|also\s+today)[\s,—:-]*/gi,
@@ -324,7 +213,6 @@ export default function AudioPlayer({
       }
     }
     const sorted = [...new Set(positions)].sort((a, b) => a - b);
-    // 6 cards = 6 boundaries: (Intro) | Card1 | Card2 | Card3 | Card4 | Card5 | Card6
     const needBoundaries = Math.max(0, rawSectionCount);
     if (needBoundaries === 0) return [];
     const earlySec = 0;
@@ -340,8 +228,6 @@ export default function AudioPlayer({
       return count;
     };
 
-    // Coalesce: skip boundaries that are too close (e.g. "Now let's talk about your portfolio" + "your Amazon position" in same breath).
-    // Keep exactly needBoundaries by taking first position, then only positions ≥ MIN_WORDS after the previous kept one.
     const MIN_WORDS = 18;
     const coalesced = [];
     for (const charPos of sorted) {
@@ -366,7 +252,6 @@ export default function AudioPlayer({
     return selected.sort((a, b) => a - b);
   }, [transcript, rawSectionCount, totalDuration]);
 
-  // Number of cards = number of boundaries (each boundary starts one card)
   const sectionCount = useMemo(() => {
     if (rawSectionCount === 0) return 0;
     if (sectionBoundariesSeconds.length > 0) {
@@ -380,13 +265,10 @@ export default function AudioPlayer({
     if (sectionBoundariesSeconds.length === 0) {
       return totalDuration > 0 ? Math.min(sectionCount - 1, Math.floor((currentTime / totalDuration) * sectionCount)) : -1;
     }
-    // Before the first boundary: intro, no card.
     if (currentTime < sectionBoundariesSeconds[0]) return -1;
-    // Between boundary[i-1] and boundary[i] → show card i (index i).
     for (let i = 1; i < sectionBoundariesSeconds.length; i++) {
       if (currentTime < sectionBoundariesSeconds[i]) return Math.min(i - 1, sectionCount - 1);
     }
-    // Past last boundary → last card.
     return Math.min(sectionBoundariesSeconds.length - 1, sectionCount - 1);
   }, [currentTime, sectionBoundariesSeconds, sectionCount, totalDuration]);
 
@@ -395,7 +277,6 @@ export default function AudioPlayer({
       ? sectionStories[currentSectionIndex]
       : null;
 
-  // Intro: short waveform, then all 6 section cards. When generating a new briefing, always show waveform (same loading look as first time).
   const INTRO_SECONDS = 4;
   const introEndSeconds = INTRO_SECONDS;
   const showWaveform = isGenerating || sectionCount === 0 || currentTime < introEndSeconds || currentSectionIndex < 0;
@@ -404,12 +285,10 @@ export default function AudioPlayer({
   const sectionSummary = useMemo(() => {
     if (!currentSectionStory) return "";
     let text = (currentSectionStory.what_happened || currentSectionStory.title || "").trim();
-    // Remove trailing source attribution
     text = text.replace(/\s*\(Source:\s*[^)]+\)\s*$/i, '').trim();
     return text;
   }, [currentSectionStory]);
 
-  // Image per section
   const sectionImageSeed = useMemo(() => {
     if (!currentSectionStory) return String(currentSectionIndex + 1);
     const raw = (currentSectionStory.title || currentSectionStory.what_happened || "").slice(0, 50);
@@ -421,16 +300,13 @@ export default function AudioPlayer({
     setInfoCardExpanded(false);
   }, [currentSectionIndex]);
 
-  // Helper to get the currently active audio element
-  const getActiveAudio = () => activeSegment === 2 && audioPart2Ref.current ? audioPart2Ref.current : audioRef.current;
-
   const togglePlay = async () => {
-    const a = getActiveAudio();
+    const a = audioRef.current;
     if (!a) return;
 
     if (isPlaying) {
       track("audio_pause_pressed", {
-        playback_position_seconds: Math.round(currentTime),
+        playback_position_seconds: Math.round(a.currentTime || 0),
         duration_seconds: Math.round(totalDuration || 0),
       });
       a.pause();
@@ -441,7 +317,7 @@ export default function AudioPlayer({
     try {
       await a.play();
       track("audio_play_pressed", {
-        playback_position_seconds: Math.round(currentTime),
+        playback_position_seconds: Math.round(a.currentTime || 0),
       });
       setIsPlaying(true);
     } catch {
@@ -450,105 +326,55 @@ export default function AudioPlayer({
   };
 
   const skip = (seconds) => {
-    const from = Math.round(currentTime);
-    const targetTime = Math.max(0, Math.min(currentTime + seconds, totalDuration || 0));
-
-    if (hasPart2 && segADuration > 0) {
-      if (targetTime < segADuration) {
-        // Target is in Segment A
-        if (activeSegment === 2) {
-          audioPart2Ref.current?.pause();
-          setActiveSegment(1);
-        }
-        const a = audioRef.current;
-        if (a) { a.currentTime = targetTime; }
-      } else {
-        // Target is in Segment B
-        const bTime = targetTime - segADuration;
-        if (activeSegment === 1 && audioPart2Ref.current) {
-          audioRef.current?.pause();
-          setActiveSegment(2);
-          audioPart2Ref.current.currentTime = bTime;
-          if (isPlaying) audioPart2Ref.current.play().catch(() => {});
-        } else if (audioPart2Ref.current) {
-          audioPart2Ref.current.currentTime = bTime;
-        }
-      }
-    } else {
-      const a = audioRef.current;
-      if (a) { a.currentTime = targetTime; }
-    }
-    setCurrentTime(targetTime);
+    const a = audioRef.current;
+    if (!a) return;
+    const from = Math.round(a.currentTime || 0);
+    const next = Math.max(0, Math.min((a.currentTime || 0) + seconds, totalDuration || a.duration || 0));
+    a.currentTime = next;
     track(seconds < 0 ? "audio_rewind" : "audio_forward", {
       from_position_seconds: from,
-      to_position_seconds: Math.round(targetTime),
+      to_position_seconds: Math.round(next),
     });
   };
 
   const handleSeek = (value) => {
+    const a = audioRef.current;
+    if (!a) return;
     const t = value?.[0] ?? 0;
-
-    if (hasPart2 && segADuration > 0) {
-      if (t < segADuration) {
-        if (activeSegment === 2) {
-          audioPart2Ref.current?.pause();
-          setActiveSegment(1);
-          if (isPlaying) audioRef.current?.play().catch(() => {});
-        }
-        const a = audioRef.current;
-        if (a) a.currentTime = t;
-      } else {
-        const bTime = t - segADuration;
-        if (activeSegment === 1 && audioPart2Ref.current) {
-          audioRef.current?.pause();
-          setActiveSegment(2);
-          audioPart2Ref.current.currentTime = bTime;
-          if (isPlaying) audioPart2Ref.current.play().catch(() => {});
-        } else if (audioPart2Ref.current) {
-          audioPart2Ref.current.currentTime = bTime;
-        }
-      }
-    } else {
-      const a = audioRef.current;
-      if (a) a.currentTime = t;
-    }
+    a.currentTime = t;
     setCurrentTime(t);
   };
 
   const toggleMute = () => {
-    const muted = !isMuted;
-    [audioRef.current, audioPart2Ref.current].forEach((a) => {
-      if (a) a.muted = muted;
-    });
-    setIsMuted(muted);
-    track("audio_volume_toggled", { muted });
+    const a = audioRef.current;
+    if (!a) return;
+    a.muted = !isMuted;
+    setIsMuted(!isMuted);
+    track("audio_volume_toggled", { muted: !isMuted });
   };
 
   const changeVolume = (val) => {
     const v = Array.isArray(val) ? val[0] : val;
-    [audioRef.current, audioPart2Ref.current].forEach((a) => {
-      if (a) {
-        a.volume = v;
-        if (v === 0) { a.muted = true; }
-        else if (isMuted) { a.muted = false; }
-      }
-    });
-    if (v === 0) setIsMuted(true);
-    else if (isMuted) setIsMuted(false);
+    const a = audioRef.current;
+    if (a) {
+      a.volume = v;
+      if (v === 0) { a.muted = true; setIsMuted(true); }
+      else if (isMuted) { a.muted = false; setIsMuted(false); }
+    }
     setVolume(v);
   };
 
   const changeSpeed = (speed) => {
-    const audio = getActiveAudio();
+    const audio = audioRef.current;
     const wasPlaying = audio && !audio.paused;
-    if (wasPlaying) audio.pause();
+    if (wasPlaying) {
+      audio.pause();
+    }
     setPlaybackRate(speed);
     setShowSpeedMenu(false);
     track("audio_speed_changed", { speed });
-    [audioRef.current, audioPart2Ref.current].forEach((a) => {
-      if (a) a.playbackRate = speed;
-    });
     if (wasPlaying && audio) {
+      audio.playbackRate = speed;
       requestAnimationFrame(() => {
         audio.play().catch(() => {});
       });
@@ -656,7 +482,7 @@ export default function AudioPlayer({
               </motion.p>
             )}
           </AnimatePresence>
-          <p className="text-slate-400 text-[11px]">Usually takes 30–50 seconds</p>
+          <p className="text-slate-400 text-[11px]">Usually takes 45–60 seconds</p>
         </motion.div>
       )}
 
@@ -708,8 +534,6 @@ export default function AudioPlayer({
           crossOrigin="anonymous"
         />
       ) : null}
-      {/* Split TTS: hidden Segment B audio element, preloaded when available */}
-      <audio ref={audioPart2Ref} preload="auto" crossOrigin="anonymous" style={{ display: "none" }} />
 
       <div className={`relative z-10 ${isMobileView && isPreGen ? "flex-1 flex flex-col" : ""} ${isMobileView && !isPreGen ? "audio-player-mobile" : ""}`}>
         {/* ── MOBILE PRE-GEN: centered welcome screen ── */}
@@ -1310,7 +1134,7 @@ export default function AudioPlayer({
               exit={{ opacity: 0, y: -10 }}
               className="text-center mt-6 md:mt-8 audio-player-gen-row"
             >
-              <p className="text-slate-500 text-xs">Your briefing is being created — usually takes 30–50 seconds.</p>
+              <p className="text-slate-500 text-xs">Your briefing is being created — usually takes 45–60 seconds.</p>
             </motion.div>
           ) : (
             <motion.div

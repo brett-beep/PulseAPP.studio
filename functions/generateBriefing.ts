@@ -61,56 +61,6 @@ function getBusinessDaysUntil(today: Date, eventDate: Date): number {
 }
 // ─── End inlined economic calendar ───
 
-// =========================================================
-// PREWARM CACHE: In-memory cache for pre-warmed pipeline data.
-// Persists within the same Deno isolate between requests.
-// Falls back gracefully if isolate is recycled.
-// =========================================================
-interface PrewarmCacheEntry {
-  data: {
-    tickerMarketMap: any;
-    macroCandidates: any[];
-    earningsCalendar: any[];
-    marketSnapshotForAnalyst: any;
-    personalizationContext: any;
-    tickerPackages: any[];
-    skippedTickers: string[];
-    gatedCandidates: any[];
-    impactEvalsApplied: boolean;
-    pipelineStartMs: number;
-    briefingTickers: string[];
-    userInterests: string[];
-  };
-  timestamp: number;
-  tickers: string[];
-  userEmail: string;
-}
-const PREWARM_CACHE = new Map<string, PrewarmCacheEntry>();
-const PREWARM_TTL_MS = 30 * 60 * 1000; // 30 minutes
-
-function getPrewarmCacheKey(email: string): string { return `prewarm_${email}`; }
-
-function getValidPrewarm(email: string, currentTickers: string[]): PrewarmCacheEntry["data"] | null {
-  const key = getPrewarmCacheKey(email);
-  const entry = PREWARM_CACHE.get(key);
-  if (!entry) return null;
-  const age = Date.now() - entry.timestamp;
-  if (age > PREWARM_TTL_MS) {
-    PREWARM_CACHE.delete(key);
-    console.log(`🔥 [Prewarm] Cache expired (${Math.round(age / 1000)}s old) for ${email}`);
-    return null;
-  }
-  const tickersMatch = currentTickers.length === entry.tickers.length &&
-    currentTickers.every((t) => entry.tickers.includes(t));
-  if (!tickersMatch) {
-    PREWARM_CACHE.delete(key);
-    console.log(`🔥 [Prewarm] Cache invalidated — tickers changed for ${email}`);
-    return null;
-  }
-  console.log(`✅ [Prewarm] Cache HIT for ${email} (${Math.round(age / 1000)}s old, ${entry.data.briefingTickers.length} tickers)`);
-  return entry.data;
-}
-
 function safeISODate(input) {
   if (typeof input === "string" && input.trim()) return input.trim();
   return new Date().toISOString().slice(0, 10);
@@ -735,60 +685,6 @@ async function invokeLLM(base44, prompt, addInternet, schema) {
     add_context_from_internet: addInternet,
     response_json_schema: schema,
   });
-}
-
-// =========================================================
-// SPLIT TTS: Find the portfolio transition boundary and split
-// the script into Segment A (intro+rapid-fire) and Segment B
-// (portfolio+watch+close). Returns [segA, segB] or null.
-// =========================================================
-function splitScriptForTTS(script: string): [string, string] | null {
-  const portfolioPatterns = [
-    /(?:\n\n|\.\s+)(now[,\s]+(?:let'?s|shifting|turning)\s+to\s+your\s+(?:portfolio|holdings))/i,
-    /(?:\n\n|\.\s+)(shifting\s+to\s+your\s+holdings)/i,
-    /(?:\n\n|\.\s+)(turning\s+to\s+your\s+portfolio)/i,
-    /(?:\n\n|\.\s+)(for\s+your\s+holdings)/i,
-    /(?:\n\n|\.\s+)(your\s+portfolio\s*[—:-])/i,
-    /(?:\n\n|\.\s+)(alright,?\s+your\s+holdings)/i,
-    /(?:\n\n|\.\s+)(now\s+for\s+your\s+holdings)/i,
-    /(?:\n\n|\.\s+)(looking\s+at\s+your\s+(?:portfolio|holdings))/i,
-  ];
-
-  for (const pattern of portfolioPatterns) {
-    const match = pattern.exec(script);
-    if (match && match.index != null) {
-      const splitIdx = match.index + (script[match.index] === '\n' ? 0 : 1);
-      const segA = script.slice(0, splitIdx).trim();
-      const segB = script.slice(splitIdx).trim();
-      const wordsA = segA.split(/\s+/).length;
-      const wordsB = segB.split(/\s+/).length;
-      if (wordsA >= 50 && wordsB >= 50) {
-        console.log(`✂️ [Split TTS] Split at char ${splitIdx}: Seg A = ${wordsA} words, Seg B = ${wordsB} words`);
-        return [segA, segB];
-      }
-    }
-  }
-
-  // Fallback: split at ~40% of the script (approximate intro+rapid-fire boundary)
-  const words = script.split(/\s+/);
-  const totalWords = words.length;
-  if (totalWords < 120) {
-    console.log(`✂️ [Split TTS] Script too short to split (${totalWords} words) — using single file`);
-    return null;
-  }
-  const splitPoint = Math.round(totalWords * 0.4);
-  let charIdx = 0;
-  for (let i = 0; i < splitPoint; i++) {
-    charIdx = script.indexOf(words[i], charIdx) + words[i].length;
-  }
-  const nearestPeriod = script.indexOf('. ', charIdx);
-  if (nearestPeriod > 0 && nearestPeriod - charIdx < 200) {
-    charIdx = nearestPeriod + 1;
-  }
-  const segA = script.slice(0, charIdx).trim();
-  const segB = script.slice(charIdx).trim();
-  console.log(`✂️ [Split TTS] Fallback split at ~40%: Seg A = ${segA.split(/\s+/).length} words, Seg B = ${segB.split(/\s+/).length} words`);
-  return [segA, segB];
 }
 
 async function generateAudioFile(script, date, elevenLabsApiKey) {
@@ -4013,8 +3909,6 @@ Deno.serve(async (req) => {
     const date = localISODate(timeZone, body?.date);
     const audioOnly = Boolean(body?.audio_only);
     const skipAudio = Boolean(body?.skip_audio);
-    const mode = safeText(body?.mode, ""); // "prewarm" | "" (normal)
-
     const userEmail = safeText(user?.email);
     if (!userEmail) return Response.json({ error: "User email missing" }, { status: 400 });
 
@@ -4076,125 +3970,6 @@ Deno.serve(async (req) => {
       });
 
       return Response.json({ success: true, briefing: updated });
-    }
-
-    // =========================================================
-    // PREWARM MODE: pre-fetch data + run gates, cache results
-    // Called on app open to reduce generation time later.
-    // =========================================================
-    if (mode === "prewarm") {
-      const prewarmStartMs = Date.now();
-      console.log(`🔥 [Prewarm] Starting for ${userEmail}...`);
-
-      const prefProfile = {
-        holdings: preferences?.holdings ?? preferences?.portfolio_holdings ?? null,
-        interests: preferences?.interests ?? preferences?.investment_interests ?? null,
-      };
-      const userInterests = prefProfile?.interests || [];
-      const userHoldings = prefProfile?.holdings || [];
-      const briefingTickers = userHoldings
-        .map((h: any) => (typeof h === "string" ? h : h?.symbol || h?.ticker || "").toUpperCase().trim())
-        .filter(Boolean);
-
-      if (briefingTickers.length === 0) {
-        console.log(`🔥 [Prewarm] No tickers — skipping`);
-        return Response.json({ success: true, prewarm: "skipped", reason: "no_tickers" });
-      }
-
-      try {
-        const finnhubKey = Deno.env.get("FINNHUB_API_KEY") || FINNHUB_FALLBACK_KEY;
-
-        // Stage 0+1A+1B: parallel data fetch
-        console.log(`🔥 [Prewarm] Stage 0+1A+1B: parallel fetch (${briefingTickers.length} tickers)...`);
-        const [tickerMarketMap, macroCandidates, earningsCalendar, marketSnapshotForAnalyst, personalizationContext] = await Promise.all([
-          fetchAllTickerMarketData(briefingTickers),
-          fetchMacroCandidates(userInterests),
-          fetchEarningsCalendar(briefingTickers, finnhubKey),
-          fetchMarketSnapshot(),
-          loadPersonalizationContext(base44, userEmail, date, briefingTickers),
-        ]);
-        const dataFetchMs = Date.now() - prewarmStartMs;
-        console.log(`🔥 [Prewarm] Data fetch done in ${dataFetchMs}ms`);
-
-        // Stage 1C: ticker packages
-        const tickerPackagesRaw = await fetchAllTickerPackages(briefingTickers, tickerMarketMap);
-        const skippedTickers = tickerPackagesRaw
-          .filter((p) => p.ticker_unsupported && p.news_coverage === "none")
-          .map((p) => p.ticker);
-        const tickerPackages = tickerPackagesRaw.filter(
-          (p) => !(p.ticker_unsupported && p.news_coverage === "none")
-        );
-        const tickerPkgMs = Date.now() - prewarmStartMs;
-        console.log(`🔥 [Prewarm] Stage 1C done in ${tickerPkgMs}ms (${tickerPackages.length} packages)`);
-
-        // Parallel Gates: Impact Gate + Smart Gate
-        const gatesStartMs = Date.now();
-        const totalArticles = tickerPackages.reduce((s, p) => s + p.news_articles.length, 0);
-        const SMART_GATE_INPUT_CAP = 20;
-        const macroCandidatesForGate = macroCandidates.slice(0, SMART_GATE_INPUT_CAP);
-
-        const [impactEvals, gatedCandidates] = await Promise.all([
-          totalArticles > 0
-            ? evaluatePortfolioNewsImpactBatch(base44, tickerPackages)
-            : Promise.resolve([]),
-          screenMacroCandidates(base44, macroCandidatesForGate, userInterests, briefingTickers),
-        ]);
-
-        if (impactEvals.length > 0) {
-          const evalMap = new Map(impactEvals.map((e) => [e.id, e]));
-          for (const pkg of tickerPackages) {
-            for (const article of pkg.news_articles) {
-              const ev = evalMap.get(article.id);
-              if (ev) {
-                article.llm_impact_score = ev.impact_score;
-                article.llm_impact_reason = ev.reason;
-              }
-            }
-          }
-        }
-        const gatesMs = Date.now() - gatesStartMs;
-        const totalMs = Date.now() - prewarmStartMs;
-        console.log(`🔥 [Prewarm] Gates done in ${gatesMs}ms | Total prewarm: ${totalMs}ms`);
-
-        // Cache the results
-        const cacheKey = getPrewarmCacheKey(userEmail);
-        PREWARM_CACHE.set(cacheKey, {
-          data: {
-            tickerMarketMap,
-            macroCandidates,
-            earningsCalendar,
-            marketSnapshotForAnalyst,
-            personalizationContext,
-            tickerPackages,
-            skippedTickers,
-            gatedCandidates,
-            impactEvalsApplied: true,
-            pipelineStartMs: prewarmStartMs,
-            briefingTickers,
-            userInterests,
-          },
-          timestamp: Date.now(),
-          tickers: [...briefingTickers],
-          userEmail,
-        });
-        console.log(`🔥 [Prewarm] Cached for ${userEmail} (${briefingTickers.length} tickers, ${totalMs}ms)`);
-
-        return Response.json({
-          success: true,
-          prewarm: "completed",
-          duration_ms: totalMs,
-          tickers: briefingTickers.length,
-          macro_candidates: gatedCandidates.length,
-          ticker_packages: tickerPackages.length,
-        });
-      } catch (prewarmErr: any) {
-        console.error(`❌ [Prewarm] Failed: ${prewarmErr?.message}`, prewarmErr?.stack);
-        return Response.json({
-          success: true,
-          prewarm: "failed",
-          error: prewarmErr?.message,
-        });
-      }
     }
 
     // =========================================================
@@ -4434,103 +4209,73 @@ Deno.serve(async (req) => {
     const pipelineStartMs = Date.now();
 
     // =========================================================
-    // PREWARM CHECK: Use cached data if available (Option B)
+    // STAGE 1A + 1B + CALENDAR: Run in PARALLEL (independent data sources)
     // =========================================================
-    let tickerMarketMap: any;
-    let macroCandidates: any[];
-    let earningsCalendar: any[];
-    let marketSnapshotForAnalyst: any;
-    let personalizationContext: any;
-    let tickerPackages: any[];
-    let skippedTickers: string[];
+    const finnhubKey = Deno.env.get("FINNHUB_API_KEY") || FINNHUB_FALLBACK_KEY;
+    console.log(`⚡ [Stage 0+1A+1B] Parallel fetch...`);
+    const [tickerMarketMap, macroCandidates, earningsCalendar, marketSnapshotForAnalyst, personalizationContext] = await Promise.all([
+      fetchAllTickerMarketData(briefingTickers),
+      fetchMacroCandidates(userInterests),
+      fetchEarningsCalendar(briefingTickers, finnhubKey),
+      fetchMarketSnapshot(),
+      loadPersonalizationContext(base44, userEmail, date, briefingTickers),
+    ]);
+
+    console.log(`📋 [Stage 0] memories=${personalizationContext.last_briefings?.length || 0} active_stories=${personalizationContext.active_stories?.length || 0} days_since=${personalizationContext.days_since_last} day_count=${personalizationContext.user_day_count || 0}`);
+    console.log(`📊 [Stage 1A] ${briefingTickers.length} holdings | [Stage 1B] ${macroCandidates.length} macro candidates`);
+
+    // =========================================================
+    // STAGE 1C: Build per-ticker data packages
+    // =========================================================
+    const tickerPackagesRaw = await fetchAllTickerPackages(briefingTickers, tickerMarketMap);
+    const skippedTickers = tickerPackagesRaw
+      .filter((p) => p.ticker_unsupported && p.news_coverage === "none")
+      .map((p) => p.ticker);
+    const tickerPackages = tickerPackagesRaw.filter(
+      (p) => !(p.ticker_unsupported && p.news_coverage === "none")
+    );
+    if (skippedTickers.length > 0) {
+      console.log(`📋 [Stage 1D] Excluding unsupported tickers with no coverage: ${skippedTickers.join(", ")}`);
+    }
+    console.log(`📦 [Stage 1C] ${tickerPackages.length} ticker packages built: ${tickerPackages.map(p => `${p.ticker}=${p.news_coverage}(${p.news_articles.length})`).join(', ')}`);
+
+    // =========================================================
+    // PARALLEL GATES: Impact Gate + Smart Gate run concurrently
+    // =========================================================
+    const gatesStartMs = Date.now();
+    const totalArticles = tickerPackages.reduce((s, p) => s + p.news_articles.length, 0);
+    const SMART_GATE_INPUT_CAP = 20;
+    const macroCandidatesForGate = macroCandidates.slice(0, SMART_GATE_INPUT_CAP);
+    if (macroCandidates.length > SMART_GATE_INPUT_CAP) {
+      console.log(`🚪 [Smart Gate] Capping input: ${macroCandidates.length} → ${macroCandidatesForGate.length} (top by source+recency+sector)`);
+    }
+    console.log(`⚡ [Parallel Gates] Starting Impact Gate (${totalArticles} articles) + Smart Gate (${macroCandidatesForGate.length} candidates) in parallel...`);
+
     let gatedCandidates: any[];
-
-    const prewarmData = getValidPrewarm(userEmail, briefingTickers);
-    if (prewarmData) {
-      const prewarmAge = Date.now() - prewarmData.pipelineStartMs;
-      console.log(`🔥 [Prewarm HIT] Using cached data (${Math.round(prewarmAge / 1000)}s old) — skipping Stages 0-1C + Gates`);
-      tickerMarketMap = prewarmData.tickerMarketMap;
-      macroCandidates = prewarmData.macroCandidates;
-      earningsCalendar = prewarmData.earningsCalendar;
-      marketSnapshotForAnalyst = prewarmData.marketSnapshotForAnalyst;
-      personalizationContext = prewarmData.personalizationContext;
-      tickerPackages = prewarmData.tickerPackages;
-      skippedTickers = prewarmData.skippedTickers;
-      gatedCandidates = prewarmData.gatedCandidates;
-      // Clear the cache after use (one-shot)
-      PREWARM_CACHE.delete(getPrewarmCacheKey(userEmail));
-      console.log(`⚡ [Prewarm] Saved ~${Math.round(prewarmAge / 1000)}s of data fetch + gate time`);
-    } else {
-      console.log(`🔥 [Prewarm MISS] No valid cache — running full pipeline`);
-
-      // =========================================================
-      // STAGE 1A + 1B + CALENDAR: Run in PARALLEL (independent data sources)
-      // =========================================================
-      const finnhubKey = Deno.env.get("FINNHUB_API_KEY") || FINNHUB_FALLBACK_KEY;
-      console.log(`⚡ [Stage 0+1A+1B] Parallel fetch...`);
-      [tickerMarketMap, macroCandidates, earningsCalendar, marketSnapshotForAnalyst, personalizationContext] = await Promise.all([
-        fetchAllTickerMarketData(briefingTickers),
-        fetchMacroCandidates(userInterests),
-        fetchEarningsCalendar(briefingTickers, finnhubKey),
-        fetchMarketSnapshot(),
-        loadPersonalizationContext(base44, userEmail, date, briefingTickers),
-      ]);
-
-      console.log(`📋 [Stage 0] memories=${personalizationContext.last_briefings?.length || 0} active_stories=${personalizationContext.active_stories?.length || 0} days_since=${personalizationContext.days_since_last} day_count=${personalizationContext.user_day_count || 0}`);
-      console.log(`📊 [Stage 1A] ${briefingTickers.length} holdings | [Stage 1B] ${macroCandidates.length} macro candidates`);
-
-      // =========================================================
-      // STAGE 1C: Build per-ticker data packages
-      // =========================================================
-      const tickerPackagesRaw = await fetchAllTickerPackages(briefingTickers, tickerMarketMap);
-      skippedTickers = tickerPackagesRaw
-        .filter((p) => p.ticker_unsupported && p.news_coverage === "none")
-        .map((p) => p.ticker);
-      tickerPackages = tickerPackagesRaw.filter(
-        (p) => !(p.ticker_unsupported && p.news_coverage === "none")
-      );
-      if (skippedTickers.length > 0) {
-        console.log(`📋 [Stage 1D] Excluding unsupported tickers with no coverage: ${skippedTickers.join(", ")}`);
-      }
-      console.log(`📦 [Stage 1C] ${tickerPackages.length} ticker packages built: ${tickerPackages.map(p => `${p.ticker}=${p.news_coverage}(${p.news_articles.length})`).join(', ')}`);
-
-      // =========================================================
-      // PARALLEL GATES: Impact Gate + Smart Gate run concurrently
-      // =========================================================
-      const gatesStartMs = Date.now();
-      const totalArticles = tickerPackages.reduce((s, p) => s + p.news_articles.length, 0);
-      const SMART_GATE_INPUT_CAP = 20;
-      const macroCandidatesForGate = macroCandidates.slice(0, SMART_GATE_INPUT_CAP);
-      if (macroCandidates.length > SMART_GATE_INPUT_CAP) {
-        console.log(`🚪 [Smart Gate] Capping input: ${macroCandidates.length} → ${macroCandidatesForGate.length} (top by source+recency+sector)`);
-      }
-      console.log(`⚡ [Parallel Gates] Starting Impact Gate (${totalArticles} articles) + Smart Gate (${macroCandidatesForGate.length} candidates) in parallel...`);
-
-      [, gatedCandidates] = await Promise.all([
-        (async () => {
-          if (totalArticles > 0) {
-            const impactEvals = await evaluatePortfolioNewsImpactBatch(base44, tickerPackages);
-            const evalMap = new Map(impactEvals.map((e) => [e.id, e]));
-            for (const pkg of tickerPackages) {
-              for (const article of pkg.news_articles) {
-                const ev = evalMap.get(article.id);
-                if (ev) {
-                  article.llm_impact_score = ev.impact_score;
-                  article.llm_impact_reason = ev.reason;
-                }
+    [, gatedCandidates] = await Promise.all([
+      (async () => {
+        if (totalArticles > 0) {
+          const impactEvals = await evaluatePortfolioNewsImpactBatch(base44, tickerPackages);
+          const evalMap = new Map(impactEvals.map((e) => [e.id, e]));
+          for (const pkg of tickerPackages) {
+            for (const article of pkg.news_articles) {
+              const ev = evalMap.get(article.id);
+              if (ev) {
+                article.llm_impact_score = ev.impact_score;
+                article.llm_impact_reason = ev.reason;
               }
             }
-            console.log(`📊 [Impact Gate] ${impactEvals.length} evaluations applied`);
           }
-        })(),
-        screenMacroCandidates(base44, macroCandidatesForGate, userInterests, briefingTickers),
-      ]);
-      console.log(`⚡ [Parallel Gates] Both completed in ${Date.now() - gatesStartMs}ms`);
-    }
+          console.log(`📊 [Impact Gate] ${impactEvals.length} evaluations applied`);
+        }
+      })(),
+      screenMacroCandidates(base44, macroCandidatesForGate, userInterests, briefingTickers),
+    ]);
+    console.log(`⚡ [Parallel Gates] Both completed in ${Date.now() - gatesStartMs}ms`);
 
     const marketSnapshotPromise = Promise.resolve(marketSnapshotForAnalyst);
     const dataStageMs = Date.now() - pipelineStartMs;
-    console.log(`📊 [Pipeline] Data + Gates total: ${dataStageMs}ms (prewarm: ${!!prewarmData})`);
+    console.log(`📊 [Pipeline] Data + Gates total: ${dataStageMs}ms`);
 
     // =========================================================
     // STAGE 1D: Bundle into Raw Intelligence Package
@@ -5608,102 +5353,47 @@ RETURN FORMAT (JSON)
   }
 });
 
-// =========================================================
-// Async audio generation — Split TTS with early playback
-// 1. Try to split script at portfolio boundary → TTS both in parallel
-// 2. Upload Segment A first → status "ready" → user can play
-// 3. Upload Segment B → update audio_url_part2
-// 4. Fallback: if split fails, use single-file TTS (original behavior)
-// =========================================================
-async function uploadAndSign(base44Client, audioFile) {
-  const { file_uri } = await base44Client.asServiceRole.integrations.Core.UploadPrivateFile({
-    file: audioFile,
-  });
-  const { signed_url } = await base44Client.asServiceRole.integrations.Core.CreateFileSignedUrl({
-    file_uri,
-    expires_in: 60 * 60 * 24 * 7,
-  });
-  return signed_url;
-}
-
 async function generateAudioAsync(base44Client, briefingId, script, date, elevenLabsApiKey, timeZone) {
-  const audioStartMs = Date.now();
   console.log(`🎵 [Async Audio] Starting generation for briefing ${briefingId}...`);
 
   try {
     await base44Client.asServiceRole.entities.DailyBriefing.update(briefingId, {
       status: "generating_audio",
     });
+    console.log("✅ [Status] Updated to generating_audio");
 
     const scriptForTTS = numbersToSpokenForm(script);
-    const segments = splitScriptForTTS(scriptForTTS);
+    const audioFile = await generateAudioFile(scriptForTTS, date, elevenLabsApiKey);
+    console.log(`✅ [Async Audio] Audio file generated`);
 
-    if (segments) {
-      // ── SPLIT TTS PATH: parallel TTS → early playback ──
-      const [segA, segB] = segments;
-      console.log(`🎵 [Split TTS] Generating Segment A (${segA.split(/\s+/).length}w) + B (${segB.split(/\s+/).length}w) in parallel...`);
+    await base44Client.asServiceRole.entities.DailyBriefing.update(briefingId, {
+      status: "uploading",
+    });
+    console.log("✅ [Status] Updated to uploading");
 
-      const ttsStartMs = Date.now();
-      let audioFileA: File, audioFileB: File;
-      try {
-        [audioFileA, audioFileB] = await Promise.all([
-          generateAudioFile(segA, `${date}-a`, elevenLabsApiKey),
-          generateAudioFile(segB, `${date}-b`, elevenLabsApiKey),
-        ]);
-        console.log(`🎵 [Split TTS] Both segments generated in ${Date.now() - ttsStartMs}ms`);
-      } catch (splitTTSErr: any) {
-        console.warn(`⚠️ [Split TTS] Parallel TTS failed (${splitTTSErr?.message}) — falling back to single file`);
-        return await generateAudioSingleFile(base44Client, briefingId, scriptForTTS, date, elevenLabsApiKey, timeZone, audioStartMs);
-      }
+    const { file_uri } = await base44Client.asServiceRole.integrations.Core.UploadPrivateFile({
+      file: audioFile,
+    });
+    console.log(`✅ [Async Audio] File uploaded: ${file_uri}`);
 
-      // Upload Segment A first → user can start playing
-      const uploadAStartMs = Date.now();
-      const signedUrlA = await uploadAndSign(base44Client, audioFileA);
-      const deliveredAt = new Date().toISOString();
-      await base44Client.asServiceRole.entities.DailyBriefing.update(briefingId, {
-        audio_url: signedUrlA,
-        status: "ready",
-        delivered_at: deliveredAt,
-        time_zone: timeZone,
-      });
-      const segAMs = Date.now() - audioStartMs;
-      console.log(`🎵 [Split TTS] Segment A READY in ${segAMs}ms (upload: ${Date.now() - uploadAStartMs}ms) — user can play!`);
+    const { signed_url } = await base44Client.asServiceRole.integrations.Core.CreateFileSignedUrl({
+      file_uri,
+      expires_in: 60 * 60 * 24 * 7,
+    });
+    console.log(`✅ [Async Audio] Signed URL created`);
 
-      // Upload Segment B (user is already playing Segment A)
-      try {
-        const uploadBStartMs = Date.now();
-        const signedUrlB = await uploadAndSign(base44Client, audioFileB);
-        await base44Client.asServiceRole.entities.DailyBriefing.update(briefingId, {
-          audio_url_part2: signedUrlB,
-        });
-        console.log(`🎵 [Split TTS] Segment B uploaded in ${Date.now() - uploadBStartMs}ms | Total audio pipeline: ${Date.now() - audioStartMs}ms`);
-      } catch (segBErr: any) {
-        console.error(`⚠️ [Split TTS] Segment B upload failed (${segBErr?.message}) — user has Segment A only`);
-      }
-    } else {
-      // ── SINGLE FILE PATH: original behavior ──
-      await generateAudioSingleFile(base44Client, briefingId, scriptForTTS, date, elevenLabsApiKey, timeZone, audioStartMs);
-    }
+    const deliveredAt = new Date().toISOString();
+
+    await base44Client.asServiceRole.entities.DailyBriefing.update(briefingId, {
+      audio_url: signed_url,
+      status: "ready",
+      delivered_at: deliveredAt,
+      time_zone: timeZone,
+    });
+
+    console.log(`🎉 [Async Audio] Briefing ${briefingId} is now READY with audio! delivered_at=${deliveredAt}`);
   } catch (error) {
     console.error(`❌ [Async Audio] Failed for briefing ${briefingId}:`, error);
     throw error;
   }
-}
-
-async function generateAudioSingleFile(base44Client, briefingId, scriptForTTS, date, elevenLabsApiKey, timeZone, audioStartMs) {
-  console.log(`🎵 [Single TTS] Generating full audio...`);
-  const audioFile = await generateAudioFile(scriptForTTS, date, elevenLabsApiKey);
-  console.log(`🎵 [Single TTS] Audio generated in ${Date.now() - audioStartMs}ms`);
-
-  await base44Client.asServiceRole.entities.DailyBriefing.update(briefingId, { status: "uploading" });
-  const signedUrl = await uploadAndSign(base44Client, audioFile);
-  const deliveredAt = new Date().toISOString();
-
-  await base44Client.asServiceRole.entities.DailyBriefing.update(briefingId, {
-    audio_url: signedUrl,
-    status: "ready",
-    delivered_at: deliveredAt,
-    time_zone: timeZone,
-  });
-  console.log(`🎉 [Single TTS] Briefing ${briefingId} READY in ${Date.now() - audioStartMs}ms`);
 }

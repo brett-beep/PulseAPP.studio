@@ -78,7 +78,7 @@ function GeneratingAnimation({ statusLabel }) {
         className="text-center mt-1"
         style={{ fontSize: 12, color: "#bbb" }}
       >
-        Usually takes 30–50 seconds
+        Usually takes 45–60 seconds
       </p>
     </div>
   );
@@ -540,77 +540,6 @@ export default function Home() {
 
   // Check if user is premium
   const isPremium = preferences?.is_premium === true;
-
-  // =========================================================
-  // PREWARM: Pre-fetch pipeline data on Home mount (Option B)
-  // Fires AT MOST once per calendar day (persisted via localStorage).
-  // Skips if user already has a briefing today or is on cooldown.
-  // The promise is awaited in generateFullBriefing if still in flight.
-  // Server-side cache TTL is 30 min — if user waits longer, generate
-  // falls back to the full pipeline automatically.
-  // =========================================================
-  const prewarmPromiseRef = useRef(null);
-  const prewarmFiredRef = useRef(false);
-
-  useEffect(() => {
-    if (prewarmFiredRef.current) return;
-    if (!user || !preferences?.onboarding_completed) return;
-    if (briefingLoading) return;
-
-    const hasTodayBriefing = briefings && briefings.some(
-      (b) => b && (b.status === "ready" || b.status === "script_ready")
-    );
-    if (hasTodayBriefing) {
-      console.log("🔥 [Prewarm] Skipping — already have today's briefing");
-      return;
-    }
-
-    if (!canGenerateNew) {
-      console.log("🔥 [Prewarm] Skipping — briefing on cooldown");
-      return;
-    }
-
-    const holdings = preferences?.portfolio_holdings || [];
-    if (holdings.length === 0) {
-      console.log("🔥 [Prewarm] Skipping — no holdings");
-      return;
-    }
-
-    const PREWARM_LS_KEY = "pulse_prewarm_last";
-    try {
-      const last = localStorage.getItem(PREWARM_LS_KEY);
-      if (last === today) {
-        console.log("🔥 [Prewarm] Skipping — already prewarmed today (localStorage)");
-        prewarmFiredRef.current = true;
-        return;
-      }
-    } catch {}
-
-    prewarmFiredRef.current = true;
-    console.log("🔥 [Prewarm] Firing prewarm on Home mount...");
-    const startMs = Date.now();
-
-    prewarmPromiseRef.current = base44.functions
-      .invoke("generateBriefing", {
-        mode: "prewarm",
-        preferences: {
-          portfolio_holdings: preferences?.portfolio_holdings,
-          investment_interests: preferences?.investment_interests,
-        },
-        timeZone: userTimeZone,
-        date: today,
-      })
-      .then((resp) => {
-        const dur = Date.now() - startMs;
-        console.log(`🔥 [Prewarm] Complete in ${dur}ms:`, resp?.data);
-        try { localStorage.setItem(PREWARM_LS_KEY, today); } catch {}
-        return resp;
-      })
-      .catch((err) => {
-        console.warn("🔥 [Prewarm] Failed (will fall back to full pipeline):", err?.message);
-        prewarmPromiseRef.current = null;
-      });
-  }, [user, preferences, briefingLoading, briefings, today, userTimeZone, canGenerateNew]);
 
   // ── app_home_viewed: fires once per mount when data is ready ──
   useEffect(() => {
@@ -1101,19 +1030,6 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
     console.log("🎬 Starting briefing generation at:", startTime.toISOString());
     track("briefing_requested", { briefing_date: today });
 
-    // Option B: If prewarm is still in flight, wait for it before generating
-    if (prewarmPromiseRef.current) {
-      console.log("🔥 [Generate] Prewarm in flight — waiting for it to complete...");
-      const waitStart = Date.now();
-      try {
-        await prewarmPromiseRef.current;
-        console.log(`🔥 [Generate] Prewarm completed (waited ${Date.now() - waitStart}ms)`);
-      } catch {
-        console.log("🔥 [Generate] Prewarm failed — will fall back to full pipeline");
-      }
-      prewarmPromiseRef.current = null;
-    }
-
     try {
       console.log("📤 [Generate Briefing] Sending preferences:", preferences);
 
@@ -1198,10 +1114,7 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
 
   const firstName = preferences?.display_name || user?.full_name?.split(" ")?.[0] || "there";
   const audioUrl = todayBriefing?.audio_url || null;
-  const audioPart2Url = todayBriefing?.audio_url_part2 || null;
-
   console.log("🎵 [AudioPlayer] audioUrl prop:", audioUrl);
-  console.log("🎵 [AudioPlayer] audioPart2Url prop:", audioPart2Url);
   console.log("🎵 [AudioPlayer] todayBriefing object:", todayBriefing);
 
   const highlights = parseJsonArray(todayBriefing?.key_highlights);
@@ -1235,11 +1148,11 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
       if (status === "failed") return "❌ Generation failed — try again";
       if (status === "generating_audio") return "🎵 Generating audio...";
       if (status === "uploading") return "📤 Almost ready...";
-      if (elapsedSecs < 5) return "📡 Gathering market data...";
-      if (elapsedSecs < 12) return "📰 Analyzing your portfolio news...";
-      if (elapsedSecs < 25) return "🧠 Your analyst is selecting stories...";
-      if (elapsedSecs < 40) return "✍️ Writing your personalized script...";
-      if (elapsedSecs < 55) return "🎵 Generating audio...";
+      if (elapsedSecs < 8) return "📡 Gathering market data...";
+      if (elapsedSecs < 20) return "📰 Analyzing your portfolio news...";
+      if (elapsedSecs < 35) return "🧠 Your analyst is selecting stories...";
+      if (elapsedSecs < 50) return "✍️ Writing your personalized script...";
+      if (elapsedSecs < 65) return "🎵 Generating audio...";
       return "⏳ Almost there — wrapping up...";
     }
 
@@ -1275,7 +1188,6 @@ const msRemaining = threeHoursLater.getTime() - now.getTime();
     >
       <AudioPlayer
         audioUrl={audioUrl}
-        audioPart2Url={audioPart2Url}
         duration={todayBriefing?.duration_minutes || 8}
         onComplete={() => console.log('Audio completed')}
         greeting={greeting()}
