@@ -138,10 +138,16 @@ export default function AudioPlayer({
     return () => clearInterval(interval);
   }, [isPlaying, audioUrl, totalDuration]);
 
-  // Audio-reactive waveform: AnalyserNode drives bar heights when playing.
-  // IMPORTANT: On mobile (iOS/WKWebView), creating a MediaElementSourceNode
-  // breaks playbackRate — audio becomes choppy instead of speed-adjusted.
-  // So we skip the AudioContext entirely on mobile and use a simulated waveform.
+  // Audio-reactive waveform via AnalyserNode.
+  //
+  // MOBILE (iOS/WKWebView): createMediaElementSource() hijacks the <audio>
+  // element's output pipeline and breaks playbackRate (choppy audio).
+  // WORKAROUND: Use captureStream() to clone the audio stream into a separate
+  // AudioContext for analysis only. The original <audio> element is untouched,
+  // so playbackRate works perfectly. captureStream() is supported in iOS 15+.
+  // If captureStream isn't available, fall back to a realistic simulated waveform.
+  //
+  // DESKTOP: Uses the traditional createMediaElementSource approach (works fine).
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !audioUrl || !isPlaying) {
@@ -149,16 +155,66 @@ export default function AudioPlayer({
       return;
     }
 
-    // On mobile: simulate waveform from currentTime (no AudioContext needed)
+    const barCount = 48;
+
     if (isMobileView) {
-      const barCount = 48;
+      // Try captureStream() — gets real audio data without touching playback
+      if (typeof audio.captureStream === "function" || typeof audio.mozCaptureStream === "function") {
+        const capture = audio.captureStream ? audio.captureStream.bind(audio) : audio.mozCaptureStream.bind(audio);
+        try {
+          const stream = capture();
+          // Create a standalone AudioContext just for analysis (output muted)
+          const ctx = new (window.AudioContext || window.webkitAudioContext)();
+          const streamSource = ctx.createMediaStreamSource(stream);
+          const analyser = ctx.createAnalyser();
+          analyser.fftSize = 256;
+          analyser.smoothingTimeConstant = 0.82;
+          streamSource.connect(analyser);
+          // Do NOT connect to ctx.destination — we don't want double audio
+
+          const dataArray = new Uint8Array(analyser.frequencyBinCount);
+          const tick = () => {
+            analyser.getByteFrequencyData(dataArray);
+            const step = Math.floor(dataArray.length / barCount);
+            const bars = [];
+            for (let i = 0; i < barCount; i++) {
+              let sum = 0;
+              for (let j = 0; j < step; j++) sum += dataArray[i * step + j] ?? 0;
+              bars.push(Math.min(1, (sum / step / 255) * 2.5));
+            }
+            setFrequencyData(bars);
+            rafRef.current = requestAnimationFrame(tick);
+          };
+          rafRef.current = requestAnimationFrame(tick);
+
+          return () => {
+            if (rafRef.current) cancelAnimationFrame(rafRef.current);
+            streamSource.disconnect();
+            ctx.close().catch(() => {});
+          };
+        } catch (e) {
+          console.log("🎵 captureStream failed, using simulated waveform:", e);
+          // Fall through to simulated waveform below
+        }
+      }
+
+      // Fallback: high-quality simulated waveform using multiple layered oscillators
+      // with varying frequencies, amplitudes, and phase offsets to create organic movement
       const tick = () => {
         const t = audio.currentTime || 0;
         const bars = [];
         for (let i = 0; i < barCount; i++) {
-          // Pseudo-random waveform driven by time + bar index
-          const v = 0.3 + 0.5 * Math.abs(Math.sin(t * 3.2 + i * 0.45) * Math.cos(t * 1.7 + i * 0.3));
-          bars.push(Math.min(1, v));
+          const norm = i / (barCount - 1); // 0..1
+          // Multiple overlapping waves at different frequencies for organic feel
+          const wave1 = Math.sin(t * 4.1 + i * 0.52) * 0.35;
+          const wave2 = Math.sin(t * 2.3 + i * 0.31 + 1.7) * 0.25;
+          const wave3 = Math.cos(t * 5.7 + i * 0.73 + 0.4) * 0.18;
+          const wave4 = Math.sin(t * 1.1 + i * 0.19 + 3.2) * 0.12;
+          // Envelope: center bars are taller (speech-like spectrum shape)
+          const envelope = 0.6 + 0.4 * Math.sin(norm * Math.PI);
+          // Combine and clamp
+          const raw = 0.35 + (wave1 + wave2 + wave3 + wave4) * envelope;
+          bars.push(Math.max(0.08, Math.min(1, raw)));
         }
         setFrequencyData(bars);
         rafRef.current = requestAnimationFrame(tick);
@@ -167,7 +223,7 @@ export default function AudioPlayer({
       return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
     }
 
-    // Desktop: use real AudioContext analyser for frequency-reactive bars
+    // Desktop: use createMediaElementSource (safe here, no playbackRate issues)
     let ctx = audioContextRef.current;
     if (!ctx) {
       ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -184,7 +240,6 @@ export default function AudioPlayer({
     if (ctx.state === "suspended") ctx.resume().catch(() => {});
     const analyser = analyserRef.current;
     const dataArray = new Uint8Array(analyser.frequencyBinCount);
-    const barCount = 48;
 
     const tick = () => {
       analyser.getByteFrequencyData(dataArray);
