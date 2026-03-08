@@ -3155,6 +3155,14 @@ ${upcomingBlock}
 
 ${pContext ? buildPersonalizationPromptBlock(pContext) : ""}
 ═══════════════════════════════════════
+CONTINUITY TAGS (Stage 1.5 pre-match)
+═══════════════════════════════════════
+Some macro_candidates may include _continuity: { type, story_key, mention_count, last_angle, what_is_new, big_event }. When _continuity is present:
+- You MUST use _continuity.story_key as your output story_key (exact string).
+- Set event_type to _continuity.type when it is "developing" or "recurring" (do not use "breaking" for those).
+- For developing: focus on what_is_new; for recurring: brief mention only. When big_event is true, rank it 1.
+
+═══════════════════════════════════════
 RAW INTELLIGENCE PACKAGE (use macro_candidates and user_context; ignore ticker_packages for this task)
 ═══════════════════════════════════════
 ${JSON.stringify(rawIntelligence)}
@@ -3220,11 +3228,384 @@ EXTRACTION PER HOLDING: ticker, company_name, data_depth, source_type (news|mark
 
 ${pContext ? buildPersonalizationPromptBlock(pContext) : ""}
 ═══════════════════════════════════════
+CONTINUITY TAGS (Stage 1.5 pre-match)
+═══════════════════════════════════════
+Some articles in ticker_packages may include _continuity on each news_article: { type, story_key, mention_count, last_angle, what_is_new, big_event }. When _continuity is present:
+- You MUST use _continuity.story_key as your output story_key (exact string).
+- Set event_type to _continuity.type when it is "developing" or "recurring" (do not use "breaking" for those).
+
+═══════════════════════════════════════
 RAW INTELLIGENCE PACKAGE (use ticker_packages and user_context; ignore macro_candidates for this task)
 ═══════════════════════════════════════
 ${JSON.stringify(rawIntelligence)}
 
 TASK: For listener "${userCtx.user_name}" (holdings: ${holdings.join(", ")}), output at least ${minPortfolioStories} portfolio_selections — at least one per ticker${requiredTickers.length < 3 ? ` (fill to ${minPortfolioStories} with the best stories across all holdings)` : ''}. For holdings with no company-specific news, use market_data_only. Then add any data_quality_flags. For EACH portfolio selection, include event_type and optionally big_event per the classification rules above. Return valid JSON only.`;
+}
+
+// =========================================================
+// STAGE 1.5: STORY MATCHER
+// Matches today's candidates to the user's story tracker so
+// Stage 2 receives pre-tagged continuity (developing/recurring/stale_skip).
+// =========================================================
+
+interface StoryMatchCandidate {
+  id: string;
+  title: string;
+  type: "macro" | "portfolio";
+  ticker?: string;
+}
+
+interface StoryMatchResult {
+  candidate_id: string;
+  matched_story_key: string | null;
+  has_new_info: boolean;
+  what_is_new: string | null;
+}
+
+interface ContinuityTag {
+  type: "new" | "developing" | "recurring" | "stale_skip";
+  story_key?: string;
+  mention_count?: number;
+  last_angle?: string;
+  what_is_new?: string | null;
+  big_event?: boolean;
+}
+
+const STORY_MATCHER_SCHEMA = {
+  type: "array",
+  items: {
+    type: "object",
+    additionalProperties: true,
+    properties: {
+      candidate: { type: "string" },
+      matches: { type: "string" },
+      has_new_info: { type: "boolean" },
+      what_is_new: { type: "string" },
+    },
+    required: ["candidate", "has_new_info"],
+  },
+};
+
+async function runStoryMatcher(
+  candidates: StoryMatchCandidate[],
+  activeStories: StoryTrackerEntry[],
+  base44: { integrations: { Core: { InvokeLLM: (opts: { prompt: string; add_context_from_internet: boolean; response_json_schema?: object }) => Promise<unknown> } } },
+): Promise<Map<string, StoryMatchResult>> {
+  const resultMap = new Map<string, StoryMatchResult>();
+
+  if (activeStories.length === 0 || candidates.length === 0) {
+    console.log(`🧠 [Stage 1.5] Skipped — ${activeStories.length} tracker entries, ${candidates.length} candidates`);
+    return resultMap;
+  }
+
+  const trackerList = activeStories
+    .filter((s) => s.status === "active" || s.status === "fading")
+    .sort((a, b) => (b.mention_count || 0) - (a.mention_count || 0))
+    .slice(0, 25)
+    .map((s, i) => {
+      const lastMention = s.mentions?.length ? s.mentions[s.mentions.length - 1] : null;
+      return `${i + 1}. [${s.story_key}] "${(lastMention?.angle || s.story_key).slice(0, 120)}"${s.big_event ? " [BIG_EVENT]" : ""} (mentioned ${s.mention_count || 0}x, last: ${s.last_mentioned})`;
+    })
+    .join("\n");
+
+  const candidateList = candidates
+    .slice(0, 30)
+    .map((c, i) => {
+      const label = String.fromCharCode(65 + (i % 26)) + (i >= 26 ? String(Math.floor(i / 26)) : "");
+      return `${label}. [${c.type}${c.ticker ? ":" + c.ticker : ""}] "${(c.title || "").slice(0, 140)}"`;
+    })
+    .join("\n");
+
+  const systemPrompt = `You are a story matching engine for a daily financial briefing app. Your job is to determine which of today's news candidates are about the SAME underlying event as stories from previous briefings.
+
+RULES:
+- MATCH = same underlying event, company action, geopolitical development, or economic data release, even if the headline wording is completely different. Examples of matches:
+  * "Oil supertanker rates spike 94%" and "Strait of Hormuz shipping halted" → MATCH (both are the Iran/oil conflict)
+  * "FDA approves J&J myeloma therapy" and "Tecvayli wins regulatory nod" → MATCH (same approval, different name)
+  * "Boeing lands $30B Vietnam deal" and "Analysts raise Boeing targets after Vietnam orders" → MATCH (same deal, market reaction)
+
+- NO MATCH = different events that happen to involve the same entity. Examples:
+  * "Apple launches iPhone 17e" and "Apple faces EU antitrust probe" → NO MATCH (different events)
+  * "Fed signals fewer rate cuts" and "Fed approves bank merger" → NO MATCH (different Fed actions)
+  * "Tesla UK sales drop" and "Tesla Cybertruck recall" → NO MATCH (different Tesla issues)
+
+- When in doubt, return null for matches (no match). Only match when you are confident it is the same event.
+
+- For each match, assess whether the candidate adds NEW information compared to the previous story's last angle. New information means: new data points, new developments, new consequences, new actors involved, significant price/market reactions. Simply restating the same facts in different words is NOT new information.
+
+Return ONLY a valid JSON array. No markdown, no backticks, no explanation. Each object: "candidate" (the letter label, e.g. A, B, C), "matches" (the story_key string if it matches a previous story, or null if genuinely new), "has_new_info" (true if the candidate adds facts/developments NOT in the previous story, false if restating; set true for all genuinely new stories where matches is null), "what_is_new" (brief description of what's new, or null if nothing new).`;
+
+  const userPrompt = `PREVIOUS STORIES (from user's story tracker):
+${trackerList}
+
+TODAY'S CANDIDATES:
+${candidateList}
+
+JSON array:`;
+
+  const fullPrompt = `${systemPrompt}\n\n${userPrompt}`;
+
+  try {
+    console.log(`🧠 [Stage 1.5] Running story matcher: ${candidates.length} candidates vs ${activeStories.length} tracker entries...`);
+    const startTime = Date.now();
+
+    const raw = await base44.integrations.Core.InvokeLLM({
+      prompt: fullPrompt,
+      add_context_from_internet: false,
+      response_json_schema: STORY_MATCHER_SCHEMA,
+    });
+
+    let results: Array<{ candidate: string; matches?: string | null; has_new_info?: boolean; what_is_new?: string | null }> = [];
+
+    if (Array.isArray(raw)) {
+      results = raw as typeof results;
+    } else if (raw && typeof (raw as { results?: unknown }).results === "object" && Array.isArray((raw as { results: unknown[] }).results)) {
+      results = (raw as { results: unknown[] }).results as typeof results;
+    } else if (typeof raw === "string") {
+      const cleaned = (raw as string).replace(/```json|```/g, "").trim();
+      const jsonStart = cleaned.indexOf("[");
+      const jsonEnd = cleaned.lastIndexOf("]");
+      if (jsonStart !== -1 && jsonEnd !== -1) {
+        results = JSON.parse(cleaned.substring(jsonStart, jsonEnd + 1)) as typeof results;
+      }
+    }
+
+    const elapsed = Date.now() - startTime;
+
+    for (const r of results) {
+      if (!r.candidate) continue;
+      const letter = String(r.candidate).replace(/[^A-Z]/gi, "").toUpperCase();
+      const num = String(r.candidate).replace(/[^0-9]/g, "");
+      let index = letter.charCodeAt(0) - 65;
+      if (num) index += parseInt(num, 10) * 26;
+      if (index < 0 || index >= candidates.length) continue;
+
+      const cand = candidates[index];
+      resultMap.set(cand.id, {
+        candidate_id: cand.id,
+        matched_story_key: r.matches ?? null,
+        has_new_info: r.has_new_info !== false,
+        what_is_new: r.what_is_new ?? null,
+      });
+    }
+
+    const matchCount = Array.from(resultMap.values()).filter((r) => r.matched_story_key).length;
+    const staleCount = Array.from(resultMap.values()).filter((r) => r.matched_story_key && !r.has_new_info).length;
+    console.log(`🧠 [Stage 1.5] Complete (${elapsed}ms): ${matchCount} matched to tracker, ${staleCount} stale (no new info), ${candidates.length - matchCount} genuinely new`);
+
+    return resultMap;
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`⚠️ [Stage 1.5] Story matcher failed, proceeding without matches: ${msg}`);
+    return resultMap;
+  }
+}
+
+function tagCandidatesWithContinuity(
+  candidates: Array<Record<string, unknown>>,
+  matchResults: Map<string, StoryMatchResult>,
+  activeStories: StoryTrackerEntry[],
+  candidateIdField: string,
+): void {
+  for (const candidate of candidates) {
+    const candidateId = String(candidate[candidateIdField] ?? "");
+    const matchResult = matchResults.get(candidateId);
+
+    if (!matchResult || !matchResult.matched_story_key) {
+      (candidate as Record<string, unknown>)._continuity = { type: "new" } as ContinuityTag;
+      continue;
+    }
+
+    const trackerEntry = activeStories.find((s) => s.story_key === matchResult.matched_story_key);
+    const mentionCount = trackerEntry?.mention_count ?? 0;
+    const isBigEvent = trackerEntry?.big_event ?? false;
+    const lastAngle = trackerEntry?.mentions?.length
+      ? (trackerEntry.mentions[trackerEntry.mentions.length - 1]?.angle ?? "")
+      : "";
+
+    if (matchResult.has_new_info) {
+      (candidate as Record<string, unknown>)._continuity = {
+        type: "developing",
+        story_key: matchResult.matched_story_key,
+        mention_count: mentionCount,
+        last_angle: lastAngle,
+        what_is_new: matchResult.what_is_new,
+        big_event: isBigEvent,
+      } as ContinuityTag;
+    } else {
+      if (isBigEvent) {
+        (candidate as Record<string, unknown>)._continuity = {
+          type: "recurring",
+          story_key: matchResult.matched_story_key,
+          mention_count: mentionCount,
+          last_angle: lastAngle,
+          what_is_new: null,
+          big_event: true,
+        } as ContinuityTag;
+        console.log(`🔒 [Stage 1.5] Keeping stale big_event "${matchResult.matched_story_key}" as recurring`);
+        continue;
+      }
+      if (mentionCount >= 3) {
+        (candidate as Record<string, unknown>)._continuity = {
+          type: "stale_skip",
+          story_key: matchResult.matched_story_key,
+          mention_count: mentionCount,
+          last_angle: lastAngle,
+          what_is_new: null,
+          big_event: false,
+        } as ContinuityTag;
+        console.log(`⛔ [Stage 1.5] Stale skip: "${String(candidate.title ?? "").slice(0, 60)}" — "${matchResult.matched_story_key}" (${mentionCount}x, no new info)`);
+      } else if (mentionCount >= 1) {
+        (candidate as Record<string, unknown>)._continuity = {
+          type: "recurring",
+          story_key: matchResult.matched_story_key,
+          mention_count: mentionCount,
+          last_angle: lastAngle,
+          what_is_new: null,
+          big_event: false,
+        } as ContinuityTag;
+      } else {
+        (candidate as Record<string, unknown>)._continuity = { type: "new" } as ContinuityTag;
+      }
+    }
+  }
+}
+
+function filterStaleCandidates(
+  candidates: Array<Record<string, unknown>>,
+  minPoolSize: number,
+): { eligible: Array<Record<string, unknown>>; removed: number } {
+  const eligible = candidates.filter((c) => (c._continuity as ContinuityTag)?.type !== "stale_skip");
+  const staleOnes = candidates.filter((c) => (c._continuity as ContinuityTag)?.type === "stale_skip");
+  let removed = staleOnes.length;
+
+  if (eligible.length < minPoolSize && staleOnes.length > 0) {
+    staleOnes.sort(
+      (a, b) =>
+        ((a._continuity as ContinuityTag)?.mention_count ?? 0) - ((b._continuity as ContinuityTag)?.mention_count ?? 0),
+    );
+    while (eligible.length < minPoolSize && staleOnes.length > 0) {
+      const rescued = staleOnes.shift()!;
+      (rescued._continuity as ContinuityTag).type = "recurring";
+      eligible.push(rescued);
+      removed--;
+      console.log(`♻️ [Stage 1.5] Rescued "${String(rescued.title ?? "").slice(0, 50)}" — thin news day (pool was ${eligible.length - 1})`);
+    }
+  }
+
+  console.log(`📊 [Stage 1.5] Pool: ${candidates.length} total → ${eligible.length} eligible (${removed} stale removed)`);
+  return { eligible, removed };
+}
+
+function enforceStoryMatchResults(
+  selections: Array<{ story_key?: string; event_type?: string; hook?: string; big_event?: boolean; rank?: number }>,
+  activeStories: StoryTrackerEntry[],
+  matchResults: Map<string, StoryMatchResult>,
+  allCandidates: Array<Record<string, unknown>>,
+): void {
+  for (const selection of selections) {
+    const exactTrackerMatch = activeStories.find((s) => s.story_key === selection.story_key);
+
+    if (exactTrackerMatch) {
+      if (selection.event_type === "breaking" && (exactTrackerMatch.mention_count || 0) > 0) {
+        const correctedType = (exactTrackerMatch.mention_count ?? 0) >= 3 ? "recurring" : "developing";
+        console.log(`⚠️ [Enforce] "${selection.story_key}" was "breaking" but mentioned ${exactTrackerMatch.mention_count}x → forcing "${correctedType}"`);
+        selection.event_type = correctedType as "developing" | "recurring";
+      }
+      if (exactTrackerMatch.big_event && !selection.big_event) {
+        selection.big_event = true;
+        console.log(`⚠️ [Enforce] "${selection.story_key}" inherits big_event=true from tracker`);
+      }
+      continue;
+    }
+
+    const selectionText = (selection.hook || selection.story_key || "").toLowerCase();
+    const selWords = selectionText.split(/\s+/).filter((w: string) => w.length > 3);
+    const matchedCandidate = allCandidates.find((c) => {
+      const candidateText = (String(c.title ?? c.headline ?? "")).toLowerCase();
+      const candWords = candidateText.split(/\s+/).filter((w: string) => w.length > 3);
+      const overlap = selWords.filter((w: string) => candWords.includes(w)).length;
+      return overlap >= 2;
+    });
+
+    const ct = (matchedCandidate as Record<string, unknown>)?._continuity as ContinuityTag | undefined;
+    if (ct && (ct.type === "developing" || ct.type === "recurring")) {
+      console.log(`🔗 [Enforce] "${selection.story_key}" → overriding with tracker key "${ct.story_key}" (LLM ignored pre-match)`);
+      selection.story_key = ct.story_key;
+      selection.event_type = ct.type === "developing" ? "developing" : "recurring";
+      if (ct.big_event) selection.big_event = true;
+      continue;
+    }
+
+    const hookText = selection.hook || "";
+    for (const tracked of activeStories) {
+      const lastAngle = tracked.mentions?.length
+        ? (tracked.mentions[tracked.mentions.length - 1]?.angle ?? "")
+        : "";
+      const hookTerms = hookText.toLowerCase().split(/\s+/).filter((w: string) => w.length > 4);
+      const angleTerms = (lastAngle + " " + (tracked.story_key || "").replace(/_/g, " "))
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((w: string) => w.length > 4);
+      const overlap = hookTerms.filter((w: string) => angleTerms.includes(w)).length;
+      const score = hookTerms.length > 0 ? overlap / hookTerms.length : 0;
+
+      if (overlap >= 2 && score >= 0.3) {
+        console.log(`🔗 [Enforce-Fallback] "${selection.story_key}" fuzzy-matched to "${tracked.story_key}" (overlap=${overlap}, score=${score.toFixed(2)})`);
+        selection.story_key = tracked.story_key;
+        selection.event_type = ((tracked.mention_count ?? 0) >= 3 ? "recurring" : "developing") as "developing" | "recurring";
+        if (tracked.big_event) selection.big_event = true;
+        break;
+      }
+    }
+  }
+}
+
+function checkPersonalizationEffectiveness(
+  scriptText: string,
+  pCtx: PersonalizationContext,
+): void {
+  const text = (scriptText || "").toLowerCase();
+
+  const signals = {
+    has_callback:
+      /(?:yesterday|last (?:time|briefing)|we (?:discussed|talked|covered|mentioned)|since (?:we|i) (?:last )?spoke|been (?:tracking|following|flagging)|i (?:mentioned|flagged|told you))/.test(text),
+    has_price_since:
+      /since we last spoke|since (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|last|yesterday)/.test(text),
+    has_developing:
+      /(?:update on|quick update|that .{3,30} (?:situation|story|deal|conflict)|here'?s what'?s (?:new|changed))/.test(text),
+    has_welcome_back: /welcome back|it'?s been (?:a few|a couple|several) days/.test(text),
+    has_new_holding: /(?:added|new) .{2,20} (?:to your|portfolio)|see you'?ve added/.test(text),
+    has_removed_holding: /moved on from|dropped .{2,20} from/.test(text),
+    has_watch_progression:
+      /(?:i'?ve been|we'?ve been) (?:flagging|watching|tracking)|that .{3,30} (?:i|we) (?:mentioned|flagged)/.test(text),
+  };
+
+  const active = Object.entries(signals).filter(([, v]) => v).map(([k]) => k);
+
+  const expected: string[] = [];
+  if (pCtx.user_day_count > 0 && pCtx.days_since_last <= 3) {
+    expected.push("has_callback or has_developing");
+  }
+  if (pCtx.days_since_last >= 3) {
+    expected.push("has_welcome_back");
+  }
+  if (pCtx.holdings_changed.added.length > 0) {
+    expected.push("has_new_holding");
+  }
+  if (pCtx.holdings_changed.removed.length > 0) {
+    expected.push("has_removed_holding");
+  }
+
+  console.log(`🎯 [Personalization Check] Active signals in transcript: ${active.length > 0 ? active.join(", ") : "NONE"}`);
+  if (expected.length > 0) {
+    console.log(`🎯 [Personalization Check] Expected: ${expected.join(", ")}`);
+  }
+  if (expected.length > 0 && active.length === 0) {
+    console.warn(
+      `⚠️ [PERSONALIZATION FAILURE] Expected personalization signals but found NONE in script output. Check that Stage 2 event_types are correct and Stage 3 continuity block is being applied.`,
+    );
+  }
 }
 
 // =========================================================
@@ -4318,13 +4699,13 @@ Deno.serve(async (req) => {
     const userName = safeText(preferences?.user_name || user?.name, "");
 
     // Pre-filter 3A: macro — use gated candidates (Smart Gate output), then cap to N
-    const macroForStage2 = gatedCandidates.slice(0, STAGE2_MACRO_CAP);
+    let macroForStage2 = gatedCandidates.slice(0, STAGE2_MACRO_CAP);
     if (gatedCandidates.length > STAGE2_MACRO_CAP) {
       console.log(`📉 [Stage 1D] Pre-filter (3A): macro candidates ${gatedCandidates.length} → ${macroForStage2.length} for Stage 2`);
     }
 
     // Pre-filter 3A: per-ticker articles — prefer LLM impact score (when present), then direct/tangential/sector, then recency; take top 5 per ticker
-    const tickerPackagesForStage2 = tickerPackages.map((pkg) => {
+    let tickerPackagesForStage2 = tickerPackages.map((pkg) => {
       if (pkg.news_articles.length <= STAGE2_ARTICLES_PER_TICKER_CAP) return pkg;
       const relevanceRank = (a: TickerNewsArticle) =>
         a.relevance_type === "direct" ? 0 : a.relevance_type === "tangential" ? 1 : 2;
@@ -4345,6 +4726,72 @@ Deno.serve(async (req) => {
     const totalAfter = tickerPackagesForStage2.reduce((s, p) => s + p.news_articles.length, 0);
     if (totalBefore > totalAfter) {
       console.log(`📉 [Stage 1D] Pre-filter (3A): ticker articles ${totalBefore} → ${totalAfter} (max ${STAGE2_ARTICLES_PER_TICKER_CAP}/ticker) for Stage 2`);
+    }
+
+    // =========================================================
+    // STAGE 1.5: STORY MATCHER — match candidates to user's tracker, tag continuity, filter stale
+    // =========================================================
+    let storyMatchResults = new Map<string, StoryMatchResult>();
+    if (personalizationContext.active_stories.length > 0) {
+      console.log(`\n🧠 [Stage 1.5] Story Matcher starting...`);
+
+      const matcherCandidates: StoryMatchCandidate[] = [];
+      for (let i = 0; i < macroForStage2.length; i++) {
+        const mc = macroForStage2[i];
+        const id = mc.id || `macro_${i}`;
+        (mc as Record<string, unknown>)._matcherId = id;
+        matcherCandidates.push({
+          id,
+          title: mc.title || "",
+          type: "macro",
+        });
+      }
+      for (const pkg of tickerPackagesForStage2) {
+        for (let i = 0; i < (pkg.news_articles || []).length; i++) {
+          const art = pkg.news_articles[i];
+          const id = art.id || `portfolio_${pkg.ticker}_${matcherCandidates.length}`;
+          (art as Record<string, unknown>)._matcherId = id;
+          matcherCandidates.push({
+            id,
+            title: art.title || "",
+            type: "portfolio",
+            ticker: pkg.ticker,
+          });
+        }
+      }
+
+      storyMatchResults = await runStoryMatcher(matcherCandidates, personalizationContext.active_stories, base44);
+
+      tagCandidatesWithContinuity(
+        macroForStage2 as unknown as Array<Record<string, unknown>>,
+        storyMatchResults,
+        personalizationContext.active_stories,
+        "_matcherId",
+      );
+      for (const pkg of tickerPackagesForStage2) {
+        tagCandidatesWithContinuity(
+          (pkg.news_articles || []) as unknown as Array<Record<string, unknown>>,
+          storyMatchResults,
+          personalizationContext.active_stories,
+          "_matcherId",
+        );
+      }
+
+      const { eligible: eligibleMacro } = filterStaleCandidates(
+        macroForStage2 as unknown as Array<Record<string, unknown>>,
+        6,
+      );
+      macroForStage2 = eligibleMacro as unknown as MacroCandidate[];
+
+      tickerPackagesForStage2 = tickerPackagesForStage2.map((pkg) => {
+        const { eligible } = filterStaleCandidates(
+          (pkg.news_articles || []) as unknown as Array<Record<string, unknown>>,
+          3,
+        );
+        return { ...pkg, news_articles: eligible as unknown as TickerNewsArticle[] };
+      });
+
+      console.log(`🧠 [Stage 1.5] Story Matcher complete\n`);
     }
 
     const rawIntelligence = buildRawIntelligencePackage(
@@ -4492,6 +4939,24 @@ Deno.serve(async (req) => {
           console.log(`📊 [Stage 2] Macro order enforced: ${analyzedBrief.macro_selections.map((s, i) =>
             `${i + 1}. "${s.story_key}" (rank=${s.rank}, event_type=${s.event_type}, big_event=${!!s.big_event}${s.big_event_tier ? ` tier=${s.big_event_tier}` : ''})`
           ).join(', ')}`);
+        }
+
+        // Post-Stage-2 enforcement: if LLM ignored continuity tags, override story_key and event_type from Stage 1.5
+        if (personalizationContext.active_stories.length > 0 && storyMatchResults.size > 0) {
+          enforceStoryMatchResults(
+            analyzedBrief.macro_selections || [],
+            personalizationContext.active_stories,
+            storyMatchResults,
+            (rawIntelligence.macro_candidates || []) as unknown as Array<Record<string, unknown>>,
+          );
+          const allPortfolioArticles = (rawIntelligence.ticker_packages || []).flatMap((p) => p.news_articles || []) as unknown as Array<Record<string, unknown>>;
+          enforceStoryMatchResults(
+            analyzedBrief.portfolio_selections || [],
+            personalizationContext.active_stories,
+            storyMatchResults,
+            allPortfolioArticles,
+          );
+          console.log(`📊 [Post-Stage-2] Final classifications: macro ${(analyzedBrief.macro_selections || []).map((ms) => `${ms.story_key}=${ms.event_type}`).join(", ")}; portfolio ${(analyzedBrief.portfolio_selections || []).map((ps) => `${ps.ticker}:${ps.story_key}=${ps.event_type}`).join(", ")}`);
         }
 
         console.log(`📊 [Stage 2] macro=${analyzedBrief.macro_selections.length} portfolio=${analyzedBrief.portfolio_selections?.length || 0}`);
@@ -4677,6 +5142,10 @@ Deno.serve(async (req) => {
       const watchItems = scriptwriterResult?.watch_items_mentioned || [];
       console.log(`✅ [Stage 3] Scriptwriter complete (${stage3Ms}ms) — ${wc3} words (~${estimatedMinutes3} min) voice=${scriptwriterResult?.voice_mode_applied || "?"} sign_off=${scriptwriterResult?.sign_off_style || "?"} highlights=${uiHighlights3.length} sentiment=${uiSentiment3.label}`);
       watchItems.slice(0, 2).forEach((w: any) => console.log(`   watch_item: ${w.event} (${w.date}) [${w.mention_type}]`));
+
+      if (script3 && personalizationContext) {
+        checkPersonalizationEffectiveness(script3, personalizationContext);
+      }
 
       // ── Word count guard (also catches null result from failed LLM) ──
       if (!scriptwriterResult || wc3 < 50) {
