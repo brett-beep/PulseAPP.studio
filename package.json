@@ -10,11 +10,11 @@
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc -p ./jsconfig.json",
     "preview": "vite preview",
-    "remind-secrets": "echo '\n\u26a0\ufe0f  Base44: After pushing functions from GitHub, secrets may not inject. For each function that uses secrets: Code \u2192 Functions \u2192 [Function] \u2192 small edit \u2192 Save & Deploy. See DEPLOY.md.\n'"
+    "remind-secrets": "echo '\n⚠️  Base44: After pushing functions from GitHub, secrets may not inject. For each function that uses secrets: Code → Functions → [Function] → small edit → Save & Deploy. See DEPLOY.md.\n'"
   },
   "dependencies": {
-    "@base44/sdk": "^0.8.0",
-    "@base44/vite-plugin": "^1.0.0",
+    "@base44/sdk": "^0.8.23",
+    "@base44/vite-plugin": "^1.0.6",
     "@hello-pangea/dnd": "^17.0.0",
     "@hookform/resolvers": "^4.1.2",
     "@radix-ui/react-accordion": "^1.2.3",
