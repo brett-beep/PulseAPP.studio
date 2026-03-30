@@ -13,7 +13,7 @@
     "remind-secrets": "echo '\n⚠️  Base44: After pushing functions from GitHub, secrets may not inject. For each function that uses secrets: Code → Functions → [Function] → small edit → Save & Deploy. See DEPLOY.md.\n'"
   },
   "dependencies": {
-    "@base44/sdk": "^0.8.23",
+    "@base44/sdk": "^0.8.24",
     "@base44/vite-plugin": "^1.0.6",
     "@hello-pangea/dnd": "^17.0.0",
     "@hookform/resolvers": "^4.1.2",
